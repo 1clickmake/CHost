@@ -117,6 +117,13 @@
             <td data-i18n="c_r1_cp">Perl/상용 데몬 (500MB 이상)</td>
           </tr>
           <tr>
+            <td data-i18n="c_r0_k">기본 설치 용량</td>
+            <td class="hl" data-i18n="c_r0_ch">압축 2.6MB / 설치 후 약 6MB</td>
+            <td data-i18n="c_r0_aa">300 ~ 500MB 이상</td>
+            <td data-i18n="c_r0_1p">500MB ~ 1GB 이상 (Docker 포함)</td>
+            <td data-i18n="c_r0_cp">3 ~ 5GB 이상</td>
+          </tr>
+          <tr>
             <td data-i18n="c_r2_k">PHP 다중 버전 설치</td>
             <td class="hl" data-i18n="c_r2_ch">APT 패키지 10~20초 설치</td>
             <td data-i18n="c_r2_aa">소스 컴파일 위주 (10분 이상 소요)</td>
@@ -178,6 +185,7 @@ const I18N = {
     cmp_title:"유명 서버 패널과의 차이점 비교", cmp_sub:"기존 대표 패널(aaPanel, 1Panel, cPanel)과 비교했을 때 CHost가 가진 구조적 강점입니다.",
     c_col_item:"비교 항목",
     c_r1_k:"코어 엔진 및 메모리", c_r1_ch:"Rust 단일 바이너리 (20MB 미만)", c_r1_aa:"Python 데몬 (150MB 이상)", c_r1_1p:"Go + Docker 필수 (200MB 이상)", c_r1_cp:"Perl/상용 데몬 (500MB 이상)",
+    c_r0_k:"기본 설치 용량", c_r0_ch:"압축 2.6MB / 설치 후 약 6MB", c_r0_aa:"300 ~ 500MB 이상", c_r0_1p:"500MB ~ 1GB 이상 (Docker 포함)", c_r0_cp:"3 ~ 5GB 이상",
     c_r2_k:"PHP 다중 버전 설치", c_r2_ch:"APT 패키지 10~20초 설치", c_r2_aa:"소스 컴파일 위주 (10분 이상 소요)", c_r2_1p:"컨테이너 이미지 기반", c_r2_cp:"EasyApache 패키지",
     c_r3_k:"다중 언어 앱 관리", c_r3_ch:"Rust/Python/Node/PHP 프리셋 내장", c_r3_aa:"개별 플러그인 설치 필요", c_r3_1p:"Docker 컨테이너 중심", c_r3_cp:"PHP 위주 (타 언어 제한적)",
     c_r4_k:"데이터베이스 조회", c_r4_ch:"내장 DB 스튜디오 (phpMyAdmin 불필요)", c_r4_aa:"phpMyAdmin 별도 설치 필요", c_r4_1p:"외부 컨테이너 추가 필요", c_r4_cp:"phpMyAdmin 번들",
@@ -200,6 +208,7 @@ const I18N = {
     cmp_title:"Comparison with Popular Panels", cmp_sub:"Architectural advantages of CHost compared to aaPanel, 1Panel, and cPanel.",
     c_col_item:"Feature",
     c_r1_k:"Core Engine & RAM", c_r1_ch:"Single Rust Binary (< 20MB)", c_r1_aa:"Python Daemon (150MB+)", c_r1_1p:"Go + Docker Required (200MB+)", c_r1_cp:"Perl / Commercial (500MB+)",
+    c_r0_k:"Install Footprint", c_r0_ch:"2.6MB archive / ~6MB installed", c_r0_aa:"300 - 500MB+", c_r0_1p:"500MB - 1GB+ (with Docker)", c_r0_cp:"3 - 5GB+",
     c_r2_k:"Multi-PHP Setup", c_r2_ch:"APT Package (10-20s)", c_r2_aa:"Source Compile (10+ min)", c_r2_1p:"Container Image", c_r2_cp:"EasyApache Packages",
     c_r3_k:"Multi-Language Apps", c_r3_ch:"Built-in Rust/Python/Node/PHP Presets", c_r3_aa:"Separate Plugins Required", c_r3_1p:"Docker-centric", c_r3_cp:"PHP-focused",
     c_r4_k:"Database Management", c_r4_ch:"Built-in DB Studio (No phpMyAdmin)", c_r4_aa:"Requires phpMyAdmin", c_r4_1p:"Requires Extra Container", c_r4_cp:"Bundled phpMyAdmin",
@@ -222,6 +231,7 @@ const I18N = {
     cmp_title:"主要パネルとの比較", cmp_sub:"aaPanel、1Panel、cPanelと比較したCHostの構造的な強みです。",
     c_col_item:"比較項目",
     c_r1_k:"コアとメモリ", c_r1_ch:"Rust単一バイナリ (20MB未満)", c_r1_aa:"Python常駐 (150MB以上)", c_r1_1p:"Go + Docker必須 (200MB以上)", c_r1_cp:"Perl/商用 (500MB以上)",
+    c_r0_k:"基本インストール容量", c_r0_ch:"圧縮 2.6MB / 展開後 約6MB", c_r0_aa:"300〜500MB以上", c_r0_1p:"500MB〜1GB以上 (Docker含む)", c_r0_cp:"3〜5GB以上",
     c_r2_k:"PHP複数バージョン", c_r2_ch:"APT高速導入 (10〜20秒)", c_r2_aa:"ソースビルド (10分以上)", c_r2_1p:"コンテナベース", c_r2_cp:"EasyApache",
     c_r3_k:"多言語アプリ管理", c_r3_ch:"Rust/Python/Node/PHP標準対応", c_r3_aa:"プラグイン追加が必要", c_r3_1p:"Docker中心", c_r3_cp:"PHP中心",
     c_r4_k:"DB管理", c_r4_ch:"内蔵DBスタジオ (phpMyAdmin不要)", c_r4_aa:"phpMyAdmin別途必要", c_r4_1p:"追加コンテナ必要", c_r4_cp:"phpMyAdmin同梱",
@@ -244,6 +254,7 @@ const I18N = {
     cmp_title:"与主流面板对比", cmp_sub:"相比 aaPanel、1Panel 和 cPanel，CHost 的核心结构优势如下。",
     c_col_item:"对比项",
     c_r1_k:"核心引擎与内存", c_r1_ch:"Rust 单一二进制 (< 20MB)", c_r1_aa:"Python 守护进程 (150MB+)", c_r1_1p:"Go + 依赖 Docker (200MB+)", c_r1_cp:"Perl / 商业版 (500MB+)",
+    c_r0_k:"基础安装体积", c_r0_ch:"安装包 2.6MB / 解压约 6MB", c_r0_aa:"300 ~ 500MB 以上", c_r0_1p:"500MB ~ 1GB 以上 (含 Docker)", c_r0_cp:"3 ~ 5GB 以上",
     c_r2_k:"多版本 PHP 安装", c_r2_ch:"APT 软件包 10~20 秒完成", c_r2_aa:"源码编译 (通常 10 分钟以上)", c_r2_1p:"容器镜像方式", c_r2_cp:"EasyApache",
     c_r3_k:"多语言应用管理", c_r3_ch:"内置 Rust/Python/Node/PHP 预设", c_r3_aa:"需安装独立插件", c_r3_1p:"以 Docker 容器为主", c_r3_cp:"以 PHP 为主",
     c_r4_k:"数据库管理", c_r4_ch:"内置 DB 工作室 (无需 phpMyAdmin)", c_r4_aa:"需单独安装 phpMyAdmin", c_r4_1p:"需额外容器", c_r4_cp:"内置 phpMyAdmin",
@@ -266,6 +277,7 @@ const I18N = {
     cmp_title:"Comparación con Otros Paneles", cmp_sub:"Ventajas estructurales de CHost frente a aaPanel, 1Panel y cPanel.",
     c_col_item:"Característica",
     c_r1_k:"Motor y Memoria", c_r1_ch:"Binario único Rust (< 20MB)", c_r1_aa:"Demonio Python (150MB+)", c_r1_1p:"Go + Docker (200MB+)", c_r1_cp:"Perl / Comercial (500MB+)",
+    c_r0_k:"Tamaño de Instalación", c_r0_ch:"2.6MB comprimido / ~6MB instalado", c_r0_aa:"300 - 500MB+", c_r0_1p:"500MB - 1GB+ (con Docker)", c_r0_cp:"3 - 5GB+",
     c_r2_k:"Instalación Multi-PHP", c_r2_ch:"Paquetes APT (10-20s)", c_r2_aa:"Compilación fuente (10+ min)", c_r2_1p:"Contenedores", c_r2_cp:"EasyApache",
     c_r3_k:"Apps Multi-Lenguaje", c_r3_ch:"Presets Rust/Python/Node/PHP", c_r3_aa:"Requiere plugins extra", c_r3_1p:"Basado en Docker", c_r3_cp:"Enfocado en PHP",
     c_r4_k:"Gestión de DB", c_r4_ch:"Estudio DB Integrado (Sin phpMyAdmin)", c_r4_aa:"Requiere phpMyAdmin", c_r4_1p:"Contenedor adicional", c_r4_cp:"phpMyAdmin incluido",
