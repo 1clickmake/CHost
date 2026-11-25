@@ -3,35 +3,44 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CHost - 한국형 초경량 서버 관리 패널</title>
+  <title>CHost - Lightweight Korean Modern Server Panel</title>
   <style>
-    :root { --bg:#090d16; --surface:#111827; --card:#151e30; --border:#233048; --text:#f3f4f6; --muted:#9ca3af; --accent:#6366f1; --accent2:#10b981; }
+    :root { --bg:#090d16; --surface:#111827; --card:#151e30; --border:#233048; --text:#f3f4f6; --muted:#9ca3af; --accent:#6366f1; --ok:#10b981; }
     * { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
     a { color:inherit; text-decoration:none; }
-    .nav { border-bottom:1px solid var(--border); background:rgba(17,24,39,.9); backdrop-filter:blur(8px); position:sticky; top:0; z-index:20; }
-    .nav-inner { max-width:1120px; margin:0 auto; padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; }
+    .nav { border-bottom:1px solid var(--border); background:rgba(17,24,39,.92); backdrop-filter:blur(8px); position:sticky; top:0; z-index:20; }
+    .nav-inner { max-width:1120px; margin:0 auto; padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:19px; letter-spacing:-.3px; }
-    .nav-links { display:flex; gap:24px; font-size:14px; font-weight:600; color:var(--muted); align-items:center; }
+    .nav-links { display:flex; gap:18px; font-size:14px; font-weight:600; color:var(--muted); align-items:center; flex-wrap:wrap; }
     .nav-links a:hover, .nav-links a.active { color:var(--text); }
-    .btn { display:inline-flex; align-items:center; gap:8px; padding:10px 18px; border-radius:8px; font-size:14px; font-weight:600; border:1px solid var(--border); background:var(--surface); cursor:pointer; }
+    select.lang-sel { background:var(--surface); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:8px; font-size:13px; cursor:pointer; }
+    .btn { display:inline-flex; align-items:center; gap:8px; padding:10px 18px; border-radius:8px; font-size:14px; font-weight:600; border:1px solid var(--border); background:var(--surface); cursor:pointer; color:var(--text); }
     .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
     .btn-primary:hover { background:#4f46e5; }
-    .hero { max-width:1120px; margin:0 auto; padding:80px 24px 56px; text-align:center; }
+    .hero { max-width:1120px; margin:0 auto; padding:72px 24px 48px; text-align:center; }
     .pill { display:inline-block; padding:5px 12px; border-radius:999px; border:1px solid rgba(99,102,241,.4); background:rgba(99,102,241,.12); color:#c7d2fe; font-size:12px; font-weight:600; margin-bottom:20px; }
-    .hero h1 { font-size:44px; font-weight:800; letter-spacing:-1px; line-height:1.2; margin-bottom:18px; }
-    .hero p { font-size:17px; color:var(--muted); max-width:680px; margin:0 auto 30px; }
-    .cmd-box { max-width:720px; margin:0 auto 28px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; text-align:left; }
+    .hero h1 { font-size:42px; font-weight:800; letter-spacing:-1px; line-height:1.22; margin-bottom:18px; }
+    .hero p { font-size:16px; color:var(--muted); max-width:680px; margin:0 auto 28px; }
+    .cmd-box { max-width:720px; margin:0 auto 26px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; text-align:left; }
     .cmd-box code { font-family:Consolas,monospace; font-size:13px; color:#a5b4fc; overflow-x:auto; white-space:nowrap; }
     .actions { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; }
-    .section { max-width:1120px; margin:0 auto; padding:48px 24px; }
-    .section-title { font-size:24px; font-weight:700; margin-bottom:24px; }
+    .section { max-width:1120px; margin:0 auto; padding:42px 24px; }
+    .section-title { font-size:24px; font-weight:700; margin-bottom:8px; }
+    .section-sub { font-size:14px; color:var(--muted); margin-bottom:22px; }
     .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:18px; }
     .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:22px; }
     .card h3 { font-size:16px; margin-bottom:8px; color:#f9fafb; }
     .card p { font-size:14px; color:var(--muted); }
+    .cmp-wrap { overflow-x:auto; background:var(--surface); border:1px solid var(--border); border-radius:12px; }
+    table.cmp { width:100%; border-collapse:collapse; font-size:13.5px; min-width:680px; }
+    table.cmp th, table.cmp td { padding:13px 16px; border-bottom:1px solid var(--border); text-align:left; }
+    table.cmp th { background:var(--card); color:var(--muted); font-weight:700; font-size:12.5px; }
+    table.cmp tr:last-child td { border-bottom:none; }
+    table.cmp td.hl { background:rgba(99,102,241,.09); color:#e0e7ff; font-weight:600; }
+    table.cmp th.hl { background:rgba(99,102,241,.2); color:#c7d2fe; }
     .footer { border-top:1px solid var(--border); padding:32px 24px; text-align:center; font-size:13px; color:var(--muted); margin-top:40px; }
-    @media (max-width:640px) { .hero h1 { font-size:30px; } }
+    @media (max-width:640px) { .hero h1 { font-size:28px; } }
   </style>
 </head>
 <body>
@@ -42,56 +51,108 @@
         <span>CHost</span>
       </a>
       <nav class="nav-links">
-        <a href="/" class="active">홈</a>
-        <a href="/docs">개발자 문서</a>
-        <a href="/forum">포럼 게시판</a>
-        <a href="https://github.com/1clickmake/CHost" target="_blank" class="btn">GitHub</a>
+        <a href="/" class="active" data-i18n="nav_home">홈</a>
+        <a href="/docs" data-i18n="nav_docs">개발자 문서</a>
+        <a href="/forum" data-i18n="nav_forum">포럼 게시판</a>
+        <select id="lang-select" class="lang-sel" onchange="setLang(this.value)">
+          <option value="ko">한국어</option>
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+          <option value="zh-CN">简体中文</option>
+          <option value="es">Español</option>
+        </select>
+        <a href="https://github.com/1clickmake/CHost" target="_blank" class="btn" style="padding:7px 14px">GitHub</a>
       </nav>
     </div>
   </header>
 
   <section class="hero">
-    <span class="pill">Rust Single Binary · Open Source Server Panel</span>
-    <h1>가볍고 단순한<br>한국형 모던 웹 서버 패널</h1>
-    <p>무거운 의존성 없이 단일 Rust 바이너리로 동작합니다. 도메인 연결, SSL 인증서, PHP 다중 버전 스위칭, Rust/Python/Node 앱 관리, 내장 멀티 DB 스튜디오까지 한 화면에서 제어하세요.</p>
+    <span class="pill" data-i18n="hero_pill">Rust Single Binary · Open Source Server Panel</span>
+    <h1 data-i18n="hero_title">가볍고 단순한<br>한국형 모던 웹 서버 패널</h1>
+    <p data-i18n="hero_desc">무거운 의존성 없이 단일 Rust 바이너리로 동작합니다. 도메인 연결, SSL 인증서, PHP 다중 버전 스위칭, Rust/Python/Node 앱 관리, 내장 멀티 DB 스튜디오까지 한 화면에서 제어하세요.</p>
     <div class="cmd-box">
       <code id="install-cmd">curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</code>
-      <button class="btn" onclick="copyCmd()" id="copy-btn">복사</button>
+      <button class="btn" onclick="copyCmd()" id="copy-btn" data-i18n="btn_copy">복사</button>
     </div>
     <div class="actions">
-      <a href="/docs" class="btn btn-primary">개발자 문서 보기</a>
-      <a href="/forum" class="btn">포럼 게시판</a>
-      <a href="https://github.com/1clickmake/CHost" target="_blank" class="btn">소스코드 (GitHub)</a>
+      <a href="/docs" class="btn btn-primary" data-i18n="btn_docs">개발자 문서 보기</a>
+      <a href="/forum" class="btn" data-i18n="btn_forum">포럼 게시판</a>
+      <a href="https://github.com/1clickmake/CHost" target="_blank" class="btn" data-i18n="btn_github">소스코드 (GitHub)</a>
     </div>
   </section>
 
   <section class="section">
-    <h2 class="section-title">핵심 아키텍처</h2>
+    <h2 class="section-title" data-i18n="arch_title">핵심 아키텍처</h2>
+    <p class="section-sub" data-i18n="arch_sub">불필요한 기능을 덜어내고 서버 운영의 95%를 차지하는 핵심 기능만 가볍게 담았습니다.</p>
     <div class="grid">
-      <div class="card">
-        <h3>초경량 단일 바이너리</h3>
-        <p>Axum과 Tokio 기반 단일 바이너리로 메모리 20MB 미만으로 동작하며 Python이나 Docker 데몬을 강제하지 않습니다.</p>
-      </div>
-      <div class="card">
-        <h3>도메인 및 SSL 자동화</h3>
-        <p>/www/wwwroot 경로 기반 사이트 생성, Nginx 리버스 프록시 설정, Certbot HTTPS 발급을 클릭 한 번으로 처리합니다.</p>
-      </div>
-      <div class="card">
-        <h3>PHP 다중 버전 10초 설치</h3>
-        <p>ondrej/php 패키지 기반으로 PHP 7.4부터 8.4까지 빠르게 설치하고 사이트별로 즉시 버전을 전환합니다.</p>
-      </div>
-      <div class="card">
-        <h3>언어 프리셋 앱 매니저</h3>
-        <p>Rust, Python, Node.js, PHP 앱을 systemd 서비스로 등록해 패널 부하 증가 없이 안정적으로 실행합니다.</p>
-      </div>
-      <div class="card">
-        <h3>내장 멀티 DB 스튜디오</h3>
-        <p>phpMyAdmin 설치 없이 패널 내부에서 SQLite와 MySQL/MariaDB 테이블 조회, SQL 실행, 백업을 수행합니다.</p>
-      </div>
-      <div class="card">
-        <h3>안전한 로그 및 저장 공간 관리</h3>
-        <p>보관 기간별 로그 로테이션(copytruncate), 예상 확보 용량 미리보기, DB 및 업로드 폴더 보호 화이트리스트를 제공합니다.</p>
-      </div>
+      <div class="card"><h3 data-i18n="f1_t">초경량 단일 바이너리</h3><p data-i18n="f1_d">Axum과 Tokio 기반 단일 바이너리로 메모리 20MB 미만으로 동작하며 Python이나 Docker 데몬을 강제하지 않습니다.</p></div>
+      <div class="card"><h3 data-i18n="f2_t">도메인 및 SSL 자동화</h3><p data-i18n="f2_d">/www/wwwroot 경로 기반 사이트 생성, Nginx 리버스 프록시 설정, Certbot HTTPS 발급을 클릭 한 번으로 처리합니다.</p></div>
+      <div class="card"><h3 data-i18n="f3_t">PHP 다중 버전 10초 설치</h3><p data-i18n="f3_d">ondrej/php 패키지 기반으로 PHP 7.4부터 8.4까지 빠르게 설치하고 사이트별로 즉시 버전을 전환합니다.</p></div>
+      <div class="card"><h3 data-i18n="f4_t">언어 프리셋 앱 매니저</h3><p data-i18n="f4_d">Rust, Python, Node.js, PHP 앱을 systemd 서비스로 등록해 패널 부하 증가 없이 안정적으로 실행합니다.</p></div>
+      <div class="card"><h3 data-i18n="f5_t">내장 멀티 DB 스튜디오</h3><p data-i18n="f5_d">phpMyAdmin 설치 없이 패널 내부에서 SQLite와 MySQL/MariaDB 테이블 조회, SQL 실행, 백업을 수행합니다.</p></div>
+      <div class="card"><h3 data-i18n="f6_t">안전한 로그 및 저장 공간 관리</h3><p data-i18n="f6_d">보관 기간별 로그 로테이션(copytruncate), 예상 확보 용량 미리보기, DB 및 업로드 폴더 보호 화이트리스트를 제공합니다.</p></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title" data-i18n="cmp_title">유명 서버 패널과의 차이점 비교</h2>
+    <p class="section-sub" data-i18n="cmp_sub">기존 대표 패널(aaPanel, 1Panel, cPanel)과 비교했을 때 CHost가 가진 구조적 강점입니다.</p>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th data-i18n="c_col_item">비교 항목</th>
+            <th class="hl">CHost (v0.1)</th>
+            <th>aaPanel</th>
+            <th>1Panel</th>
+            <th>cPanel / Plesk</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-i18n="c_r1_k">코어 엔진 및 메모리</td>
+            <td class="hl" data-i18n="c_r1_ch">Rust 단일 바이너리 (20MB 미만)</td>
+            <td data-i18n="c_r1_aa">Python 데몬 (150MB 이상)</td>
+            <td data-i18n="c_r1_1p">Go + Docker 필수 (200MB 이상)</td>
+            <td data-i18n="c_r1_cp">Perl/상용 데몬 (500MB 이상)</td>
+          </tr>
+          <tr>
+            <td data-i18n="c_r2_k">PHP 다중 버전 설치</td>
+            <td class="hl" data-i18n="c_r2_ch">APT 패키지 10~20초 설치</td>
+            <td data-i18n="c_r2_aa">소스 컴파일 위주 (10분 이상 소요)</td>
+            <td data-i18n="c_r2_1p">컨테이너 이미지 기반</td>
+            <td data-i18n="c_r2_cp">EasyApache 패키지</td>
+          </tr>
+          <tr>
+            <td data-i18n="c_r3_k">다중 언어 앱 관리</td>
+            <td class="hl" data-i18n="c_r3_ch">Rust/Python/Node/PHP 프리셋 내장</td>
+            <td data-i18n="c_r3_aa">개별 플러그인 설치 필요</td>
+            <td data-i18n="c_r3_1p">Docker 컨테이너 중심</td>
+            <td data-i18n="c_r3_cp">PHP 위주 (타 언어 제한적)</td>
+          </tr>
+          <tr>
+            <td data-i18n="c_r4_k">데이터베이스 조회</td>
+            <td class="hl" data-i18n="c_r4_ch">내장 DB 스튜디오 (phpMyAdmin 불필요)</td>
+            <td data-i18n="c_r4_aa">phpMyAdmin 별도 설치 필요</td>
+            <td data-i18n="c_r4_1p">외부 컨테이너 추가 필요</td>
+            <td data-i18n="c_r4_cp">phpMyAdmin 번들</td>
+          </tr>
+          <tr>
+            <td data-i18n="c_r5_k">한국어 및 투명성</td>
+            <td class="hl" data-i18n="c_r5_ch">네이티브 한국어 + 5개국어 / 오픈소스</td>
+            <td data-i18n="c_r5_aa">중국계 기반 / 번역투 UI</td>
+            <td data-i18n="c_r5_1p">중국계 기반 / 번역 지원</td>
+            <td data-i18n="c_r5_cp">영어 중심 / 폐쇄형 상용</td>
+          </tr>
+          <tr>
+            <td data-i18n="c_r6_k">라이선스 및 비용</td>
+            <td class="hl" data-i18n="c_r6_ch">MIT 오픈소스 무료 (Open-Core)</td>
+            <td data-i18n="c_r6_aa">기본 무료 + 일부 유료 플러그인</td>
+            <td data-i18n="c_r6_1p">기본 무료 + PRO 에디션</td>
+            <td class="data-i18n-none" data-i18n="c_r6_cp">월간 유료 라이선스 필수</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -99,13 +160,139 @@
     CHost Project · CMAKE Ecosystem (CRust · CApp · CHost) · MIT License
   </footer>
 
-  <script>
-    function copyCmd() {
-      navigator.clipboard.writeText(document.getElementById('install-cmd').textContent);
-      const btn = document.getElementById('copy-btn');
-      btn.textContent = '복사됨';
-      setTimeout(() => btn.textContent = '복사', 1500);
-    }
-  </script>
+<script>
+const I18N = {
+  ko: {
+    nav_home:"홈", nav_docs:"개발자 문서", nav_forum:"포럼 게시판",
+    hero_pill:"Rust Single Binary · Open Source Server Panel",
+    hero_title:"가볍고 단순한<br>한국형 모던 웹 서버 패널",
+    hero_desc:"무거운 의존성 없이 단일 Rust 바이너리로 동작합니다. 도메인 연결, SSL 인증서, PHP 다중 버전 스위칭, Rust/Python/Node 앱 관리, 내장 멀티 DB 스튜디오까지 한 화면에서 제어하세요.",
+    btn_copy:"복사", btn_copied:"복사됨", btn_docs:"개발자 문서 보기", btn_forum:"포럼 게시판", btn_github:"소스코드 (GitHub)",
+    arch_title:"핵심 아키텍처", arch_sub:"불필요한 기능을 덜어내고 서버 운영의 95%를 차지하는 핵심 기능만 가볍게 담았습니다.",
+    f1_t:"초경량 단일 바이너리", f1_d:"Axum과 Tokio 기반 단일 바이너리로 메모리 20MB 미만으로 동작하며 Python이나 Docker 데몬을 강제하지 않습니다.",
+    f2_t:"도메인 및 SSL 자동화", f2_d:"/www/wwwroot 경로 기반 사이트 생성, Nginx 리버스 프록시 설정, Certbot HTTPS 발급을 클릭 한 번으로 처리합니다.",
+    f3_t:"PHP 다중 버전 10초 설치", f3_d:"ondrej/php 패키지 기반으로 PHP 7.4부터 8.4까지 빠르게 설치하고 사이트별로 즉시 버전을 전환합니다.",
+    f4_t:"언어 프리셋 앱 매니저", f4_d:"Rust, Python, Node.js, PHP 앱을 systemd 서비스로 등록해 패널 부하 증가 없이 안정적으로 실행합니다.",
+    f5_t:"내장 멀티 DB 스튜디오", f5_d:"phpMyAdmin 설치 없이 패널 내부에서 SQLite와 MySQL/MariaDB 테이블 조회, SQL 실행, 백업을 수행합니다.",
+    f6_t:"안전한 로그 및 저장 공간 관리", f6_d:"보관 기간별 로그 로테이션(copytruncate), 예상 확보 용량 미리보기, DB 및 업로드 폴더 보호 화이트리스트를 제공합니다.",
+    cmp_title:"유명 서버 패널과의 차이점 비교", cmp_sub:"기존 대표 패널(aaPanel, 1Panel, cPanel)과 비교했을 때 CHost가 가진 구조적 강점입니다.",
+    c_col_item:"비교 항목",
+    c_r1_k:"코어 엔진 및 메모리", c_r1_ch:"Rust 단일 바이너리 (20MB 미만)", c_r1_aa:"Python 데몬 (150MB 이상)", c_r1_1p:"Go + Docker 필수 (200MB 이상)", c_r1_cp:"Perl/상용 데몬 (500MB 이상)",
+    c_r2_k:"PHP 다중 버전 설치", c_r2_ch:"APT 패키지 10~20초 설치", c_r2_aa:"소스 컴파일 위주 (10분 이상 소요)", c_r2_1p:"컨테이너 이미지 기반", c_r2_cp:"EasyApache 패키지",
+    c_r3_k:"다중 언어 앱 관리", c_r3_ch:"Rust/Python/Node/PHP 프리셋 내장", c_r3_aa:"개별 플러그인 설치 필요", c_r3_1p:"Docker 컨테이너 중심", c_r3_cp:"PHP 위주 (타 언어 제한적)",
+    c_r4_k:"데이터베이스 조회", c_r4_ch:"내장 DB 스튜디오 (phpMyAdmin 불필요)", c_r4_aa:"phpMyAdmin 별도 설치 필요", c_r4_1p:"외부 컨테이너 추가 필요", c_r4_cp:"phpMyAdmin 번들",
+    c_r5_k:"한국어 및 투명성", c_r5_ch:"네이티브 한국어 + 5개국어 / 오픈소스", c_r5_aa:"중국계 기반 / 번역투 UI", c_r5_1p:"중국계 기반 / 번역 지원", c_r5_cp:"영어 중심 / 폐쇄형 상용",
+    c_r6_k:"라이선스 및 비용", c_r6_ch:"MIT 오픈소스 무료 (Open-Core)", c_r6_aa:"기본 무료 + 일부 유료 플러그인", c_r6_1p:"기본 무료 + PRO 에디션", c_r6_cp:"월간 유료 라이선스 필수"
+  },
+  en: {
+    nav_home:"Home", nav_docs:"Developer Docs", nav_forum:"Forum",
+    hero_pill:"Rust Single Binary · Open Source Server Panel",
+    hero_title:"Lightweight & Simple<br>Modern Web Server Panel",
+    hero_desc:"Runs as a single Rust binary with zero bloat. Manage domains, SSL certificates, multi-version PHP switching, Rust/Python/Node apps, and an integrated multi-DB studio in one place.",
+    btn_copy:"Copy", btn_copied:"Copied", btn_docs:"Read Docs", btn_forum:"Community Forum", btn_github:"Source (GitHub)",
+    arch_title:"Core Architecture", arch_sub:"Focused on the essential 95% of daily server operations without heavy overhead.",
+    f1_t:"Ultra-Light Single Binary", f1_d:"Built with Axum and Tokio using under 20MB RAM with no Python or Docker daemon required.",
+    f2_t:"Domain & SSL Automation", f2_d:"Create sites under /www/wwwroot, generate Nginx reverse proxies, and issue Certbot SSL in one click.",
+    f3_t:"10-Second Multi-PHP", f3_d:"Install PHP 7.4 to 8.4 via ondrej/php packages and switch versions per site instantly.",
+    f4_t:"Language Preset Manager", f4_d:"Run Rust, Python, Node.js, and PHP services natively via systemd without adding panel overhead.",
+    f5_t:"Built-in Multi-DB Studio", f5_d:"Query SQLite and MySQL/MariaDB tables, execute SQL, and download backups without phpMyAdmin.",
+    f6_t:"Safe Log & Storage Cleaner", f6_d:"Log rotation with copytruncate, preview mode, and strict protection for databases and uploads.",
+    cmp_title:"Comparison with Popular Panels", cmp_sub:"Architectural advantages of CHost compared to aaPanel, 1Panel, and cPanel.",
+    c_col_item:"Feature",
+    c_r1_k:"Core Engine & RAM", c_r1_ch:"Single Rust Binary (< 20MB)", c_r1_aa:"Python Daemon (150MB+)", c_r1_1p:"Go + Docker Required (200MB+)", c_r1_cp:"Perl / Commercial (500MB+)",
+    c_r2_k:"Multi-PHP Setup", c_r2_ch:"APT Package (10-20s)", c_r2_aa:"Source Compile (10+ min)", c_r2_1p:"Container Image", c_r2_cp:"EasyApache Packages",
+    c_r3_k:"Multi-Language Apps", c_r3_ch:"Built-in Rust/Python/Node/PHP Presets", c_r3_aa:"Separate Plugins Required", c_r3_1p:"Docker-centric", c_r3_cp:"PHP-focused",
+    c_r4_k:"Database Management", c_r4_ch:"Built-in DB Studio (No phpMyAdmin)", c_r4_aa:"Requires phpMyAdmin", c_r4_1p:"Requires Extra Container", c_r4_cp:"Bundled phpMyAdmin",
+    c_r5_k:"i18n & Transparency", c_r5_ch:"5 Languages / Open Source", c_r5_aa:"China-based / Machine Translation", c_r5_1p:"China-based / Translated", c_r5_cp:"English-first / Proprietary",
+    c_r6_k:"License & Cost", c_r6_ch:"MIT Open Source (Open-Core)", c_r6_aa:"Freemium + Paid Plugins", c_r6_1p:"Freemium + PRO Edition", c_r6_cp:"Monthly Paid License"
+  },
+  ja: {
+    nav_home:"ホーム", nav_docs:"開発者ドキュメント", nav_forum:"フォーラム",
+    hero_pill:"Rust Single Binary · Open Source Server Panel",
+    hero_title:"軽量でシンプルな<br>モダンWebサーバーパネル",
+    hero_desc:"重い依存関係なしで単一Rustバイナリとして動作します。ドメイン接続、SSL証明書、PHP複数バージョン切替、Rust/Python/Nodeアプリ管理、内蔵DBスタジオを一画面で提供します。",
+    btn_copy:"コピー", btn_copied:"コピー完了", btn_docs:"ドキュメント", btn_forum:"フォーラム", btn_github:"GitHub",
+    arch_title:"コアアーキテクチャ", arch_sub:"不要な機能を省き、日常のサーバー運用に必要な核心機能だけを軽量に実装しました。",
+    f1_t:"超軽量単一バイナリ", f1_d:"AxumとTokioベースでメモリ20MB未満で動作し、PythonやDockerを強制しません。",
+    f2_t:"ドメイン・SSL自動化", f2_d:"/www/wwwrootベースでサイト作成、Nginx設定、Certbot SSL発行をワンクリックで実行します。",
+    f3_t:"PHP複数バージョン高速導入", f3_d:"ondrej/phpベースでPHP 7.4〜8.4を素早く導入し、サイトごとに即座に切り替えられます。",
+    f4_t:"言語プリセット管理", f4_d:"Rust、Python、Node.js、PHPアプリをsystemd経由で安定稼働させます。",
+    f5_t:"内蔵マルチDBスタジオ", f5_d:"phpMyAdminなしでSQLiteやMySQL/MariaDBの参照・SQL実行・バックアップが可能です。",
+    f6_t:"安全なログ・容量管理", f6_d:"copytruncateによるログローテーション、削除前プレビュー、DB保護ホワイトリストを備えています。",
+    cmp_title:"主要パネルとの比較", cmp_sub:"aaPanel、1Panel、cPanelと比較したCHostの構造的な強みです。",
+    c_col_item:"比較項目",
+    c_r1_k:"コアとメモリ", c_r1_ch:"Rust単一バイナリ (20MB未満)", c_r1_aa:"Python常駐 (150MB以上)", c_r1_1p:"Go + Docker必須 (200MB以上)", c_r1_cp:"Perl/商用 (500MB以上)",
+    c_r2_k:"PHP複数バージョン", c_r2_ch:"APT高速導入 (10〜20秒)", c_r2_aa:"ソースビルド (10分以上)", c_r2_1p:"コンテナベース", c_r2_cp:"EasyApache",
+    c_r3_k:"多言語アプリ管理", c_r3_ch:"Rust/Python/Node/PHP標準対応", c_r3_aa:"プラグイン追加が必要", c_r3_1p:"Docker中心", c_r3_cp:"PHP中心",
+    c_r4_k:"DB管理", c_r4_ch:"内蔵DBスタジオ (phpMyAdmin不要)", c_r4_aa:"phpMyAdmin別途必要", c_r4_1p:"追加コンテナ必要", c_r4_cp:"phpMyAdmin同梱",
+    c_r5_k:"多言語と透明性", c_r5_ch:"5言語標準対応 / オープンソース", c_r5_aa:"中国系ベース", c_r5_1p:"中国系ベース", c_r5_cp:"英語中心 / 商用",
+    c_r6_k:"ライセンス", c_r6_ch:"MITオープンソース無料", c_r6_aa:"一部有料プラグイン", c_r6_1p:"PRO版あり", c_r6_cp:"月額ライセンス必須"
+  },
+  "zh-CN": {
+    nav_home:"首页", nav_docs:"开发文档", nav_forum:"社区论坛",
+    hero_pill:"Rust Single Binary · Open Source Server Panel",
+    hero_title:"轻量简洁的<br>现代 Web 服务器管理面板",
+    hero_desc:"基于单一 Rust 二进制运行，无需繁重依赖。一站式管理域名、SSL 证书、多版本 PHP 切换、Rust/Python/Node 应用及内置多数据库工作室。",
+    btn_copy:"复制", btn_copied:"已复制", btn_docs:"查看文档", btn_forum:"社区论坛", btn_github:"GitHub 源码",
+    arch_title:"核心架构", arch_sub:"去除冗余组件，专注于日常服务器运维 95% 的核心需求。",
+    f1_t:"超轻量单一二进制", f1_d:"基于 Axum 与 Tokio 构建，内存占用低于 20MB，不强制依赖 Python 或 Docker。",
+    f2_t:"域名与 SSL 自动化", f2_d:"基于 /www/wwwroot 创建站点，一键配置 Nginx 反向代理与 Certbot HTTPS 证书。",
+    f3_t:"10 秒安装多版本 PHP", f3_d:"基于 ondrej/php 快速安装 PHP 7.4 至 8.4，并支持按站点即时切换。",
+    f4_t:"多语言应用预设", f4_d:"通过 systemd 托管 Rust、Python、Node.js 和 PHP 应用，零额外面板负担。",
+    f5_t:"内置多数据库工作室", f5_d:"无需安装 phpMyAdmin，直接在面板内管理 SQLite 与 MySQL/MariaDB。",
+    f6_t:"安全日志与存储清理", f6_d:"支持 copytruncate 日志轮转、清理前容量预览及数据库/上传目录白名单保护。",
+    cmp_title:"与主流面板对比", cmp_sub:"相比 aaPanel、1Panel 和 cPanel，CHost 的核心结构优势如下。",
+    c_col_item:"对比项",
+    c_r1_k:"核心引擎与内存", c_r1_ch:"Rust 单一二进制 (< 20MB)", c_r1_aa:"Python 守护进程 (150MB+)", c_r1_1p:"Go + 依赖 Docker (200MB+)", c_r1_cp:"Perl / 商业版 (500MB+)",
+    c_r2_k:"多版本 PHP 安装", c_r2_ch:"APT 软件包 10~20 秒完成", c_r2_aa:"源码编译 (通常 10 分钟以上)", c_r2_1p:"容器镜像方式", c_r2_cp:"EasyApache",
+    c_r3_k:"多语言应用管理", c_r3_ch:"内置 Rust/Python/Node/PHP 预设", c_r3_aa:"需安装独立插件", c_r3_1p:"以 Docker 容器为主", c_r3_cp:"以 PHP 为主",
+    c_r4_k:"数据库管理", c_r4_ch:"内置 DB 工作室 (无需 phpMyAdmin)", c_r4_aa:"需单独安装 phpMyAdmin", c_r4_1p:"需额外容器", c_r4_cp:"内置 phpMyAdmin",
+    c_r5_k:"多语言与透明度", c_r5_ch:"5 种语言原生支持 / 开源", c_r5_aa:"商业插件生态", c_r5_1p:"开源 + 商业版", c_r5_cp:"英文为主 / 闭源",
+    c_r6_k:"授权与费用", c_r6_ch:"MIT 开源免费 (Open-Core)", c_r6_aa:"基础免费 + 付费插件", c_r6_1p:"基础免费 + PRO 版", c_r6_cp:"需按月付费订阅"
+  },
+  es: {
+    nav_home:"Inicio", nav_docs:"Documentación", nav_forum:"Foro",
+    hero_pill:"Rust Single Binary · Open Source Server Panel",
+    hero_title:"Panel de Servidor Moderno,<br>Ligero y Sencillo",
+    hero_desc:"Funciona como un único binario en Rust sin dependencias pesadas. Gestiona dominios, SSL, cambio de versión PHP, apps Rust/Python/Node y estudio Multi-DB integrado.",
+    btn_copy:"Copiar", btn_copied:"Copiado", btn_docs:"Ver Docs", btn_forum:"Foro", btn_github:"GitHub",
+    arch_title:"Arquitectura Principal", arch_sub:"Diseñado para cubrir el 95% de las tareas diarias de servidor sin sobrecarga.",
+    f1_t:"Binario Único Ultraligero", f1_d:"Construido con Axum y Tokio usando menos de 20MB de RAM, sin exigir Python ni Docker.",
+    f2_t:"Dominios y SSL Automáticos", f2_d:"Crea sitios en /www/wwwroot, configura Nginx y emite certificados Certbot en un clic.",
+    f3_t:"Multi-PHP en 10 Segundos", f3_d:"Instala PHP 7.4 a 8.4 mediante ondrej/php y cambia de versión por sitio al instante.",
+    f4_t:"Gestor de Apps Multi-Lenguaje", f4_d:"Ejecuta aplicaciones Rust, Python, Node.js y PHP mediante systemd sin sobrecargar el panel.",
+    f5_t:"Estudio Multi-DB Integrado", f5_d:"Consulta tablas SQLite y MySQL/MariaDB, ejecuta SQL y descarga copias sin phpMyAdmin.",
+    f6_t:"Limpieza Segura de Logs", f6_d:"Rotación copytruncate, vista previa de espacio y protección estricta de bases de datos.",
+    cmp_title:"Comparación con Otros Paneles", cmp_sub:"Ventajas estructurales de CHost frente a aaPanel, 1Panel y cPanel.",
+    c_col_item:"Característica",
+    c_r1_k:"Motor y Memoria", c_r1_ch:"Binario único Rust (< 20MB)", c_r1_aa:"Demonio Python (150MB+)", c_r1_1p:"Go + Docker (200MB+)", c_r1_cp:"Perl / Comercial (500MB+)",
+    c_r2_k:"Instalación Multi-PHP", c_r2_ch:"Paquetes APT (10-20s)", c_r2_aa:"Compilación fuente (10+ min)", c_r2_1p:"Contenedores", c_r2_cp:"EasyApache",
+    c_r3_k:"Apps Multi-Lenguaje", c_r3_ch:"Presets Rust/Python/Node/PHP", c_r3_aa:"Requiere plugins extra", c_r3_1p:"Basado en Docker", c_r3_cp:"Enfocado en PHP",
+    c_r4_k:"Gestión de DB", c_r4_ch:"Estudio DB Integrado (Sin phpMyAdmin)", c_r4_aa:"Requiere phpMyAdmin", c_r4_1p:"Contenedor adicional", c_r4_cp:"phpMyAdmin incluido",
+    c_r5_k:"Idiomas y Transparencia", c_r5_ch:"5 Idiomas / Código Abierto", c_r5_aa:"Traducciones parciales", c_r5_1p:"Base china / Traducido", c_r5_cp:"Inglés / Propietario",
+    c_r6_k:"Licencia y Costo", c_r6_ch:"MIT Open Source (Open-Core)", c_r6_aa:"Freemium + Plugins pagos", c_r6_1p:"Freemium + Edición PRO", c_r6_cp:"Suscripción mensual"
+  }
+};
+
+let curLang = localStorage.getItem('chost_lang') || 'ko';
+function setLang(lang) {
+  if (!I18N[lang]) lang = 'ko';
+  curLang = lang;
+  localStorage.setItem('chost_lang', lang);
+  document.getElementById('lang-select').value = lang;
+  const dict = I18N[lang];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if (dict[k]) el.innerHTML = dict[k];
+  });
+}
+function copyCmd() {
+  navigator.clipboard.writeText(document.getElementById('install-cmd').textContent);
+  const btn = document.getElementById('copy-btn');
+  btn.textContent = I18N[curLang].btn_copied;
+  setTimeout(() => btn.textContent = I18N[curLang].btn_copy, 1500);
+}
+setLang(curLang);
+</script>
 </body>
 </html>

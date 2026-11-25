@@ -34,13 +34,38 @@
     <div class="nav-inner">
       <a href="/" class="brand">CHost</a>
       <nav class="nav-links">
-        <a href="/">홈</a>
-        <a href="/docs" class="active">개발자 문서</a>
-        <a href="/forum">포럼 게시판</a>
+        <a href="/" id="nav-home">홈</a>
+        <a href="/docs" class="active" id="nav-docs">개발자 문서</a>
+        <a href="/forum" id="nav-forum">포럼 게시판</a>
+        <select id="lang-select" style="background:#111827;border:1px solid #233048;color:#f3f4f6;padding:6px 10px;border-radius:8px;font-size:13px" onchange="setPortalLang(this.value)">
+          <option value="ko">한국어</option>
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+          <option value="zh-CN">简体中文</option>
+          <option value="es">Español</option>
+        </select>
         <a href="https://github.com/1clickmake/CHost" target="_blank">GitHub</a>
       </nav>
     </div>
   </header>
+  <script>
+    const NAV_I18N = {
+      ko:{h:"홈",d:"개발자 문서",f:"포럼 게시판"},
+      en:{h:"Home",d:"Developer Docs",f:"Forum"},
+      ja:{h:"ホーム",d:"開発者ドキュメント",f:"フォーラム"},
+      "zh-CN":{h:"首页",d:"开发文档",f:"社区论坛"},
+      es:{h:"Inicio",d:"Documentación",f:"Foro"}
+    };
+    function setPortalLang(l){
+      if(!NAV_I18N[l]) l='ko';
+      localStorage.setItem('chost_lang', l);
+      document.getElementById('lang-select').value = l;
+      document.getElementById('nav-home').textContent = NAV_I18N[l].h;
+      document.getElementById('nav-docs').textContent = NAV_I18N[l].d;
+      document.getElementById('nav-forum').textContent = NAV_I18N[l].f;
+    }
+    setPortalLang(localStorage.getItem('chost_lang') || 'ko');
+  </script>
 
   <main class="wrap">
     <h1>개발자 문서 (Developer Guide)</h1>
