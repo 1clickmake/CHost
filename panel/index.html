@@ -137,6 +137,41 @@
             </div>
           </div>
           <div class="card">
+            <h3 style="margin-bottom:12px;font-size:15px">Subdomain &amp; Framework Wizard</h3>
+            <div class="row" style="margin-bottom:10px">
+              <input id="sub-prefix" placeholder="Subdomain prefix (e.g. api, blog)" />
+              <input id="sub-parent" placeholder="Parent domain (e.g. cmake.work)" />
+              <select id="sub-lang" class="compact">
+                <option value="php">PHP</option>
+                <option value="rust">Rust</option>
+                <option value="python">Python</option>
+                <option value="node">Node.js</option>
+                <option value="java">Java</option>
+                <option value="static">Static HTML</option>
+              </select>
+              <select id="sub-fw" class="compact">
+                <option value="blank">Blank (index.html)</option>
+                <option value="cmake_board">CMAKE Board (php_board)</option>
+                <option value="crust">CRust</option>
+                <option value="gnuboard5">Gnuboard5</option>
+                <option value="wordpress">WordPress</option>
+                <option value="django">Django</option>
+                <option value="springboot">Spring Boot</option>
+              </select>
+            </div>
+            <div class="row">
+              <select id="sub-php" class="compact">
+                <option value="8.3">PHP 8.3</option>
+                <option value="8.2">PHP 8.2</option>
+                <option value="7.4">PHP 7.4</option>
+              </select>
+              <input id="sub-port" type="number" placeholder="App Port (e.g. 8080)" />
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto"><input type="checkbox" id="sub-ssl" style="width:auto" /> Issue SSL</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto"><input type="checkbox" id="sub-ssh" style="width:auto" /> Create SSH User</label>
+              <button class="btn btn-primary" onclick="createSubdomain()">Create Subdomain</button>
+            </div>
+          </div>
+          <div class="card">
             <table>
               <thead><tr><th data-i18n="domain">Domain</th><th data-i18n="site_type">Type</th><th>Root / Port</th><th data-i18n="php_version">PHP</th><th data-i18n="ssl_status">SSL</th><th data-i18n="actions">Actions</th></tr></thead>
               <tbody id="sites-tbody"></tbody>
@@ -307,6 +342,21 @@ async function createSite() {
   const proxy_port = parseInt(document.getElementById('site-port').value || '0', 10);
   const php_version = document.getElementById('site-php').value;
   await api('/api/sites', { method: 'POST', body: JSON.stringify({ domain, site_type, proxy_port, php_version }) });
+  loadSites();
+}
+async function createSubdomain() {
+  const prefix = document.getElementById('sub-prefix').value;
+  const parent_domain = document.getElementById('sub-parent').value;
+  const language = document.getElementById('sub-lang').value;
+  const framework = document.getElementById('sub-fw').value;
+  const php_version = document.getElementById('sub-php').value;
+  const proxy_port = parseInt(document.getElementById('sub-port').value || '8080', 10);
+  const issue_ssl = document.getElementById('sub-ssl').checked;
+  const create_ssh = document.getElementById('sub-ssh').checked;
+  await api('/api/sites/subdomain', {
+    method: 'POST',
+    body: JSON.stringify({ prefix, parent_domain, language, framework, php_version, proxy_port, issue_ssl, create_ssh })
+  });
   loadSites();
 }
 async function issueSsl(id) { await api(`/api/sites/${id}/ssl`, { method: 'POST' }); loadSites(); }

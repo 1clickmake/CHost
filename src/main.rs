@@ -51,6 +51,18 @@ struct CreateSiteReq {
 }
 
 #[derive(Debug, Deserialize)]
+struct CreateSubdomainReq {
+    parent_domain: String,
+    prefix: String,
+    language: String,
+    framework: String,
+    proxy_port: Option<i64>,
+    php_version: Option<String>,
+    issue_ssl: Option<bool>,
+    create_ssh: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
 struct SwitchPhpReq {
     php_version: String,
 }
@@ -322,6 +334,164 @@ async fn handle_create_site(
                 .db
                 .log_audit("admin", "CREATE_SITE", &domain, &format!("type={}", req.site_type));
             Json(json!({ "success": true, "id": id })).into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+fn provision_framework(root_path: &str, framework: &str, domain: &str) {
+    if !cfg!(unix) {
+        return;
+    }
+    match framework {
+        "cmake_board" => {
+            let _ = Command::new("git")
+                .args(["clone", "--depth", "1", "https://github.com/1clickmake/NeuronAIPHP.git", root_path])
+                .output();
+        }
+        "crust" => {
+            let _ = Command::new("git")
+                .args(["clone", "--depth", "1", "https://github.com/1clickmake/CRust.git", root_path])
+                .output();
+        }
+        "gnuboard5" => {
+            let _ = Command::new("git")
+                .args(["clone", "--depth", "1", "https://github.com/gnuboard/gnuboard5.git", root_path])
+                .output();
+        }
+        "wordpress" => {
+            let cmd = format!(
+                "curl -sSL https://wordpress.org/latest.tar.gz | tar -xz --strip-components=1 -C '{}'",
+                root_path
+            );
+            let _ = Command::new("sh").args(["-c", &cmd]).output();
+        }
+        "django" => {
+            let cmd = format!("python3 -m venv '{}/venv'", root_path);
+            let _ = Command::new("sh").args(["-c", &cmd]).output();
+        }
+        "springboot" => {
+            let run_sh = FsPath::new(root_path).join("run.sh");
+            let _ = fs::write(&run_sh, "#!/bin/bash\njava -jar app.jar\n");
+        }
+        _ => {}
+    }
+    let idx = FsPath::new(root_path).join("index.html");
+    if !idx.exists() {
+        let _ = fs::write(
+            &idx,
+            format!(
+                "<!doctype html><html><head><meta charset='utf-8'><title>{}</title></head><body><h1>{}</h1><p>Framework: {} | Provisioned by CHost</p></body></html>",
+                domain, domain, framework
+            ),
+        );
+    }
+}
+
+async fn handle_create_subdomain(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<CreateSubdomainReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let prefix = req.prefix.trim().to_lowercase();
+    let parent = req.parent_domain.trim().to_lowercase();
+    if prefix.is_empty()
+        || parent.is_empty()
+        || prefix.contains('/')
+        || prefix.contains("..")
+        || parent.contains('/')
+        || parent.contains("..")
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": "Invalid subdomain or parent domain." })),
+        )
+            .into_response();
+    }
+
+    let full_domain = format!("{}.{}", prefix, parent);
+    let root_path = format!("/www/wwwroot/{}", full_domain);
+    let _ = fs::create_dir_all(&root_path);
+    let index_file = FsPath::new(&root_path).join("index.html");
+    if !index_file.exists() {
+        let _ = fs::write(
+            &index_file,
+            format!(
+                "<!doctype html><html><head><meta charset='utf-8'><title>{}</title></head><body><h1>{}</h1><p>Language: {} | Framework: {}</p></body></html>",
+                full_domain, full_domain, req.language, req.framework
+            ),
+        );
+    }
+
+    provision_framework(&root_path, req.framework.trim(), &full_domain);
+
+    let site_type = match req.language.as_str() {
+        "php" => "php",
+        "rust" | "python" | "node" | "java" => "proxy",
+        _ => "static",
+    };
+    let proxy_port = req.proxy_port.unwrap_or(8080);
+    let php_ver = req.php_version.unwrap_or_else(|| "8.3".to_string());
+    let conf = write_nginx_site_conf(&full_domain, site_type, &root_path, proxy_port, &php_ver);
+
+    if cfg!(unix) {
+        let avail = format!("/etc/nginx/sites-available/{}.conf", full_domain);
+        let enabled = format!("/etc/nginx/sites-enabled/{}.conf", full_domain);
+        let _ = fs::write(&avail, &conf);
+        let _ = Command::new("ln").args(["-sf", &avail, &enabled]).output();
+        if let Ok(out) = Command::new("nginx").arg("-t").output() {
+            if out.status.success() {
+                let _ = Command::new("systemctl").args(["reload", "nginx"]).output();
+            }
+        }
+        if req.create_ssh.unwrap_or(false) {
+            let safe_user = format!(
+                "chost_{}",
+                prefix.chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect::<String>()
+            );
+            let _ = Command::new("useradd")
+                .args(["-d", &root_path, "-s", "/bin/bash", &safe_user])
+                .output();
+        }
+    }
+
+    match state
+        .db
+        .create_site(&full_domain, site_type, &root_path, proxy_port, &php_ver)
+    {
+        Ok(id) => {
+            if req.issue_ssl.unwrap_or(false) && cfg!(unix) {
+                if let Ok(o) = Command::new("certbot")
+                    .args([
+                        "--nginx",
+                        "-d",
+                        &full_domain,
+                        "--non-interactive",
+                        "--agree-tos",
+                        "--register-unsafely-without-email",
+                    ])
+                    .output()
+                {
+                    if o.status.success() {
+                        let _ = state.db.update_site_ssl(id, true);
+                    }
+                }
+            }
+            state.db.log_audit(
+                "admin",
+                "CREATE_SUBDOMAIN",
+                &full_domain,
+                &format!("lang={}, fw={}", req.language, req.framework),
+            );
+            Json(json!({ "success": true, "id": id, "domain": full_domain, "root_path": root_path }))
+                .into_response()
         }
         Err(e) => (
             StatusCode::BAD_REQUEST,
@@ -772,6 +942,7 @@ async fn main() {
         .route("/api/locales/{lang}", get(handle_locale))
         .route("/api/system/stats", get(handle_system_stats))
         .route("/api/sites", get(handle_list_sites).post(handle_create_site))
+        .route("/api/sites/subdomain", post(handle_create_subdomain))
         .route("/api/sites/{id}", delete(handle_delete_site))
         .route("/api/sites/{id}/php", post(handle_switch_site_php))
         .route("/api/sites/{id}/ssl", post(handle_issue_ssl))
