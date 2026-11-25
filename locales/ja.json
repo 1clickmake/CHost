@@ -1,0 +1,22 @@
+{
+  "brand": "CHost",
+  "subtitle": "軽量モダンサーバー管理パネル",
+  "nav_dashboard": "ダッシュボード",
+  "nav_sites": "サイトとドメイン",
+  "nav_apps": "アプリプロセス",
+  "nav_db": "マルチDBスタジオ",
+  "nav_storage": "ストレージとログ",
+  "nav_terminal": "ファイルと端末",
+  "nav_security": "セキュリティ監査",
+  "cpu_usage": "CPU使用率",
+  "ram_usage": "メモリ使用量",
+  "disk_usage": "ディスク使用量",
+  "uptime": "稼働時間",
+  "add_site": "サイト追加",
+  "domain": "ドメイン",
+  "site_type": "タイプ",
+  "php_version": "PHPバージョン",
+  "ssl_status": "SSL証明書",
+  "actions": "操作",
+  "logout": "ログアウト"
+}

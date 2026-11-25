@@ -1,0 +1,22 @@
+{
+  "brand": "CHost",
+  "subtitle": "초경량 한국형 서버 관리 패널",
+  "nav_dashboard": "대시보드",
+  "nav_sites": "사이트 및 도메인",
+  "nav_apps": "앱 프로세스",
+  "nav_db": "멀티 DB 스튜디오",
+  "nav_storage": "저장 공간 및 로그",
+  "nav_terminal": "파일 및 터미널",
+  "nav_security": "보안 및 감사 로그",
+  "cpu_usage": "CPU 사용률",
+  "ram_usage": "메모리 사용량",
+  "disk_usage": "디스크 사용량",
+  "uptime": "서버 가동 시간",
+  "add_site": "새 사이트 추가",
+  "domain": "도메인",
+  "site_type": "유형",
+  "php_version": "PHP 버전",
+  "ssl_status": "SSL 인증서",
+  "actions": "관리",
+  "logout": "로그아웃"
+}

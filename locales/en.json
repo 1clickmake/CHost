@@ -1,0 +1,22 @@
+{
+  "brand": "CHost",
+  "subtitle": "Lightweight Modern Server Panel",
+  "nav_dashboard": "Dashboard",
+  "nav_sites": "Sites & Domains",
+  "nav_apps": "App Processes",
+  "nav_db": "Multi-DB Studio",
+  "nav_storage": "Storage & Logs",
+  "nav_terminal": "Files & Terminal",
+  "nav_security": "Security & Audit",
+  "cpu_usage": "CPU Usage",
+  "ram_usage": "Memory Usage",
+  "disk_usage": "Disk Usage",
+  "uptime": "Server Uptime",
+  "add_site": "Add Site",
+  "domain": "Domain",
+  "site_type": "Type",
+  "php_version": "PHP Version",
+  "ssl_status": "SSL Certificate",
+  "actions": "Actions",
+  "logout": "Logout"
+}

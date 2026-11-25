@@ -1,0 +1,22 @@
+{
+  "brand": "CHost",
+  "subtitle": "轻量级现代服务器管理面板",
+  "nav_dashboard": "仪表盘",
+  "nav_sites": "网站与域名",
+  "nav_apps": "应用进程",
+  "nav_db": "多数据库工作室",
+  "nav_storage": "存储与日志",
+  "nav_terminal": "文件与终端",
+  "nav_security": "安全与审计",
+  "cpu_usage": "CPU 使用率",
+  "ram_usage": "内存使用",
+  "disk_usage": "磁盘使用",
+  "uptime": "运行时间",
+  "add_site": "添加网站",
+  "domain": "域名",
+  "site_type": "类型",
+  "php_version": "PHP 版本",
+  "ssl_status": "SSL 证书",
+  "actions": "操作",
+  "logout": "退出登录"
+}

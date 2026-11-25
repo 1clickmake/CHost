@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CHost - Lightweight Server Panel</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --panel: #111827;
+      --card: #161f33;
+      --border: #243047;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --ok: #10b981;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .hidden { display: none !important; }
+    .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .login-box { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
+    .login-box h1 { font-size: 22px; margin-bottom: 6px; }
+    .login-box p { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+    input, select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 13px; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn:hover { border-color: var(--accent); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-danger { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.4); color: #fca5a5; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .layout { display: flex; min-height: 100vh; }
+    .sidebar { width: 240px; background: var(--panel); border-right: 1px solid var(--border); padding: 20px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .brand { padding: 6px 10px 16px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+    .brand-title { font-size: 18px; font-weight: 800; letter-spacing: .3px; }
+    .brand-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .nav-btn { width: 100%; text-align: left; background: transparent; border: 1px solid transparent; color: var(--muted); padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .nav-btn:hover { background: var(--card); color: var(--text); }
+    .nav-btn.active { background: rgba(99,102,241,.16); border-color: rgba(99,102,241,.4); color: #c7d2fe; }
+    .main { flex: 1; display: flex; flex-direction: column; }
+    .topbar { height: 58px; border-bottom: 1px solid var(--border); background: var(--panel); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .content { padding: 24px; max-width: 1180px; width: 100%; margin: 0 auto; }
+    .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+    .metric-label { font-size: 12px; color: var(--muted); }
+    .metric-val { font-size: 24px; font-weight: 700; margin-top: 6px; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-ok { background: rgba(16,185,129,.15); color: #6ee7b7; }
+    .badge-warn { background: rgba(245,158,11,.15); color: #fcd34d; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .row > * { flex: 1; min-width: 140px; }
+    .row > .btn, .row > select.compact { flex: 0 0 auto; width: auto; }
+    pre.console { background: #070b14; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12px; color: #cbd5e1; max-height: 280px; overflow: auto; white-space: pre-wrap; margin-top: 10px; }
+    @media (max-width: 768px) { .sidebar { width: 180px; } }
+  </style>
+</head>
+<body>
+  <div id="login-view" class="login-wrap">
+    <div class="login-box">
+      <h1>CHost Panel</h1>
+      <p>Server management console</p>
+      <input type="password" id="login-pw" placeholder="Admin Password" style="margin-bottom:12px" />
+      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Sign In</button>
+      <div id="login-err" style="color:#fca5a5;font-size:12px;margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div id="app-view" class="layout hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-title" data-i18n="brand">CHost</div>
+        <div class="brand-sub" data-i18n="subtitle">Server Panel</div>
+      </div>
+      <button class="nav-btn active" onclick="showTab('dashboard', this)" data-i18n="nav_dashboard">Dashboard</button>
+      <button class="nav-btn" onclick="showTab('sites', this)" data-i18n="nav_sites">Sites &amp; Domains</button>
+      <button class="nav-btn" onclick="showTab('apps', this)" data-i18n="nav_apps">App Processes</button>
+      <button class="nav-btn" onclick="showTab('db', this)" data-i18n="nav_db">Multi-DB Studio</button>
+      <button class="nav-btn" onclick="showTab('storage', this)" data-i18n="nav_storage">Storage &amp; Logs</button>
+      <button class="nav-btn" onclick="showTab('terminal', this)" data-i18n="nav_terminal">Files &amp; Terminal</button>
+      <button class="nav-btn" onclick="showTab('security', this)" data-i18n="nav_security">Security &amp; Audit</button>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div id="host-info" style="font-size:13px;color:var(--muted)">Loading...</div>
+        <div class="topbar-right">
+          <select id="lang-select" class="compact" style="width:auto" onchange="loadLocale(this.value)">
+            <option value="ko">한국어 (ko)</option>
+            <option value="en">English (en)</option>
+            <option value="ja">日本語 (ja)</option>
+            <option value="zh-CN">简体中文 (zh-CN)</option>
+            <option value="es">Español (es)</option>
+          </select>
+          <button class="btn btn-sm" onclick="doLogout()" data-i18n="logout">Logout</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section id="tab-dashboard">
+          <div class="grid-4">
+            <div class="card"><div class="metric-label" data-i18n="cpu_usage">CPU</div><div class="metric-val" id="m-cpu">-</div></div>
+            <div class="card"><div class="metric-label" data-i18n="ram_usage">RAM</div><div class="metric-val" id="m-ram">-</div></div>
+            <div class="card"><div class="metric-label" data-i18n="disk_usage">Disk</div><div class="metric-val" id="m-disk">-</div><div id="m-disk-warn" style="margin-top:6px"></div></div>
+            <div class="card"><div class="metric-label" data-i18n="uptime">Uptime</div><div class="metric-val" id="m-uptime">-</div></div>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px">PHP Runtimes</h3>
+            <div id="php-versions-list" class="row"></div>
+          </div>
+        </section>
+
+        <section id="tab-sites" class="hidden">
+          <div class="card">
+            <h3 style="margin-bottom:12px;font-size:15px" data-i18n="add_site">Add Site</h3>
+            <div class="row">
+              <input id="site-domain" placeholder="example.com" />
+              <select id="site-type" class="compact">
+                <option value="static">Static HTML</option>
+                <option value="proxy">Reverse Proxy</option>
+                <option value="php">PHP Site</option>
+              </select>
+              <input id="site-port" type="number" placeholder="Proxy Port (e.g. 3000)" />
+              <select id="site-php" class="compact">
+                <option value="8.3">PHP 8.3</option>
+                <option value="8.2">PHP 8.2</option>
+                <option value="7.4">PHP 7.4</option>
+              </select>
+              <button class="btn btn-primary" onclick="createSite()">Create</button>
+            </div>
+          </div>
+          <div class="card">
+            <table>
+              <thead><tr><th data-i18n="domain">Domain</th><th data-i18n="site_type">Type</th><th>Root / Port</th><th data-i18n="php_version">PHP</th><th data-i18n="ssl_status">SSL</th><th data-i18n="actions">Actions</th></tr></thead>
+              <tbody id="sites-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-apps" class="hidden">
+          <div class="card">
+            <h3 style="margin-bottom:12px;font-size:15px">Register App Preset</h3>
+            <div class="row">
+              <input id="app-name" placeholder="App Name" />
+              <select id="app-lang" class="compact">
+                <option value="rust">Rust Binary</option>
+                <option value="python">Python (uvicorn)</option>
+                <option value="node">Node.js</option>
+                <option value="php">PHP-FPM</option>
+              </select>
+              <input id="app-dir" placeholder="/www/wwwroot/app" />
+              <input id="app-cmd" placeholder="./app_bin" />
+              <input id="app-port" type="number" placeholder="Port" />
+              <button class="btn btn-primary" onclick="createApp()">Register</button>
+            </div>
+          </div>
+          <div class="card">
+            <table>
+              <thead><tr><th>Name</th><th>Language</th><th>Command</th><th>Port</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="apps-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-db" class="hidden">
+          <div class="card">
+            <h3 style="margin-bottom:12px;font-size:15px">SQLite / Multi-DB Studio</h3>
+            <div class="row" style="margin-bottom:10px">
+              <input id="db-path" value="data/chost.db" placeholder="/path/to/database.db" />
+              <button class="btn btn-primary" onclick="loadSqliteTables()">Load Tables</button>
+            </div>
+            <div id="db-tables" style="margin-bottom:10px;font-size:12px;color:var(--muted)"></div>
+            <textarea id="db-sql" rows="3" placeholder="SELECT * FROM sites LIMIT 20;"></textarea>
+            <div style="margin-top:8px"><button class="btn btn-primary" onclick="runSqliteQuery()">Run SQL</button></div>
+            <pre id="db-result" class="console"></pre>
+          </div>
+        </section>
+
+        <section id="tab-storage" class="hidden">
+          <div class="card">
+            <h3 style="margin-bottom:12px;font-size:15px">Log &amp; Storage Cleaner</h3>
+            <div class="row">
+              <select id="clean-days" class="compact">
+                <option value="7">Older than 7 days</option>
+                <option value="15">Older than 15 days</option>
+                <option value="30" selected>Older than 30 days</option>
+              </select>
+              <button class="btn" onclick="scanStorage()">Preview Scan</button>
+              <button class="btn btn-primary" onclick="cleanStorage()">Execute Safe Clean</button>
+            </div>
+            <pre id="storage-out" class="console"></pre>
+          </div>
+        </section>
+
+        <section id="tab-terminal" class="hidden">
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px">Quick File Editor</h3>
+            <div class="row" style="margin-bottom:8px">
+              <input id="file-path" placeholder="/etc/nginx/nginx.conf" />
+              <button class="btn" onclick="readFile()">Open</button>
+              <button class="btn btn-primary" onclick="saveFile()">Save</button>
+            </div>
+            <textarea id="file-content" rows="6"></textarea>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px">Web Terminal</h3>
+            <div class="row">
+              <input id="term-cmd" placeholder="uname -a" />
+              <button class="btn btn-primary" onclick="execTerm()">Run</button>
+            </div>
+            <pre id="term-out" class="console"></pre>
+          </div>
+        </section>
+
+        <section id="tab-security" class="hidden">
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px">Security Audit Log</h3>
+            <table>
+              <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+              <tbody id="audits-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+<script>
+async function api(url, opts = {}) {
+  const res = await fetch(url, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...opts });
+  return res.json();
+}
+async function checkAuth() {
+  const r = await api('/api/auth/me');
+  if (r.authenticated) {
+    document.getElementById('login-view').classList.add('hidden');
+    document.getElementById('app-view').classList.remove('hidden');
+    loadLocale(document.getElementById('lang-select').value);
+    refreshAll();
+  }
+}
+async function doLogin() {
+  const password = document.getElementById('login-pw').value;
+  const r = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) });
+  if (r.success) location.reload();
+  else document.getElementById('login-err').textContent = r.error || 'Login failed';
+}
+async function doLogout() {
+  await api('/api/auth/logout', { method: 'POST' });
+  location.reload();
+}
+async function loadLocale(lang) {
+  const r = await api('/api/locales/' + encodeURIComponent(lang));
+  if (!r.success) return;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if (r.dict[k]) el.textContent = r.dict[k];
+  });
+}
+function showTab(name, btn) {
+  document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (name === 'sites') loadSites();
+  if (name === 'apps') loadApps();
+  if (name === 'security') loadAudits();
+}
+async function refreshAll() {
+  const s = await api('/api/system/stats');
+  if (s.success) {
+    document.getElementById('host-info').textContent = `${s.hostname} (${s.os})`;
+    document.getElementById('m-cpu').textContent = `${s.cpu_percent}%`;
+    document.getElementById('m-ram').textContent = `${s.mem_used_mb} / ${s.mem_total_mb} MB`;
+    document.getElementById('m-disk').textContent = `${s.disk_used_gb} / ${s.disk_total_gb} GB (${s.disk_percent}%)`;
+    document.getElementById('m-disk-warn').innerHTML = s.disk_warning ? '<span class="badge badge-warn">Disk &gt; 80%</span>' : '<span class="badge badge-ok">Healthy</span>';
+    document.getElementById('m-uptime').textContent = `${Math.floor(s.uptime_secs / 3600)}h`;
+  }
+  const p = await api('/api/php/versions');
+  if (p.success) {
+    document.getElementById('php-versions-list').innerHTML = p.versions.map(v =>
+      `<span class="badge ${v.installed ? 'badge-ok' : 'badge-warn'}">PHP ${v.version}: ${v.installed ? 'Installed' : 'Not Installed'}</span>`
+    ).join('');
+  }
+}
+async function loadSites() {
+  const r = await api('/api/sites');
+  if (!r.success) return;
+  document.getElementById('sites-tbody').innerHTML = r.sites.map(s => `
+    <tr>
+      <td>${s.domain}</td><td>${s.site_type}</td><td>${s.site_type === 'proxy' ? ':' + s.proxy_port : s.root_path}</td>
+      <td>${s.php_version || '-'}</td>
+      <td>${s.ssl_enabled ? '<span class="badge badge-ok">HTTPS</span>' : `<button class="btn btn-sm" onclick="issueSsl(${s.id})">Issue SSL</button>`}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="delSite(${s.id})">Delete</button></td>
+    </tr>`).join('');
+}
+async function createSite() {
+  const domain = document.getElementById('site-domain').value;
+  const site_type = document.getElementById('site-type').value;
+  const proxy_port = parseInt(document.getElementById('site-port').value || '0', 10);
+  const php_version = document.getElementById('site-php').value;
+  await api('/api/sites', { method: 'POST', body: JSON.stringify({ domain, site_type, proxy_port, php_version }) });
+  loadSites();
+}
+async function issueSsl(id) { await api(`/api/sites/${id}/ssl`, { method: 'POST' }); loadSites(); }
+async function delSite(id) { await api(`/api/sites/${id}`, { method: 'DELETE' }); loadSites(); }
+async function loadApps() {
+  const r = await api('/api/apps');
+  if (!r.success) return;
+  document.getElementById('apps-tbody').innerHTML = r.apps.map(a => `
+    <tr>
+      <td>${a.name}</td><td>${a.language}</td><td><code>${a.exec_cmd}</code></td><td>${a.port}</td>
+      <td><span class="badge ${a.status === 'running' ? 'badge-ok' : 'badge-warn'}">${a.status}</span></td>
+      <td>
+        <button class="btn btn-sm" onclick="appAct(${a.id},'start')">Start</button>
+        <button class="btn btn-sm" onclick="appAct(${a.id},'stop')">Stop</button>
+        <button class="btn btn-sm btn-danger" onclick="delApp(${a.id})">Del</button>
+      </td>
+    </tr>`).join('');
+}
+async function createApp() {
+  const name = document.getElementById('app-name').value;
+  const language = document.getElementById('app-lang').value;
+  const work_dir = document.getElementById('app-dir').value;
+  const exec_cmd = document.getElementById('app-cmd').value;
+  const port = parseInt(document.getElementById('app-port').value || '0', 10);
+  await api('/api/apps', { method: 'POST', body: JSON.stringify({ name, language, work_dir, exec_cmd, port }) });
+  loadApps();
+}
+async function appAct(id, action) { await api(`/api/apps/${id}/action`, { method: 'POST', body: JSON.stringify({ action }) }); loadApps(); }
+async function delApp(id) { await api(`/api/apps/${id}`, { method: 'DELETE' }); loadApps(); }
+async function loadSqliteTables() {
+  const p = document.getElementById('db-path').value;
+  const r = await api('/api/db/sqlite/tables?path=' + encodeURIComponent(p));
+  document.getElementById('db-tables').textContent = r.success ? 'Tables: ' + r.tables.join(', ') : r.error;
+}
+async function runSqliteQuery() {
+  const db_path = document.getElementById('db-path').value;
+  const sql = document.getElementById('db-sql').value;
+  const r = await api('/api/db/sqlite/query', { method: 'POST', body: JSON.stringify({ db_path, sql }) });
+  document.getElementById('db-result').textContent = JSON.stringify(r, null, 2);
+}
+async function scanStorage() {
+  const days = document.getElementById('clean-days').value;
+  const r = await api('/api/storage/scan?days=' + days);
+  document.getElementById('storage-out').textContent = JSON.stringify(r, null, 2);
+}
+async function cleanStorage() {
+  const days = parseInt(document.getElementById('clean-days').value, 10);
+  const r = await api('/api/storage/clean', { method: 'POST', body: JSON.stringify({ days, preview: false, compress: true }) });
+  document.getElementById('storage-out').textContent = JSON.stringify(r, null, 2);
+}
+async function readFile() {
+  const p = document.getElementById('file-path').value;
+  const r = await api('/api/files?path=' + encodeURIComponent(p));
+  document.getElementById('file-content').value = r.success ? r.content : (r.error || '');
+}
+async function saveFile() {
+  const path = document.getElementById('file-path').value;
+  const content = document.getElementById('file-content').value;
+  await api('/api/files', { method: 'POST', body: JSON.stringify({ path, content }) });
+}
+async function execTerm() {
+  const cmd = document.getElementById('term-cmd').value;
+  const r = await api('/api/terminal', { method: 'POST', body: JSON.stringify({ cmd }) });
+  document.getElementById('term-out').textContent = r.output || '';
+}
+async function loadAudits() {
+  const r = await api('/api/audits');
+  if (!r.success) return;
+  document.getElementById('audits-tbody').innerHTML = r.logs.map(l =>
+    `<tr><td>${l.created_at.slice(0,19)}</td><td>${l.actor}</td><td>${l.action}</td><td>${l.target}</td><td>${l.detail}</td></tr>`
+  ).join('');
+}
+checkAuth();
+</script>
+</body>
+</html>

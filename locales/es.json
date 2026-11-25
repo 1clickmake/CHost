@@ -1,0 +1,22 @@
+{
+  "brand": "CHost",
+  "subtitle": "Panel de Servidor Ligero y Moderno",
+  "nav_dashboard": "Panel Principal",
+  "nav_sites": "Sitios y Dominios",
+  "nav_apps": "Procesos",
+  "nav_db": "Estudio Multi-DB",
+  "nav_storage": "Almacenamiento y Logs",
+  "nav_terminal": "Archivos y Terminal",
+  "nav_security": "Seguridad y Auditoría",
+  "cpu_usage": "Uso de CPU",
+  "ram_usage": "Uso de Memoria",
+  "disk_usage": "Uso de Disco",
+  "uptime": "Tiempo Activo",
+  "add_site": "Agregar Sitio",
+  "domain": "Dominio",
+  "site_type": "Tipo",
+  "php_version": "Versión PHP",
+  "ssl_status": "Certificado SSL",
+  "actions": "Acciones",
+  "logout": "Cerrar Sesión"
+}
