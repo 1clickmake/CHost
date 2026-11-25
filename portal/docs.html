@@ -55,9 +55,23 @@
     <p class="lead" data-i18n="doc_lead">CHost 서버 패널의 설치, 소스 빌드, REST API 규격, 다국어 확장 및 보안 설계를 안내합니다.</p>
 
     <div class="doc-card">
-      <h2 data-i18n="s1_t">1. 빠른 설치 (Ubuntu 22.04 / 24.04 LTS)</h2>
-      <p data-i18n="s1_d1">루트 권한으로 설치 스크립트를 실행하면 /opt/chost에 바이너리가 배치되고 systemd 서비스가 자동 등록됩니다.</p>
-      <pre>curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
+      <h2 data-i18n="s1_t">1. 운영체제별 빠른 설치 (Linux)</h2>
+      <p data-i18n="s1_d1">install.sh는 아키텍처(x86_64 / ARM64)를 자동 감지하여 /opt/chost에 바이너리를 배치하고 systemd 서비스를 등록합니다.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button class="os-tab active" onclick="showOs('ubuntu', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #6366f1;background:rgba(99,102,241,.2);color:#c7d2fe;font-size:12px;font-weight:600;cursor:pointer">Ubuntu / Debian</button>
+        <button class="os-tab" onclick="showOs('rhel', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #233048;background:#090d16;color:#9ca3af;font-size:12px;font-weight:600;cursor:pointer">Rocky / AlmaLinux / RHEL</button>
+        <button class="os-tab" onclick="showOs('amzn', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #233048;background:#090d16;color:#9ca3af;font-size:12px;font-weight:600;cursor:pointer">Amazon Linux 2023</button>
+        <button class="os-tab" onclick="showOs('docker', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #233048;background:#090d16;color:#9ca3af;font-size:12px;font-weight:600;cursor:pointer">Docker (Test)</button>
+      </div>
+      <pre id="os-ubuntu">sudo apt update && sudo apt install -y curl tar nginx certbot
+curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
+      <pre id="os-rhel" style="display:none">sudo dnf install -y curl tar epel-release nginx certbot
+sudo firewall-cmd --permanent --add-port=8800/tcp && sudo firewall-cmd --reload
+curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
+      <pre id="os-amzn" style="display:none">sudo dnf install -y curl tar nginx
+curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
+      <pre id="os-docker" style="display:none">git clone https://github.com/1clickmake/CHost.git && cd CHost
+docker run -d --name chost -p 8800:8800 -v $(pwd):/app -w /app ubuntu:24.04 bash -c "apt update && apt install -y curl ca-certificates && ./install.sh && tail -f /dev/null"</pre>
       <p style="margin-top:10px" data-i18n="s1_d2">설치 완료 후 초기 관리자 비밀번호는 아래 경로에서 확인할 수 있습니다.</p>
       <pre>cat /var/lib/chost/init_password.txt</pre>
     </div>
@@ -111,8 +125,8 @@ const DOC_I18N = {
     nav_home:"홈", nav_docs:"개발자 문서", nav_forum:"포럼 게시판",
     doc_title:"개발자 문서 (Developer Guide)",
     doc_lead:"CHost 서버 패널의 설치, 소스 빌드, REST API 규격, 다국어 확장 및 보안 설계를 안내합니다.",
-    s1_t:"1. 빠른 설치 (Ubuntu 22.04 / 24.04 LTS)",
-    s1_d1:"루트 권한으로 설치 스크립트를 실행하면 /opt/chost에 바이너리가 배치되고 systemd 서비스가 자동 등록됩니다.",
+    s1_t:"1. 운영체제별 빠른 설치 (Linux)",
+    s1_d1:"install.sh는 아키텍처(x86_64 / ARM64)를 자동 감지하여 /opt/chost에 바이너리를 배치하고 systemd 서비스를 등록합니다.",
     s1_d2:"설치 완료 후 초기 관리자 비밀번호는 아래 경로에서 확인할 수 있습니다.",
     s2_t:"2. 소스 코드 빌드 (Rust)",
     s3_t:"3. 핵심 REST API 레퍼런스",
@@ -139,8 +153,8 @@ const DOC_I18N = {
     nav_home:"Home", nav_docs:"Developer Docs", nav_forum:"Forum",
     doc_title:"Developer Guide",
     doc_lead:"Installation, building from source, REST API reference, i18n customization, and security architecture for CHost.",
-    s1_t:"1. Quick Install (Ubuntu 22.04 / 24.04 LTS)",
-    s1_d1:"Run the installer as root to place the binary under /opt/chost and register the systemd service.",
+    s1_t:"1. Quick Install by OS (Linux)",
+    s1_d1:"install.sh auto-detects architecture (x86_64 / ARM64), installs to /opt/chost, and registers the systemd service.",
     s1_d2:"After installation, retrieve your generated initial admin password from:",
     s2_t:"2. Build from Source (Rust)",
     s3_t:"3. Core REST API Reference",
@@ -167,8 +181,8 @@ const DOC_I18N = {
     nav_home:"ホーム", nav_docs:"開発者ドキュメント", nav_forum:"フォーラム",
     doc_title:"開発者ドキュメント (Developer Guide)",
     doc_lead:"CHostのインストール、ソースビルド、REST API仕様、多言語拡張、セキュリティ設計を案内します。",
-    s1_t:"1. クイックインストール (Ubuntu 22.04 / 24.04 LTS)",
-    s1_d1:"root権限でスクリプトを実行すると /opt/chost にバイナリが配置され、systemdサービスが自動登録されます。",
+    s1_t:"1. OS別クイックインストール (Linux)",
+    s1_d1:"install.shはアーキテクチャ(x86_64 / ARM64)を自動検出し、/opt/chostへの配置とsystemd登録を行います。",
     s1_d2:"インストール後、初期管理者パスワードは以下のパスで確認できます。",
     s2_t:"2. ソースコードビルド (Rust)",
     s3_t:"3. コア REST API リファレンス",
@@ -195,8 +209,8 @@ const DOC_I18N = {
     nav_home:"首页", nav_docs:"开发文档", nav_forum:"社区论坛",
     doc_title:"开发者文档 (Developer Guide)",
     doc_lead:"介绍 CHost 的快速安装、源码构建、REST API 规范、多语言扩展及安全架构设计。",
-    s1_t:"1. 快速安装 (Ubuntu 22.04 / 24.04 LTS)",
-    s1_d1:"以 root 权限运行安装脚本，将在 /opt/chost 部署二进制文件并自动注册 systemd 服务。",
+    s1_t:"1. 各操作系统快速安装 (Linux)",
+    s1_d1:"install.sh 会自动识别架构 (x86_64 / ARM64)，将二进制文件部署至 /opt/chost 并注册 systemd 服务。",
     s1_d2:"安装完成后，可在以下路径查看初始管理员密码：",
     s2_t:"2. 从源码构建 (Rust)",
     s3_t:"3. 核心 REST API 参考",
@@ -223,8 +237,8 @@ const DOC_I18N = {
     nav_home:"Inicio", nav_docs:"Documentación", nav_forum:"Foro",
     doc_title:"Guía para Desarrolladores",
     doc_lead:"Instalación, compilación desde código fuente, referencia REST API, soporte i18n y diseño de seguridad de CHost.",
-    s1_t:"1. Instalación Rápida (Ubuntu 22.04 / 24.04 LTS)",
-    s1_d1:"Ejecuta el instalador como root para instalar el binario en /opt/chost y registrar el servicio systemd.",
+    s1_t:"1. Instalación Rápida por SO (Linux)",
+    s1_d1:"install.sh detecta automáticamente la arquitectura (x86_64 / ARM64), instala en /opt/chost y registra el servicio systemd.",
     s1_d2:"Tras la instalación, consulta la contraseña inicial en:",
     s2_t:"2. Compilar desde Código Fuente (Rust)",
     s3_t:"3. Referencia de API REST",
@@ -249,6 +263,19 @@ const DOC_I18N = {
   }
 };
 
+function showOs(id, btn) {
+  ['ubuntu','rhel','amzn','docker'].forEach(k => {
+    document.getElementById('os-' + k).style.display = (k === id) ? 'block' : 'none';
+  });
+  document.querySelectorAll('.os-tab').forEach(b => {
+    b.style.borderColor = '#233048';
+    b.style.background = '#090d16';
+    b.style.color = '#9ca3af';
+  });
+  btn.style.borderColor = '#6366f1';
+  btn.style.background = 'rgba(99,102,241,.2)';
+  btn.style.color = '#c7d2fe';
+}
 function setDocLang(l) {
   if (!DOC_I18N[l]) l = 'ko';
   localStorage.setItem('chost_lang', l);
