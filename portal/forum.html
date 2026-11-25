@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CHost 포럼 게시판</title>
+  <title>CHost Forum</title>
   <style>
-    :root { --bg:#090d16; --surface:#111827; --card:#151e30; --border:#233048; --text:#f3f4f6; --muted:#9ca3af; --accent:#6366f1; --ok:#10b981; }
+    :root { --bg:#090d16; --surface:#111827; --card:#151e30; --border:#233048; --text:#f3f4f6; --muted:#9ca3af; --accent:#6366f1; }
     * { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
     a { color:inherit; text-decoration:none; }
-    .nav { border-bottom:1px solid var(--border); background:rgba(17,24,39,.9); position:sticky; top:0; z-index:20; }
-    .nav-inner { max-width:1120px; margin:0 auto; padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; }
+    .nav { border-bottom:1px solid var(--border); background:rgba(17,24,39,.92); position:sticky; top:0; z-index:20; }
+    .nav-inner { max-width:1120px; margin:0 auto; padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .brand { font-weight:800; font-size:19px; }
     .nav-links { display:flex; gap:18px; font-size:14px; font-weight:600; color:var(--muted); align-items:center; flex-wrap:wrap; }
     .nav-links a:hover, .nav-links a.active { color:var(--text); }
@@ -43,10 +43,10 @@
     <div class="nav-inner">
       <a href="/" class="brand">CHost</a>
       <nav class="nav-links">
-        <a href="/" id="nav-home">홈</a>
-        <a href="/docs" id="nav-docs">개발자 문서</a>
-        <a href="/forum" class="active" id="nav-forum">포럼 게시판</a>
-        <select id="lang-select" style="background:#111827;border:1px solid #233048;color:#f3f4f6;padding:6px 10px;border-radius:8px;font-size:13px" onchange="setPortalLang(this.value)">
+        <a href="/" data-i18n="nav_home">홈</a>
+        <a href="/docs" data-i18n="nav_docs">개발자 문서</a>
+        <a href="/forum" class="active" data-i18n="nav_forum">포럼 게시판</a>
+        <select id="lang-select" onchange="setForumLang(this.value)">
           <option value="ko">한국어</option>
           <option value="en">English</option>
           <option value="ja">日本語</option>
@@ -57,43 +57,25 @@
       </nav>
     </div>
   </header>
-  <script>
-    const NAV_I18N = {
-      ko:{h:"홈",d:"개발자 문서",f:"포럼 게시판"},
-      en:{h:"Home",d:"Developer Docs",f:"Forum"},
-      ja:{h:"ホーム",d:"開発者ドキュメント",f:"フォーラム"},
-      "zh-CN":{h:"首页",d:"开发文档",f:"社区论坛"},
-      es:{h:"Inicio",d:"Documentación",f:"Foro"}
-    };
-    function setPortalLang(l){
-      if(!NAV_I18N[l]) l='ko';
-      localStorage.setItem('chost_lang', l);
-      document.getElementById('lang-select').value = l;
-      document.getElementById('nav-home').textContent = NAV_I18N[l].h;
-      document.getElementById('nav-docs').textContent = NAV_I18N[l].d;
-      document.getElementById('nav-forum').textContent = NAV_I18N[l].f;
-    }
-    setPortalLang(localStorage.getItem('chost_lang') || 'ko');
-  </script>
 
   <main class="wrap">
     <div class="header-row">
       <div>
-        <h1 style="font-size:26px">CHost 커뮤니티 포럼</h1>
-        <p style="font-size:13px;color:var(--muted)">질문, 기능 제안, 버그 제보 및 운영 노하우를 공유하세요.</p>
+        <h1 style="font-size:26px" data-i18n="f_title">CHost 커뮤니티 포럼</h1>
+        <p style="font-size:13px;color:var(--muted)" data-i18n="f_sub">질문, 기능 제안, 버그 제보 및 운영 노하우를 공유하세요.</p>
       </div>
-      <button class="btn btn-primary" onclick="openWrite()">새 글 작성</button>
+      <button class="btn btn-primary" onclick="openWrite()" data-i18n="f_new">새 글 작성</button>
     </div>
 
     <div class="filters">
-      <button class="tab-btn active" onclick="setCat('all', this)">전체</button>
-      <button class="tab-btn" onclick="setCat('notice', this)">공지사항</button>
-      <button class="tab-btn" onclick="setCat('qna', this)">질문/답변</button>
-      <button class="tab-btn" onclick="setCat('feature', this)">기능 제안</button>
-      <button class="tab-btn" onclick="setCat('bug', this)">버그 제보</button>
-      <button class="tab-btn" onclick="setCat('tip', this)">팁/노하우</button>
-      <input id="search-q" placeholder="검색어 입력..." style="max-width:220px;margin-left:auto" onkeydown="if(event.key==='Enter')loadPosts()" />
-      <button class="btn btn-sm" onclick="loadPosts()">검색</button>
+      <button class="tab-btn active" onclick="setCat('all', this)" data-i18n="cat_all">전체</button>
+      <button class="tab-btn" onclick="setCat('notice', this)" data-i18n="cat_notice">공지사항</button>
+      <button class="tab-btn" onclick="setCat('qna', this)" data-i18n="cat_qna">질문/답변</button>
+      <button class="tab-btn" onclick="setCat('feature', this)" data-i18n="cat_feature">기능 제안</button>
+      <button class="tab-btn" onclick="setCat('bug', this)" data-i18n="cat_bug">버그 제보</button>
+      <button class="tab-btn" onclick="setCat('tip', this)" data-i18n="cat_tip">팁/노하우</button>
+      <input id="search-q" data-i18n-ph="ph_search" placeholder="검색어 입력..." style="max-width:220px;margin-left:auto" onkeydown="if(event.key==='Enter')loadPosts()" />
+      <button class="btn btn-sm" onclick="loadPosts()" data-i18n="btn_search">검색</button>
     </div>
 
     <div id="list-view" class="card" style="padding:0">
@@ -102,60 +84,134 @@
 
     <div id="detail-view" class="card hidden">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <button class="btn btn-sm" onclick="backToList()">목록으로</button>
+        <button class="btn btn-sm" onclick="backToList()" data-i18n="btn_back">목록으로</button>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" onclick="likePost()">추천 (<span id="d-likes">0</span>)</button>
-          <button class="btn btn-sm" onclick="deletePost()">삭제</button>
+          <button class="btn btn-sm" onclick="likePost()"><span data-i18n="btn_like">추천</span> (<span id="d-likes">0</span>)</button>
+          <button class="btn btn-sm" onclick="deletePost()" data-i18n="btn_del">삭제</button>
         </div>
       </div>
       <h2 id="d-title" style="font-size:20px;margin-bottom:6px"></h2>
       <div id="d-meta" class="meta" style="margin-bottom:16px"></div>
       <div id="d-content" style="white-space:pre-wrap;font-size:14px;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)"></div>
-      <h3 style="font-size:15px;margin:18px 0 10px">댓글</h3>
+      <h3 style="font-size:15px;margin:18px 0 10px" data-i18n="lbl_comments">댓글</h3>
       <div id="d-comments"></div>
       <div style="margin-top:16px;display:grid;gap:8px">
         <div style="display:flex;gap:8px">
-          <input id="c-author" placeholder="닉네임" />
-          <input id="c-pw" type="password" placeholder="비밀번호" />
+          <input id="c-author" data-i18n-ph="ph_nick" placeholder="닉네임" />
+          <input id="c-pw" type="password" data-i18n-ph="ph_pw" placeholder="비밀번호" />
         </div>
-        <textarea id="c-content" rows="3" placeholder="댓글을 입력하세요"></textarea>
-        <div><button class="btn btn-primary btn-sm" onclick="addComment()">댓글 등록</button></div>
+        <textarea id="c-content" rows="3" data-i18n-ph="ph_comment" placeholder="댓글을 입력하세요"></textarea>
+        <div><button class="btn btn-primary btn-sm" onclick="addComment()" data-i18n="btn_comment">댓글 등록</button></div>
       </div>
     </div>
   </main>
 
   <div id="write-modal" class="modal-bg hidden">
     <div class="modal">
-      <h2 style="font-size:18px;margin-bottom:14px">새 게시글 작성</h2>
+      <h2 style="font-size:18px;margin-bottom:14px" data-i18n="m_title">새 게시글 작성</h2>
       <div class="field">
         <select id="w-cat">
-          <option value="qna">질문/답변</option>
-          <option value="feature">기능 제안</option>
-          <option value="bug">버그 제보</option>
-          <option value="tip">팁/노하우</option>
-          <option value="notice">공지사항</option>
+          <option value="qna" data-i18n="cat_qna">질문/답변</option>
+          <option value="feature" data-i18n="cat_feature">기능 제안</option>
+          <option value="bug" data-i18n="cat_bug">버그 제보</option>
+          <option value="tip" data-i18n="cat_tip">팁/노하우</option>
+          <option value="notice" data-i18n="cat_notice">공지사항</option>
         </select>
       </div>
-      <div class="field"><input id="w-title" placeholder="제목" /></div>
+      <div class="field"><input id="w-title" data-i18n-ph="ph_title" placeholder="제목" /></div>
       <div class="field" style="display:flex;gap:8px">
-        <input id="w-author" placeholder="작성자" />
-        <input id="w-pw" type="password" placeholder="삭제용 비밀번호" />
+        <input id="w-author" data-i18n-ph="ph_author" placeholder="작성자" />
+        <input id="w-pw" type="password" data-i18n-ph="ph_delpw" placeholder="삭제용 비밀번호" />
       </div>
-      <div class="field"><textarea id="w-content" rows="6" placeholder="내용을 입력하세요"></textarea></div>
+      <div class="field"><textarea id="w-content" rows="6" data-i18n-ph="ph_body" placeholder="내용을 입력하세요"></textarea></div>
       <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button class="btn" onclick="closeWrite()">취소</button>
-        <button class="btn btn-primary" onclick="submitPost()">등록</button>
+        <button class="btn" onclick="closeWrite()" data-i18n="btn_cancel">취소</button>
+        <button class="btn btn-primary" onclick="submitPost()" data-i18n="btn_submit">등록</button>
       </div>
     </div>
   </div>
 
 <script>
+const F_I18N = {
+  ko: {
+    nav_home:"홈", nav_docs:"개발자 문서", nav_forum:"포럼 게시판",
+    f_title:"CHost 커뮤니티 포럼", f_sub:"질문, 기능 제안, 버그 제보 및 운영 노하우를 공유하세요.", f_new:"새 글 작성",
+    cat_all:"전체", cat_notice:"공지사항", cat_qna:"질문/답변", cat_feature:"기능 제안", cat_bug:"버그 제보", cat_tip:"팁/노하우",
+    ph_search:"검색어 입력...", btn_search:"검색", btn_back:"목록으로", btn_like:"추천", btn_del:"삭제",
+    lbl_comments:"댓글", ph_nick:"닉네임", ph_pw:"비밀번호", ph_comment:"댓글을 입력하세요", btn_comment:"댓글 등록",
+    m_title:"새 게시글 작성", ph_title:"제목", ph_author:"작성자", ph_delpw:"삭제용 비밀번호", ph_body:"내용을 입력하세요",
+    btn_cancel:"취소", btn_submit:"등록", empty:"등록된 게시글이 없습니다.", no_comments:"아직 댓글이 없습니다.",
+    views:"조회", likes:"추천", prompt_pw:"삭제 비밀번호를 입력하세요:",
+    tags:{ notice:"공지", qna:"질문", feature:"제안", bug:"버그", tip:"팁" }
+  },
+  en: {
+    nav_home:"Home", nav_docs:"Developer Docs", nav_forum:"Forum",
+    f_title:"CHost Community Forum", f_sub:"Share questions, feature requests, bug reports, and server tips.", f_new:"New Post",
+    cat_all:"All", cat_notice:"Notice", cat_qna:"Q&A", cat_feature:"Feature", cat_bug:"Bug", cat_tip:"Tips",
+    ph_search:"Search posts...", btn_search:"Search", btn_back:"Back to List", btn_like:"Like", btn_del:"Delete",
+    lbl_comments:"Comments", ph_nick:"Nickname", ph_pw:"Password", ph_comment:"Write a comment...", btn_comment:"Post Comment",
+    m_title:"Create New Post", ph_title:"Title", ph_author:"Author", ph_delpw:"Delete Password", ph_body:"Write your post...",
+    btn_cancel:"Cancel", btn_submit:"Submit", empty:"No posts found.", no_comments:"No comments yet.",
+    views:"Views", likes:"Likes", prompt_pw:"Enter password to delete:",
+    tags:{ notice:"Notice", qna:"Q&A", feature:"Feature", bug:"Bug", tip:"Tip" }
+  },
+  ja: {
+    nav_home:"ホーム", nav_docs:"開発者ドキュメント", nav_forum:"フォーラム",
+    f_title:"CHost コミュニティフォーラム", f_sub:"質問、機能要望、バグ報告、運用のノウハウを共有できます。", f_new:"新規投稿",
+    cat_all:"すべて", cat_notice:"お知らせ", cat_qna:"質問/回答", cat_feature:"機能要望", cat_bug:"バグ報告", cat_tip:"ヒント",
+    ph_search:"検索キーワード...", btn_search:"検索", btn_back:"一覧へ", btn_like:"いいね", btn_del:"削除",
+    lbl_comments:"コメント", ph_nick:"ニックネーム", ph_pw:"パスワード", ph_comment:"コメントを入力...", btn_comment:"コメント投稿",
+    m_title:"新規投稿の作成", ph_title:"タイトル", ph_author:"作成者", ph_delpw:"削除用パスワード", ph_body:"内容を入力してください",
+    btn_cancel:"キャンセル", btn_submit:"投稿", empty:"投稿がありません。", no_comments:"コメントはまだありません。",
+    views:"閲覧", likes:"いいね", prompt_pw:"削除用パスワードを入力してください:",
+    tags:{ notice:"告知", qna:"質問", feature:"要望", bug:"バグ", tip:"ヒント" }
+  },
+  "zh-CN": {
+    nav_home:"首页", nav_docs:"开发文档", nav_forum:"社区论坛",
+    f_title:"CHost 社区论坛", f_sub:"分享问题、功能建议、Bug 反馈与运维经验。", f_new:"发布新帖",
+    cat_all:"全部", cat_notice:"公告", cat_qna:"问答", cat_feature:"功能建议", cat_bug:"Bug 反馈", cat_tip:"技巧分享",
+    ph_search:"搜索关键词...", btn_search:"搜索", btn_back:"返回列表", btn_like:"推荐", btn_del:"删除",
+    lbl_comments:"评论", ph_nick:"昵称", ph_pw:"密码", ph_comment:"输入评论内容...", btn_comment:"发表评论",
+    m_title:"发布新帖子", ph_title:"标题", ph_author:"作者", ph_delpw:"删除密码", ph_body:"请输入内容",
+    btn_cancel:"取消", btn_submit:"发布", empty:"暂无帖子。", no_comments:"暂无评论。",
+    views:"浏览", likes:"推荐", prompt_pw:"请输入删除密码：",
+    tags:{ notice:"公告", qna:"问答", feature:"建议", bug:"Bug", tip:"技巧" }
+  },
+  es: {
+    nav_home:"Inicio", nav_docs:"Documentación", nav_forum:"Foro",
+    f_title:"Foro de la Comunidad CHost", f_sub:"Comparte preguntas, sugerencias, reportes de errores y consejos.", f_new:"Nueva Publicación",
+    cat_all:"Todo", cat_notice:"Avisos", cat_qna:"Preguntas", cat_feature:"Sugerencias", cat_bug:"Errores", cat_tip:"Consejos",
+    ph_search:"Buscar...", btn_search:"Buscar", btn_back:"Volver", btn_like:"Recomendar", btn_del:"Eliminar",
+    lbl_comments:"Comentarios", ph_nick:"Apodo", ph_pw:"Contraseña", ph_comment:"Escribe un comentario...", btn_comment:"Comentar",
+    m_title:"Crear Publicación", ph_title:"Título", ph_author:"Autor", ph_delpw:"Contraseña para eliminar", ph_body:"Escribe el contenido...",
+    btn_cancel:"Cancelar", btn_submit:"Publicar", empty:"No hay publicaciones.", no_comments:"Aún no hay comentarios.",
+    views:"Vistas", likes:"Likes", prompt_pw:"Ingresa la contraseña para eliminar:",
+    tags:{ notice:"Aviso", qna:"Q&A", feature:"Idea", bug:"Bug", tip:"Tip" }
+  }
+};
+
+let curLang = localStorage.getItem('chost_lang') || 'ko';
 let currentCat = 'all';
 let currentPostId = null;
-const catLabel = { notice:'공지', qna:'질문', feature:'제안', bug:'버그', tip:'팁' };
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function setForumLang(l) {
+  if (!F_I18N[l]) l = 'ko';
+  curLang = l;
+  localStorage.setItem('chost_lang', l);
+  document.getElementById('lang-select').value = l;
+  const d = F_I18N[l];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if (d[k]) el.textContent = d[k];
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    const k = el.getAttribute('data-i18n-ph');
+    if (d[k]) el.placeholder = d[k];
+  });
+  loadPosts();
 }
 function setCat(cat, btn) {
   currentCat = cat;
@@ -165,34 +221,36 @@ function setCat(cat, btn) {
   loadPosts();
 }
 async function loadPosts() {
+  const d = F_I18N[curLang];
   const q = document.getElementById('search-q').value;
   const res = await fetch(`/api/forum/posts?category=${encodeURIComponent(currentCat)}&q=${encodeURIComponent(q)}`);
   const r = await res.json();
   const box = document.getElementById('posts-list');
   if (!r.posts || r.posts.length === 0) {
-    box.innerHTML = '<div style="padding:36px;text-align:center;color:var(--muted);font-size:14px">등록된 게시글이 없습니다.</div>';
+    box.innerHTML = `<div style="padding:36px;text-align:center;color:var(--muted);font-size:14px">${d.empty}</div>`;
     return;
   }
   box.innerHTML = r.posts.map(p => `
     <div class="post-row" onclick="openPost(${p.id})">
       <div>
-        <span class="badge ${p.category === 'notice' ? 'badge-notice' : ''}">${catLabel[p.category] || p.category}</span>
+        <span class="badge ${p.category === 'notice' ? 'badge-notice' : ''}">${d.tags[p.category] || p.category}</span>
         <strong>${esc(p.title)}</strong>
         ${p.comment_count > 0 ? `<span style="color:#a5b4fc;font-size:12px;margin-left:6px">[${p.comment_count}]</span>` : ''}
       </div>
-      <div class="meta">${esc(p.author)} · 조회 ${p.views} · 추천 ${p.likes}</div>
+      <div class="meta">${esc(p.author)} · ${d.views} ${p.views} · ${d.likes} ${p.likes}</div>
     </div>
   `).join('');
 }
 async function openPost(id) {
   currentPostId = id;
+  const d = F_I18N[curLang];
   const res = await fetch(`/api/forum/posts/${id}`);
   const r = await res.json();
   if (!r.success) return;
   document.getElementById('list-view').classList.add('hidden');
   document.getElementById('detail-view').classList.remove('hidden');
   document.getElementById('d-title').textContent = r.post.title;
-  document.getElementById('d-meta').textContent = `${r.post.author} · ${r.post.created_at.slice(0,10)} · 조회 ${r.post.views}`;
+  document.getElementById('d-meta').textContent = `${r.post.author} · ${r.post.created_at.slice(0,10)} · ${d.views} ${r.post.views}`;
   document.getElementById('d-likes').textContent = r.post.likes;
   document.getElementById('d-content').textContent = r.post.content;
   document.getElementById('d-comments').innerHTML = (r.comments || []).map(c => `
@@ -200,7 +258,7 @@ async function openPost(id) {
       <strong>${esc(c.author)}</strong> <span class="meta">${c.created_at.slice(0,16).replace('T',' ')}</span>
       <div style="margin-top:4px;white-space:pre-wrap">${esc(c.content)}</div>
     </div>
-  `).join('') || '<div class="meta">아직 댓글이 없습니다.</div>';
+  `).join('') || `<div class="meta">${d.no_comments}</div>`;
 }
 function backToList() {
   document.getElementById('detail-view').classList.add('hidden');
@@ -213,13 +271,13 @@ async function likePost() {
 }
 async function deletePost() {
   if (!currentPostId) return;
-  const password = prompt('삭제 비밀번호를 입력하세요:');
+  const password = prompt(F_I18N[curLang].prompt_pw);
   if (!password) return;
   const r = await (await fetch(`/api/forum/posts/${currentPostId}`, {
     method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ password })
   })).json();
   if (r.success) { backToList(); loadPosts(); }
-  else alert(r.error || '삭제 실패');
+  else alert(r.error || 'Error');
 }
 async function addComment() {
   const author = document.getElementById('c-author').value;
@@ -231,7 +289,7 @@ async function addComment() {
   if (r.success) {
     document.getElementById('c-content').value = '';
     openPost(currentPostId);
-  } else alert(r.error || '댓글 등록 실패');
+  } else alert(r.error || 'Error');
 }
 function openWrite() { document.getElementById('write-modal').classList.remove('hidden'); }
 function closeWrite() { document.getElementById('write-modal').classList.add('hidden'); }
@@ -249,9 +307,9 @@ async function submitPost() {
     document.getElementById('w-title').value = '';
     document.getElementById('w-content').value = '';
     loadPosts();
-  } else alert(r.error || '등록 실패');
+  } else alert(r.error || 'Error');
 }
-loadPosts();
+setForumLang(curLang);
 </script>
 </body>
 </html>
