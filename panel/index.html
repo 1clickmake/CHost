@@ -74,7 +74,7 @@
     <div class="login-box">
       <h1>CHost Panel</h1>
       <p>Server management console</p>
-      <input type="password" id="login-pw" placeholder="Admin Password" style="margin-bottom:12px" />
+      <input type="password" id="login-pw" data-i18n-ph="ph_login_pw" placeholder="Admin Password" style="margin-bottom:12px" />
       <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Sign In</button>
       <div id="login-err" style="color:#fca5a5;font-size:12px;margin-top:10px"></div>
     </div>
@@ -106,7 +106,7 @@
             <option value="zh-CN">简体中文 (zh-CN)</option>
             <option value="es">Español (es)</option>
           </select>
-          <button class="btn btn-sm" onclick="openPwModal()">비밀번호 변경</button>
+          <button class="btn btn-sm" onclick="openPwModal()" data-i18n="change_pw">비밀번호 변경</button>
           <button class="btn btn-sm" onclick="doLogout()" data-i18n="logout">Logout</button>
         </div>
       </header>
@@ -142,13 +142,13 @@
           <div class="card">
             <h3 style="margin-bottom:12px;font-size:15px" data-i18n="add_site">Add Site</h3>
             <div class="row">
-              <input id="site-domain" placeholder="도메인 입력 (예: chost.work)" />
+              <input id="site-domain" data-i18n-ph="ph_site_domain" placeholder="도메인 입력 (예: chost.work)" />
               <select id="site-type" class="compact" onchange="onSiteTypeChange()">
                 <option value="static">Static HTML (정적 웹)</option>
                 <option value="proxy">Reverse Proxy (앱 포트 연결)</option>
                 <option value="php">PHP Site (PHP 웹사이트)</option>
               </select>
-              <input id="site-port" type="number" class="hidden" placeholder="Proxy Port (예: 3000)" />
+              <input id="site-port" type="number" class="hidden" data-i18n-ph="ph_site_port" placeholder="Proxy Port (예: 3000)" />
               <select id="site-php" class="compact hidden">
                 <option value="8.3">PHP 8.3</option>
                 <option value="8.2">PHP 8.2</option>
@@ -161,8 +161,8 @@
           <div class="card">
             <h3 style="margin-bottom:12px;font-size:15px">Subdomain &amp; Framework Wizard</h3>
             <div class="row" style="margin-bottom:10px">
-              <input id="sub-prefix" placeholder="서브도메인 (예: api, blog)" />
-              <input id="sub-parent" placeholder="상위 도메인 (예: chost.work)" />
+              <input id="sub-prefix" data-i18n-ph="ph_sub_prefix" placeholder="서브도메인 (예: api, blog)" />
+              <input id="sub-parent" data-i18n-ph="ph_sub_parent" placeholder="상위 도메인 (예: chost.work)" />
               <select id="sub-lang" class="compact" onchange="onSubLangChange()">
                 <option value="php">PHP</option>
                 <option value="rust">Rust</option>
@@ -187,7 +187,7 @@
                 <option value="8.2">PHP 8.2</option>
                 <option value="7.4">PHP 7.4</option>
               </select>
-              <input id="sub-port" type="number" class="hidden" placeholder="App Port (예: 8080)" />
+              <input id="sub-port" type="number" class="hidden" data-i18n-ph="ph_sub_port" placeholder="App Port (예: 8080)" />
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="Let's Encrypt 무료 HTTPS SSL 인증서 자동 발급"><input type="checkbox" id="sub-ssl" style="width:auto" /> Issue SSL (HTTPS 자동발급)</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="이 서브도메인 전용 Linux SSH/SFTP 계정 생성"><input type="checkbox" id="sub-ssh" style="width:auto" /> Create SSH User (전용 SSH 계정)</label>
               <button class="btn btn-primary" onclick="createSubdomain()">Create Subdomain</button>
@@ -206,16 +206,16 @@
           <div class="card">
             <h3 style="margin-bottom:12px;font-size:15px">Register App Preset</h3>
             <div class="row">
-              <input id="app-name" placeholder="App Name" />
+              <input id="app-name" data-i18n-ph="ph_app_name" placeholder="App Name" />
               <select id="app-lang" class="compact">
                 <option value="rust">Rust Binary</option>
                 <option value="python">Python (uvicorn)</option>
                 <option value="node">Node.js</option>
                 <option value="php">PHP-FPM</option>
               </select>
-              <input id="app-dir" placeholder="/www/wwwroot/app" />
-              <input id="app-cmd" placeholder="./app_bin" />
-              <input id="app-port" type="number" placeholder="Port" />
+              <input id="app-dir" data-i18n-ph="ph_app_dir" placeholder="/www/wwwroot/app" />
+              <input id="app-cmd" data-i18n-ph="ph_app_cmd" placeholder="./app_bin" />
+              <input id="app-port" type="number" data-i18n-ph="ph_app_port" placeholder="Port" />
               <button class="btn btn-primary" onclick="createApp()">Register</button>
             </div>
           </div>
@@ -231,11 +231,11 @@
           <div class="card">
             <h3 style="margin-bottom:12px;font-size:15px">SQLite / Multi-DB Studio</h3>
             <div class="row" style="margin-bottom:10px">
-              <input id="db-path" value="data/chost.db" placeholder="/path/to/database.db" />
+              <input id="db-path" value="data/chost.db" data-i18n-ph="ph_db_path" placeholder="/path/to/database.db" />
               <button class="btn btn-primary" onclick="loadSqliteTables()">Load Tables</button>
             </div>
             <div id="db-tables" style="margin-bottom:10px;font-size:12px;color:var(--muted)"></div>
-            <textarea id="db-sql" rows="3" placeholder="SELECT * FROM sites LIMIT 20;"></textarea>
+            <textarea id="db-sql" rows="3" data-i18n-ph="ph_db_sql" placeholder="SELECT * FROM sites LIMIT 20;"></textarea>
             <div style="margin-top:8px"><button class="btn btn-primary" onclick="runSqliteQuery()">Run SQL</button></div>
             <pre id="db-result" class="console"></pre>
           </div>
@@ -261,7 +261,7 @@
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:15px">Quick File Editor</h3>
             <div class="row" style="margin-bottom:8px">
-              <input id="file-path" placeholder="/etc/nginx/nginx.conf" />
+              <input id="file-path" data-i18n-ph="ph_file_path" placeholder="/etc/nginx/nginx.conf" />
               <button class="btn" onclick="readFile()">Open</button>
               <button class="btn btn-primary" onclick="saveFile()">Save</button>
             </div>
@@ -270,7 +270,7 @@
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:15px">Web Terminal</h3>
             <div class="row">
-              <input id="term-cmd" placeholder="uname -a" />
+              <input id="term-cmd" data-i18n-ph="ph_term_cmd" placeholder="uname -a" />
               <button class="btn btn-primary" onclick="execTerm()">Run</button>
             </div>
             <pre id="term-out" class="console"></pre>
@@ -320,6 +320,10 @@ async function loadLocale(lang) {
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const k = el.getAttribute('data-i18n');
     if (r.dict[k]) el.textContent = r.dict[k];
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    const k = el.getAttribute('data-i18n-ph');
+    if (r.dict[k]) el.placeholder = r.dict[k];
   });
 }
 function showTab(name, btn) {
@@ -556,9 +560,9 @@ checkAuth();
   <div class="modal-box">
     <h3 style="margin-bottom:14px;font-size:16px">관리자 비밀번호 변경</h3>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <input type="password" id="pw-cur" placeholder="현재 비밀번호" />
-      <input type="password" id="pw-new" placeholder="새 비밀번호 (4자 이상)" />
-      <input type="password" id="pw-new2" placeholder="새 비밀번호 확인" />
+      <input type="password" id="pw-cur" data-i18n-ph="ph_pw_cur" placeholder="현재 비밀번호" />
+      <input type="password" id="pw-new" data-i18n-ph="ph_pw_new" placeholder="새 비밀번호 (4자 이상)" />
+      <input type="password" id="pw-new2" data-i18n-ph="ph_pw_new2" placeholder="새 비밀번호 확인" />
     </div>
     <div id="pw-err" style="color:#fca5a5;font-size:12px;margin-top:8px;min-height:16px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
