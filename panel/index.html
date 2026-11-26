@@ -140,29 +140,17 @@
 
         <section id="tab-sites" class="hidden">
           <div class="card">
-            <h3 style="margin-bottom:12px;font-size:15px" data-i18n="add_site">Add Site</h3>
-            <div class="row">
-              <input id="site-domain" data-i18n-ph="ph_site_domain" placeholder="도메인 입력 (예: chost.work)" />
-              <select id="site-type" class="compact" onchange="onSiteTypeChange()">
-                <option value="static">Static HTML (정적 웹)</option>
-                <option value="proxy">Reverse Proxy (앱 포트 연결)</option>
-                <option value="php">PHP Site (PHP 웹사이트)</option>
-              </select>
-              <input id="site-port" type="number" class="hidden" data-i18n-ph="ph_site_port" placeholder="Proxy Port (예: 3000)" />
-              <select id="site-php" class="compact hidden">
-                <option value="8.3">PHP 8.3</option>
-                <option value="8.2">PHP 8.2</option>
-                <option value="7.4">PHP 7.4</option>
-              </select>
-              <button class="btn btn-primary" onclick="createSite()">Create</button>
-            </div>
-            <div class="field-hint" id="site-type-hint">Static HTML: index.html, CSS, JS 등 정적 웹 파일을 바로 서비스합니다.</div>
-          </div>
-          <div class="card">
-            <h3 style="margin-bottom:12px;font-size:15px">Subdomain &amp; Framework Wizard</h3>
+            <h3 style="margin-bottom:12px;font-size:15px" data-i18n="add_site">새 사이트 / 서브도메인 생성</h3>
             <div class="row" style="margin-bottom:10px">
-              <input id="sub-prefix" data-i18n-ph="ph_sub_prefix" placeholder="서브도메인 (예: api, blog)" />
-              <input id="sub-parent" data-i18n-ph="ph_sub_parent" placeholder="상위 도메인 (예: chost.work)" />
+              <select id="site-mode" class="compact" onchange="onSiteModeChange()">
+                <option value="domain">직접 도메인 입력 (예: aaa.com)</option>
+                <option value="subdomain">서브도메인 생성 (예: api.chost.work)</option>
+              </select>
+              <input id="site-domain" data-i18n-ph="ph_site_domain" placeholder="도메인 입력 (예: chost.work)" />
+              <input id="sub-prefix" class="hidden" data-i18n-ph="ph_sub_prefix" placeholder="서브도메인 (예: api, blog)" />
+              <input id="sub-parent" class="hidden" data-i18n-ph="ph_sub_parent" placeholder="상위 도메인 (예: chost.work)" />
+            </div>
+            <div class="row" style="margin-bottom:10px">
               <select id="sub-lang" class="compact" onchange="onSubLangChange()">
                 <option value="php">PHP</option>
                 <option value="rust">Rust</option>
@@ -180,19 +168,21 @@
                 <option value="django">Django (Python)</option>
                 <option value="springboot">Spring Boot (Java)</option>
               </select>
-            </div>
-            <div class="row">
               <select id="sub-php" class="compact">
                 <option value="8.3">PHP 8.3 (최신 권장)</option>
                 <option value="8.2">PHP 8.2</option>
                 <option value="7.4">PHP 7.4</option>
               </select>
               <input id="sub-port" type="number" class="hidden" data-i18n-ph="ph_sub_port" placeholder="App Port (예: 8080)" />
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="Let's Encrypt 무료 HTTPS SSL 인증서 자동 발급"><input type="checkbox" id="sub-ssl" style="width:auto" /> Issue SSL (HTTPS 자동발급)</label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="이 서브도메인 전용 Linux SSH/SFTP 계정 생성"><input type="checkbox" id="sub-ssh" style="width:auto" /> Create SSH User (전용 SSH 계정)</label>
-              <button class="btn btn-primary" onclick="createSubdomain()">Create Subdomain</button>
             </div>
-            <div class="field-hint" id="sub-wizard-hint">언어 또는 프레임워크를 선택하면 권장 런타임 버전과 포트가 자동으로 맞춰집니다. App Port는 Node/Python/Rust/Java 앱 서버의 내부 포트(예: 8080)입니다.</div>
+            <div class="row">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="Let's Encrypt 무료 HTTPS SSL 인증서 자동 발급"><input type="checkbox" id="sub-ssl" style="width:auto" /> Issue SSL (HTTPS 자동발급)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="고객에게 전달할 전용 SFTP/SSH 접속 계정 생성"><input type="checkbox" id="sub-ssh" style="width:auto" /> Create FTP/SFTP (고객 접속 계정)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="MariaDB/MySQL 데이터베이스 및 전용 계정 자동 생성"><input type="checkbox" id="sub-db" style="width:auto" /> Auto Create DB (DB 자동 생성)</label>
+              <button class="btn btn-primary" onclick="createUnifiedSite()">Create Site</button>
+            </div>
+            <div class="field-hint" id="sub-wizard-hint">고객 도메인(aaa.com) 또는 서브도메인(sub.chost.work) 모두 동일하게 언어·프레임워크·SSL·FTP/SFTP·DB를 한 번에 생성할 수 있습니다.</div>
+            <pre id="site-provision-result" class="console hidden"></pre>
           </div>
           <div class="card">
             <table>
@@ -375,16 +365,43 @@ const LANG_RUNTIMES = {
   java: [ ['21','JDK 21 LTS (최신 권장)'], ['17','JDK 17 LTS'] ],
   static: []
 };
-function onSiteTypeChange() {
-  const t = document.getElementById('site-type').value;
-  const portEl = document.getElementById('site-port');
-  const phpEl = document.getElementById('site-php');
-  const hint = document.getElementById('site-type-hint');
-  portEl.classList.toggle('hidden', t !== 'proxy');
-  phpEl.classList.toggle('hidden', t !== 'php');
-  if (t === 'static') hint.textContent = 'Static HTML: index.html, CSS, JS 등 정적 웹 파일을 바로 서비스합니다.';
-  else if (t === 'proxy') hint.textContent = 'Reverse Proxy: Node/Rust/Python 등 내부 앱 서버의 포트(예: 3000, 8080)를 도메인으로 연결합니다.';
-  else hint.textContent = 'PHP Site: PHP-FPM 런타임(8.3 / 8.2 / 7.4)을 선택해 그누보드·CBoard·워드프레스 등을 실행합니다.';
+function onSiteModeChange() {
+  const mode = document.getElementById('site-mode').value;
+  document.getElementById('site-domain').classList.toggle('hidden', mode !== 'domain');
+  document.getElementById('sub-prefix').classList.toggle('hidden', mode !== 'subdomain');
+  document.getElementById('sub-parent').classList.toggle('hidden', mode !== 'subdomain');
+}
+function onSiteTypeChange() {}
+async function createUnifiedSite() {
+  const mode = document.getElementById('site-mode').value;
+  const language = document.getElementById('sub-lang').value;
+  const framework = document.getElementById('sub-fw').value;
+  const php_version = document.getElementById('sub-php').value;
+  const proxy_port = parseInt(document.getElementById('sub-port').value || '8080', 10);
+  const issue_ssl = document.getElementById('sub-ssl').checked;
+  const create_ssh = document.getElementById('sub-ssh').checked;
+  const create_db = document.getElementById('sub-db').checked;
+  const site_type = language === 'php' ? 'php' : (['rust','python','node','java'].includes(language) ? 'proxy' : 'static');
+
+  let r;
+  if (mode === 'domain') {
+    const domain = document.getElementById('site-domain').value.trim();
+    r = await api('/api/sites', {
+      method: 'POST',
+      body: JSON.stringify({ domain, site_type, proxy_port, php_version, framework, issue_ssl, create_ssh, create_db })
+    });
+  } else {
+    const prefix = document.getElementById('sub-prefix').value.trim();
+    const parent_domain = document.getElementById('sub-parent').value.trim();
+    r = await api('/api/sites/subdomain', {
+      method: 'POST',
+      body: JSON.stringify({ prefix, parent_domain, language, framework, php_version, proxy_port, issue_ssl, create_ssh, create_db })
+    });
+  }
+  const box = document.getElementById('site-provision-result');
+  box.classList.remove('hidden');
+  box.textContent = JSON.stringify(r, null, 2);
+  loadSites();
 }
 function onSubLangChange() {
   const lang = document.getElementById('sub-lang').value;

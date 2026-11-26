@@ -54,6 +54,10 @@ struct CreateSiteReq {
     site_type: String,
     proxy_port: Option<i64>,
     php_version: Option<String>,
+    framework: Option<String>,
+    issue_ssl: Option<bool>,
+    create_ssh: Option<bool>,
+    create_db: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,6 +70,7 @@ struct CreateSubdomainReq {
     php_version: Option<String>,
     issue_ssl: Option<bool>,
     create_ssh: Option<bool>,
+    create_db: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -323,6 +328,76 @@ fn write_nginx_site_conf(
     )
 }
 
+fn gen_random_secret(len: usize) -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(len)
+        .map(char::from)
+        .collect()
+}
+
+fn provision_sftp_user(domain: &str, root_path: &str) -> serde_json::Value {
+    let safe_slug: String = domain
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(12)
+        .collect();
+    let user = format!("chost_{}", if safe_slug.is_empty() { "site".to_string() } else { safe_slug });
+    let pass = gen_random_secret(14);
+    if !cfg!(unix) {
+        return json!({ "created": false, "note": "Unix only" });
+    }
+    let _ = Command::new("useradd")
+        .args(["-d", root_path, "-s", "/bin/bash", &user])
+        .output();
+    let chpasswd_cmd = format!("echo '{}:{}' | chpasswd", user, pass);
+    let cp = Command::new("sh").args(["-c", &chpasswd_cmd]).output();
+    let _ = Command::new("chown")
+        .args(["-R", &format!("{}:www-data", user), root_path])
+        .output();
+    let ok = cp.map(|o| o.status.success()).unwrap_or(false);
+    json!({
+        "created": ok,
+        "protocol": "SFTP (SSH Port 22)",
+        "user": user,
+        "password": pass,
+        "root_path": root_path
+    })
+}
+
+fn provision_database(domain: &str) -> serde_json::Value {
+    let safe_slug: String = domain
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(14)
+        .collect();
+    let suffix = if safe_slug.is_empty() { "site".to_string() } else { safe_slug };
+    let db_name = format!("db_{}", suffix);
+    let db_user = format!("u_{}", suffix);
+    let db_pass = gen_random_secret(14);
+    if !cfg!(unix) {
+        return json!({ "created": false, "note": "Unix only" });
+    }
+    let sql = format!(
+        "CREATE DATABASE IF NOT EXISTS `{}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS '{}'@'localhost' IDENTIFIED BY '{}'; GRANT ALL PRIVILEGES ON `{}`.* TO '{}'@'localhost'; FLUSH PRIVILEGES;",
+        db_name, db_user, db_pass, db_name, db_user
+    );
+    match Command::new("mysql").args(["-e", &sql]).output() {
+        Ok(o) if o.status.success() => json!({
+            "created": true,
+            "engine": "MariaDB / MySQL",
+            "host": "localhost",
+            "db_name": db_name,
+            "db_user": db_user,
+            "db_pass": db_pass
+        }),
+        _ => json!({
+            "created": false,
+            "note": "MariaDB/MySQL이 설치되어 있지 않거나 root 소켓 접속이 필요합니다."
+        }),
+    }
+}
+
 async fn handle_create_site(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -349,6 +424,12 @@ async fn handle_create_site(
         );
     }
 
+    if let Some(ref fw) = req.framework {
+        if !fw.trim().is_empty() && fw.trim() != "blank" {
+            provision_framework(&root_path, fw.trim(), &domain);
+        }
+    }
+
     let proxy_port = req.proxy_port.unwrap_or(0);
     let php_ver = req.php_version.unwrap_or_default();
     let conf = write_nginx_site_conf(&domain, &req.site_type, &root_path, proxy_port, &php_ver);
@@ -358,23 +439,58 @@ async fn handle_create_site(
         let enabled = format!("/etc/nginx/sites-enabled/{}.conf", domain);
         let _ = fs::write(&avail, &conf);
         let _ = Command::new("ln").args(["-sf", &avail, &enabled]).output();
-        let test = Command::new("nginx").arg("-t").output();
-        if let Ok(out) = test {
+        if let Ok(out) = Command::new("nginx").arg("-t").output() {
             if out.status.success() {
                 let _ = Command::new("systemctl").args(["reload", "nginx"]).output();
             }
         }
     }
 
+    let ftp_info = if req.create_ssh.unwrap_or(false) {
+        Some(provision_sftp_user(&domain, &root_path))
+    } else {
+        None
+    };
+    let db_info = if req.create_db.unwrap_or(false) {
+        Some(provision_database(&domain))
+    } else {
+        None
+    };
+
     match state
         .db
         .create_site(&domain, &req.site_type, &root_path, proxy_port, &php_ver)
     {
         Ok(id) => {
+            if req.issue_ssl.unwrap_or(false) && cfg!(unix) {
+                if let Ok(o) = Command::new("certbot")
+                    .args([
+                        "--nginx",
+                        "-d",
+                        &domain,
+                        "--non-interactive",
+                        "--agree-tos",
+                        "--register-unsafely-without-email",
+                    ])
+                    .output()
+                {
+                    if o.status.success() {
+                        let _ = state.db.update_site_ssl(id, true);
+                    }
+                }
+            }
             state
                 .db
                 .log_audit("admin", "CREATE_SITE", &domain, &format!("type={}", req.site_type));
-            Json(json!({ "success": true, "id": id })).into_response()
+            Json(json!({
+                "success": true,
+                "id": id,
+                "domain": domain,
+                "root_path": root_path,
+                "ftp_info": ftp_info,
+                "db_info": db_info
+            }))
+            .into_response()
         }
         Err(e) => (
             StatusCode::BAD_REQUEST,
@@ -391,7 +507,7 @@ fn provision_framework(root_path: &str, framework: &str, domain: &str) {
     match framework {
         "cmake_board" => {
             let _ = Command::new("git")
-                .args(["clone", "--depth", "1", "https://github.com/1clickmake/NeuronAIPHP.git", root_path])
+                .args(["clone", "--depth", "1", "https://github.com/1clickmake/CBoard.git", root_path])
                 .output();
         }
         "crust" => {
@@ -492,16 +608,17 @@ async fn handle_create_subdomain(
                 let _ = Command::new("systemctl").args(["reload", "nginx"]).output();
             }
         }
-        if req.create_ssh.unwrap_or(false) {
-            let safe_user = format!(
-                "chost_{}",
-                prefix.chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect::<String>()
-            );
-            let _ = Command::new("useradd")
-                .args(["-d", &root_path, "-s", "/bin/bash", &safe_user])
-                .output();
-        }
     }
+    let ftp_info = if req.create_ssh.unwrap_or(false) {
+        Some(provision_sftp_user(&full_domain, &root_path))
+    } else {
+        None
+    };
+    let db_info = if req.create_db.unwrap_or(false) {
+        Some(provision_database(&full_domain))
+    } else {
+        None
+    };
 
     match state
         .db
@@ -531,7 +648,14 @@ async fn handle_create_subdomain(
                 &full_domain,
                 &format!("lang={}, fw={}", req.language, req.framework),
             );
-            Json(json!({ "success": true, "id": id, "domain": full_domain, "root_path": root_path }))
+            Json(json!({
+                "success": true,
+                "id": id,
+                "domain": full_domain,
+                "root_path": root_path,
+                "ftp_info": ftp_info,
+                "db_info": db_info
+            }))
                 .into_response()
         }
         Err(e) => (
