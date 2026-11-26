@@ -43,6 +43,12 @@ struct LoginReq {
 }
 
 #[derive(Debug, Deserialize)]
+struct ChangePasswordReq {
+    current_password: String,
+    new_password: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct CreateSiteReq {
     domain: String,
     site_type: String,
@@ -183,6 +189,41 @@ async fn handle_login(State(state): State<Arc<AppState>>, Json(req): Json<LoginR
     ([(header::SET_COOKIE, cookie)], Json(json!({ "success": true }))).into_response()
 }
 
+async fn handle_change_password(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<ChangePasswordReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let stored = state.db.get_setting("admin_pw_hash", "");
+    if hash_secret(req.current_password.trim()) != stored {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": "현재 비밀번호가 일치하지 않습니다." })),
+        )
+            .into_response();
+    }
+    let new_pw = req.new_password.trim();
+    if new_pw.len() < 4 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": "새 비밀번호는 4자 이상 입력해 주세요." })),
+        )
+            .into_response();
+    }
+    if let Err(e) = state.db.set_setting("admin_pw_hash", &hash_secret(new_pw)) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "success": false, "error": e.to_string() })),
+        )
+            .into_response();
+    }
+    state.db.log_audit("admin", "PASSWORD_CHANGED", "panel", "Admin password updated");
+    Json(json!({ "success": true })).into_response()
+}
+
 async fn handle_logout() -> Response {
     let cookie = "chost_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
     ([(header::SET_COOKIE, cookie)], Json(json!({ "success": true }))).into_response()
@@ -235,7 +276,7 @@ async fn handle_system_stats(State(state): State<Arc<AppState>>, headers: Header
         "hostname": System::host_name().unwrap_or_else(|| "localhost".into()),
         "os": System::long_os_version().unwrap_or_else(|| std::env::consts::OS.into()),
         "uptime_secs": System::uptime(),
-        "cpu_percent": (cpu_usage * 10.0).round() / 10.0,
+        "cpu_percent": ((cpu_usage as f64) * 10.0).round() / 10.0,
         "mem_total_mb": total_mem / (1024 * 1024),
         "mem_used_mb": used_mem / (1024 * 1024),
         "disk_total_gb": (disk_total as f64 / 1073741824.0 * 10.0).round() / 10.0,
@@ -909,7 +950,7 @@ async fn main() {
             .collect();
         let _ = db.set_setting("admin_pw_hash", &hash_secret(&init_pw));
         let pw_file = data_dir.join("init_password.txt");
-        let _ = fs::write(&pw_file, &init_pw);
+        let _ = fs::write(&pw_file, format!("{}\n", init_pw));
         println!("Initial CHost password saved to {}", pw_file.display());
     }
 
@@ -938,6 +979,7 @@ async fn main() {
         .route("/", get(serve_panel))
         .route("/api/auth/me", get(handle_auth_me))
         .route("/api/auth/login", post(handle_login))
+        .route("/api/auth/change-password", post(handle_change_password))
         .route("/api/auth/logout", post(handle_logout))
         .route("/api/locales/{lang}", get(handle_locale))
         .route("/api/system/stats", get(handle_system_stats))

@@ -91,6 +91,7 @@ CHOST_PORT=8800 ./target/release/chost</pre>
         <thead><tr><th data-i18n="th_m">Method</th><th data-i18n="th_e">Endpoint</th><th data-i18n="th_d">Description</th></tr></thead>
         <tbody>
           <tr><td>POST</td><td><code>/api/auth/login</code></td><td data-i18n="api_1">관리자 인증 및 JWT 세션 발급</td></tr>
+          <tr><td>POST</td><td><code>/api/auth/change-password</code></td><td>패널 로그인 후 관리자 비밀번호 변경</td></tr>
           <tr><td>GET</td><td><code>/api/system/stats</code></td><td data-i18n="api_2">CPU, 메모리, 디스크 사용률(80% 경고) 및 업타임 조회</td></tr>
           <tr><td>GET / POST</td><td><code>/api/sites</code></td><td data-i18n="api_3">도메인 목록 조회 및 /www/wwwroot 사이트 생성</td></tr>
           <tr><td>POST</td><td><code>/api/sites/subdomain</code></td><td data-i18n="api_3_sub">서브도메인·언어·프레임워크·SSL/SSH 자동 생성</td></tr>
@@ -116,6 +117,57 @@ CHOST_PORT=8800 ./target/release/chost</pre>
         <li data-i18n="s5_l2">로그 정리는 실행 중인 프로세스의 파일 핸들을 유지하기 위해 copytruncate / 로테이션 방식을 기본으로 합니다.</li>
         <li data-i18n="s5_l3">모든 설정 변경, DB 쿼리, 터미널 실행 내역은 audit_logs 테이블에 기록됩니다.</li>
       </ul>
+    </div>
+
+    <div class="doc-card">
+      <h2>6. 패널 메뉴별 화면 가이드 (실제 화면 캡처)</h2>
+      <p style="margin-bottom:18px;">CHost 관리자 패널(기본 포트 <code>8800</code>)의 7개 핵심 메뉴별 기능과 입력 항목 설명입니다. 상단 <strong>비밀번호 변경</strong> 버튼으로 언제든 관리자 암호를 바꿀 수 있습니다.</p>
+
+      <div style="margin-bottom:28px;">
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-1. 대시보드 (Dashboard)</h3>
+        <p>서버의 실시간 <strong>CPU 사용률</strong>(소수점 1자리), <strong>메모리(RAM)</strong>, <strong>디스크(Disk)</strong> 사용량과 진행률 그래프, 서버 가동 시간(Uptime), 설치된 <strong>PHP 런타임(7.4 ~ 8.4)</strong> 상태를 한눈에 모니터링합니다.</p>
+        <img src="/assets/docs/tab1_dashboard.png" alt="대시보드" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-2. 사이트 및 도메인 (Sites &amp; Domains)</h3>
+        <ul>
+          <li><strong>Add Site (새 사이트 추가)</strong>: <code>Static HTML</code>(정적 웹), <code>Reverse Proxy</code>(Node/Rust/Python 앱 서버 내부 포트 예: <code>3000</code> 연결), <code>PHP Site</code>(PHP 8.3/8.2/7.4 선택) 중 목적에 맞게 선택합니다.</li>
+          <li><strong>Subdomain &amp; Framework Wizard</strong>: 언어(PHP/Rust/Python/Node.js/Java/Static)와 프레임워크(CBoard, CRust, 그누보드5 등)를 고르면 권장 버전·포트가 자동 설정됩니다.</li>
+          <li><strong>App Port</strong>: 앱 서버가 리슨 중인 내부 포트(예: 8080) | <strong>Issue SSL</strong>: Let's Encrypt 무료 HTTPS 자동 발급 | <strong>Create SSH User</strong>: 해당 서브도메인 전용 SSH/SFTP 계정 생성.</li>
+        </ul>
+        <img src="/assets/docs/tab2_sites.png" alt="사이트 및 도메인" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-3. 앱 프로세스 (App Processes)</h3>
+        <p>Rust, Python, Node.js, PHP 백그라운드 앱을 등록하고 Start / Stop / Delete 버튼으로 프로세스 상태를 제어합니다.</p>
+        <img src="/assets/docs/tab3_apps.png" alt="앱 프로세스" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-4. 멀티 DB 스튜디오 (Multi-DB Studio)</h3>
+        <p>SQLite/MySQL 데이터베이스 경로를 지정해 테이블 목록을 조회하고 패널 내에서 바로 SQL 쿼리를 실행해 결과를 JSON으로 확인합니다.</p>
+        <img src="/assets/docs/tab4_db.png" alt="멀티 DB 스튜디오" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-5. 저장 공간 및 로그 (Storage &amp; Logs)</h3>
+        <p>지정된 일수(기본 30일) 이전의 오래된 로그 파일을 안전하게 스캔하고 정리(<code>copytruncate</code>)하여 디스크 용량을 확보합니다. DB 및 업로드 폴더는 자동 보호됩니다.</p>
+        <img src="/assets/docs/tab5_storage.png" alt="저장 공간 및 로그" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-6. 파일 및 터미널 (Files &amp; Terminal)</h3>
+        <p>서버 설정 파일(<code>/etc/nginx/...</code>, 웹 소스 등)을 직접 열어 수정·저장하고, 하단 웹 터미널에서 리눅스 명령을 즉시 실행할 수 있습니다.</p>
+        <img src="/assets/docs/tab6_files.png" alt="파일 및 터미널" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      </div>
+
+      <div>
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-7. 보안 및 감사 로그 (Security &amp; Audit)</h3>
+        <p>관리자 로그인 성공/실패, 비밀번호 변경, 사이트 생성, DB 쿼리, 터미널 명령 실행 등 모든 주요 보안 이벤트를 시간순으로 추적합니다.</p>
+        <img src="/assets/docs/tab7_audit.png" alt="보안 및 감사 로그" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      </div>
     </div>
   </main>
 

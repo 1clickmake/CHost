@@ -59,6 +59,13 @@
     .row > * { flex: 1; min-width: 140px; }
     .row > .btn, .row > select.compact { flex: 0 0 auto; width: auto; }
     pre.console { background: #070b14; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12px; color: #cbd5e1; max-height: 280px; overflow: auto; white-space: pre-wrap; margin-top: 10px; }
+    .usage-bar-bg { width: 100%; height: 7px; background: rgba(255,255,255,.07); border-radius: 999px; overflow: hidden; margin-top: 10px; }
+    .usage-bar-fill { height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg, #6366f1, #22d3ee); transition: width .35s ease; }
+    .usage-bar-fill.warn { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .usage-bar-fill.danger { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .field-hint { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(3,7,18,.72); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
+    .modal-box { width: 100%; max-width: 400px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
     @media (max-width: 768px) { .sidebar { width: 180px; } }
   </style>
 </head>
@@ -99,6 +106,7 @@
             <option value="zh-CN">简体中文 (zh-CN)</option>
             <option value="es">Español (es)</option>
           </select>
+          <button class="btn btn-sm" onclick="openPwModal()">비밀번호 변경</button>
           <button class="btn btn-sm" onclick="doLogout()" data-i18n="logout">Logout</button>
         </div>
       </header>
@@ -106,9 +114,22 @@
       <main class="content">
         <section id="tab-dashboard">
           <div class="grid-4">
-            <div class="card"><div class="metric-label" data-i18n="cpu_usage">CPU</div><div class="metric-val" id="m-cpu">-</div></div>
-            <div class="card"><div class="metric-label" data-i18n="ram_usage">RAM</div><div class="metric-val" id="m-ram">-</div></div>
-            <div class="card"><div class="metric-label" data-i18n="disk_usage">Disk</div><div class="metric-val" id="m-disk">-</div><div id="m-disk-warn" style="margin-top:6px"></div></div>
+            <div class="card">
+              <div class="metric-label" data-i18n="cpu_usage">CPU</div>
+              <div class="metric-val" id="m-cpu">-</div>
+              <div class="usage-bar-bg"><div class="usage-bar-fill" id="bar-cpu"></div></div>
+            </div>
+            <div class="card">
+              <div class="metric-label" data-i18n="ram_usage">RAM</div>
+              <div class="metric-val" id="m-ram">-</div>
+              <div class="usage-bar-bg"><div class="usage-bar-fill" id="bar-ram"></div></div>
+            </div>
+            <div class="card">
+              <div class="metric-label" data-i18n="disk_usage">Disk</div>
+              <div class="metric-val" id="m-disk">-</div>
+              <div class="usage-bar-bg"><div class="usage-bar-fill" id="bar-disk"></div></div>
+              <div id="m-disk-warn" style="margin-top:8px"></div>
+            </div>
             <div class="card"><div class="metric-label" data-i18n="uptime">Uptime</div><div class="metric-val" id="m-uptime">-</div></div>
           </div>
           <div class="card">
@@ -121,27 +142,28 @@
           <div class="card">
             <h3 style="margin-bottom:12px;font-size:15px" data-i18n="add_site">Add Site</h3>
             <div class="row">
-              <input id="site-domain" placeholder="example.com" />
-              <select id="site-type" class="compact">
-                <option value="static">Static HTML</option>
-                <option value="proxy">Reverse Proxy</option>
-                <option value="php">PHP Site</option>
+              <input id="site-domain" placeholder="도메인 입력 (예: chost.work)" />
+              <select id="site-type" class="compact" onchange="onSiteTypeChange()">
+                <option value="static">Static HTML (정적 웹)</option>
+                <option value="proxy">Reverse Proxy (앱 포트 연결)</option>
+                <option value="php">PHP Site (PHP 웹사이트)</option>
               </select>
-              <input id="site-port" type="number" placeholder="Proxy Port (e.g. 3000)" />
-              <select id="site-php" class="compact">
+              <input id="site-port" type="number" class="hidden" placeholder="Proxy Port (예: 3000)" />
+              <select id="site-php" class="compact hidden">
                 <option value="8.3">PHP 8.3</option>
                 <option value="8.2">PHP 8.2</option>
                 <option value="7.4">PHP 7.4</option>
               </select>
               <button class="btn btn-primary" onclick="createSite()">Create</button>
             </div>
+            <div class="field-hint" id="site-type-hint">Static HTML: index.html, CSS, JS 등 정적 웹 파일을 바로 서비스합니다.</div>
           </div>
           <div class="card">
             <h3 style="margin-bottom:12px;font-size:15px">Subdomain &amp; Framework Wizard</h3>
             <div class="row" style="margin-bottom:10px">
-              <input id="sub-prefix" placeholder="Subdomain prefix (e.g. api, blog)" />
-              <input id="sub-parent" placeholder="Parent domain (e.g. cmake.work)" />
-              <select id="sub-lang" class="compact">
+              <input id="sub-prefix" placeholder="서브도메인 (예: api, blog)" />
+              <input id="sub-parent" placeholder="상위 도메인 (예: chost.work)" />
+              <select id="sub-lang" class="compact" onchange="onSubLangChange()">
                 <option value="php">PHP</option>
                 <option value="rust">Rust</option>
                 <option value="python">Python</option>
@@ -149,27 +171,28 @@
                 <option value="java">Java</option>
                 <option value="static">Static HTML</option>
               </select>
-              <select id="sub-fw" class="compact">
-                <option value="blank">Blank (index.html)</option>
-                <option value="cmake_board">CMAKE Board (php_board)</option>
-                <option value="crust">CRust</option>
-                <option value="gnuboard5">Gnuboard5</option>
+              <select id="sub-fw" class="compact" onchange="onSubFwChange()">
+                <option value="blank">Blank (기본 템플릿)</option>
+                <option value="cmake_board">CBoard (php_board)</option>
+                <option value="crust">CRust (Rust 게시판)</option>
+                <option value="gnuboard5">Gnuboard5 (그누보드5)</option>
                 <option value="wordpress">WordPress</option>
-                <option value="django">Django</option>
-                <option value="springboot">Spring Boot</option>
+                <option value="django">Django (Python)</option>
+                <option value="springboot">Spring Boot (Java)</option>
               </select>
             </div>
             <div class="row">
               <select id="sub-php" class="compact">
-                <option value="8.3">PHP 8.3</option>
+                <option value="8.3">PHP 8.3 (최신 권장)</option>
                 <option value="8.2">PHP 8.2</option>
                 <option value="7.4">PHP 7.4</option>
               </select>
-              <input id="sub-port" type="number" placeholder="App Port (e.g. 8080)" />
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto"><input type="checkbox" id="sub-ssl" style="width:auto" /> Issue SSL</label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto"><input type="checkbox" id="sub-ssh" style="width:auto" /> Create SSH User</label>
+              <input id="sub-port" type="number" class="hidden" placeholder="App Port (예: 8080)" />
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="Let's Encrypt 무료 HTTPS SSL 인증서 자동 발급"><input type="checkbox" id="sub-ssl" style="width:auto" /> Issue SSL (HTTPS 자동발급)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="이 서브도메인 전용 Linux SSH/SFTP 계정 생성"><input type="checkbox" id="sub-ssh" style="width:auto" /> Create SSH User (전용 SSH 계정)</label>
               <button class="btn btn-primary" onclick="createSubdomain()">Create Subdomain</button>
             </div>
+            <div class="field-hint" id="sub-wizard-hint">언어 또는 프레임워크를 선택하면 권장 런타임 버전과 포트가 자동으로 맞춰집니다. App Port는 Node/Python/Rust/Java 앱 서버의 내부 포트(예: 8080)입니다.</div>
           </div>
           <div class="card">
             <table>
@@ -308,13 +331,28 @@ function showTab(name, btn) {
   if (name === 'apps') loadApps();
   if (name === 'security') loadAudits();
 }
+function setUsageBar(id, pct) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const v = Math.max(0, Math.min(100, Number(pct) || 0));
+  el.style.width = `${v}%`;
+  el.classList.remove('warn', 'danger');
+  if (v >= 90) el.classList.add('danger');
+  else if (v >= 75) el.classList.add('warn');
+}
 async function refreshAll() {
   const s = await api('/api/system/stats');
   if (s.success) {
+    const cpuPct = Number(s.cpu_percent || 0).toFixed(1);
+    const ramPct = s.mem_total_mb > 0 ? (s.mem_used_mb / s.mem_total_mb) * 100 : 0;
+    const diskPct = Number(s.disk_percent || 0).toFixed(1);
     document.getElementById('host-info').textContent = `${s.hostname} (${s.os})`;
-    document.getElementById('m-cpu').textContent = `${s.cpu_percent}%`;
-    document.getElementById('m-ram').textContent = `${s.mem_used_mb} / ${s.mem_total_mb} MB`;
-    document.getElementById('m-disk').textContent = `${s.disk_used_gb} / ${s.disk_total_gb} GB (${s.disk_percent}%)`;
+    document.getElementById('m-cpu').textContent = `${cpuPct}%`;
+    document.getElementById('m-ram').textContent = `${s.mem_used_mb} / ${s.mem_total_mb} MB (${ramPct.toFixed(1)}%)`;
+    document.getElementById('m-disk').textContent = `${s.disk_used_gb} / ${s.disk_total_gb} GB (${diskPct}%)`;
+    setUsageBar('bar-cpu', cpuPct);
+    setUsageBar('bar-ram', ramPct);
+    setUsageBar('bar-disk', diskPct);
     document.getElementById('m-disk-warn').innerHTML = s.disk_warning ? '<span class="badge badge-warn">Disk &gt; 80%</span>' : '<span class="badge badge-ok">Healthy</span>';
     document.getElementById('m-uptime').textContent = `${Math.floor(s.uptime_secs / 3600)}h`;
   }
@@ -323,6 +361,87 @@ async function refreshAll() {
     document.getElementById('php-versions-list').innerHTML = p.versions.map(v =>
       `<span class="badge ${v.installed ? 'badge-ok' : 'badge-warn'}">PHP ${v.version}: ${v.installed ? 'Installed' : 'Not Installed'}</span>`
     ).join('');
+  }
+}
+const LANG_RUNTIMES = {
+  php: [ ['8.3','PHP 8.3 (최신 권장)'], ['8.2','PHP 8.2'], ['7.4','PHP 7.4 (구형 그누보드용)'] ],
+  python: [ ['3.12','Python 3.12 (최신 권장)'], ['3.11','Python 3.11'], ['3.10','Python 3.10'] ],
+  node: [ ['22','Node.js 22 LTS (최신 권장)'], ['20','Node.js 20 LTS'], ['18','Node.js 18'] ],
+  rust: [ ['stable','Rust Stable (최신 권장)'], ['nightly','Rust Nightly'] ],
+  java: [ ['21','JDK 21 LTS (최신 권장)'], ['17','JDK 17 LTS'] ],
+  static: []
+};
+function onSiteTypeChange() {
+  const t = document.getElementById('site-type').value;
+  const portEl = document.getElementById('site-port');
+  const phpEl = document.getElementById('site-php');
+  const hint = document.getElementById('site-type-hint');
+  portEl.classList.toggle('hidden', t !== 'proxy');
+  phpEl.classList.toggle('hidden', t !== 'php');
+  if (t === 'static') hint.textContent = 'Static HTML: index.html, CSS, JS 등 정적 웹 파일을 바로 서비스합니다.';
+  else if (t === 'proxy') hint.textContent = 'Reverse Proxy: Node/Rust/Python 등 내부 앱 서버의 포트(예: 3000, 8080)를 도메인으로 연결합니다.';
+  else hint.textContent = 'PHP Site: PHP-FPM 런타임(8.3 / 8.2 / 7.4)을 선택해 그누보드·CBoard·워드프레스 등을 실행합니다.';
+}
+function onSubLangChange() {
+  const lang = document.getElementById('sub-lang').value;
+  const rtEl = document.getElementById('sub-php');
+  const portEl = document.getElementById('sub-port');
+  const opts = LANG_RUNTIMES[lang] || [];
+  if (opts.length === 0) {
+    rtEl.classList.add('hidden');
+  } else {
+    rtEl.innerHTML = opts.map(([v, label]) => `<option value="${v}">${label}</option>`).join('');
+    rtEl.classList.remove('hidden');
+  }
+  const needPort = ['rust', 'python', 'node', 'java'].includes(lang);
+  portEl.classList.toggle('hidden', !needPort);
+}
+function onSubFwChange() {
+  const fw = document.getElementById('sub-fw').value;
+  const langEl = document.getElementById('sub-lang');
+  const portEl = document.getElementById('sub-port');
+  const preset = {
+    cmake_board: { lang: 'php', rt: '8.3', port: '' },
+    gnuboard5: { lang: 'php', rt: '7.4', port: '' },
+    wordpress: { lang: 'php', rt: '8.3', port: '' },
+    crust: { lang: 'rust', rt: 'stable', port: '8080' },
+    django: { lang: 'python', rt: '3.12', port: '8000' },
+    springboot: { lang: 'java', rt: '21', port: '8080' }
+  }[fw];
+  if (preset) {
+    langEl.value = preset.lang;
+    onSubLangChange();
+    const rtEl = document.getElementById('sub-php');
+    if (preset.rt && !rtEl.classList.contains('hidden')) rtEl.value = preset.rt;
+    if (preset.port) portEl.value = preset.port;
+  }
+}
+function openPwModal() {
+  document.getElementById('pw-cur').value = '';
+  document.getElementById('pw-new').value = '';
+  document.getElementById('pw-new2').value = '';
+  document.getElementById('pw-err').textContent = '';
+  document.getElementById('pw-modal').classList.remove('hidden');
+}
+function closePwModal() {
+  document.getElementById('pw-modal').classList.add('hidden');
+}
+async function submitChangePw() {
+  const current_password = document.getElementById('pw-cur').value;
+  const new_password = document.getElementById('pw-new').value;
+  const new_password2 = document.getElementById('pw-new2').value;
+  const errEl = document.getElementById('pw-err');
+  if (new_password.length < 4) { errEl.textContent = '새 비밀번호는 4자 이상 입력해 주세요.'; return; }
+  if (new_password !== new_password2) { errEl.textContent = '새 비밀번호가 서로 일치하지 않습니다.'; return; }
+  const r = await api('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ current_password, new_password })
+  });
+  if (r.success) {
+    closePwModal();
+    alert('관리자 비밀번호가 변경되었습니다.');
+  } else {
+    errEl.textContent = r.error || '변경 실패';
   }
 }
 async function loadSites() {
@@ -429,7 +548,24 @@ async function loadAudits() {
     `<tr><td>${l.created_at.slice(0,19)}</td><td>${l.actor}</td><td>${l.action}</td><td>${l.target}</td><td>${l.detail}</td></tr>`
   ).join('');
 }
+onSiteTypeChange();
+onSubLangChange();
 checkAuth();
 </script>
+<div id="pw-modal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <h3 style="margin-bottom:14px;font-size:16px">관리자 비밀번호 변경</h3>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <input type="password" id="pw-cur" placeholder="현재 비밀번호" />
+      <input type="password" id="pw-new" placeholder="새 비밀번호 (4자 이상)" />
+      <input type="password" id="pw-new2" placeholder="새 비밀번호 확인" />
+    </div>
+    <div id="pw-err" style="color:#fca5a5;font-size:12px;margin-top:8px;min-height:16px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-sm" onclick="closePwModal()">취소</button>
+      <button class="btn btn-sm btn-primary" onclick="submitChangePw()">변경 저장</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

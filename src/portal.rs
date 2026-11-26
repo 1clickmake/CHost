@@ -45,6 +45,18 @@ struct CreateCommentReq {
     content: String,
 }
 
+async fn serve_doc_image(Path(file): Path<String>) -> Response {
+    let clean = file.replace("..", "").replace('/', "").replace('\\', "");
+    if !clean.ends_with(".png") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let path = format!("portal/assets/docs/{}", clean);
+    match fs::read(&path) {
+        Ok(bytes) => ([(header::CONTENT_TYPE, "image/png")], bytes).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 async fn serve_page(file: &str) -> Response {
     match fs::read_to_string(file) {
         Ok(html) => Html(html).into_response(),
@@ -194,6 +206,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(serve_home))
         .route("/docs", get(serve_docs))
+        .route("/assets/docs/{file}", get(serve_doc_image))
         .route("/forum", get(serve_forum))
         .route("/health", get(handle_health))
         .route("/api/forum/posts", get(handle_list_posts).post(handle_create_post))
