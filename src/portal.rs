@@ -52,7 +52,7 @@ async fn serve_doc_image(Path(file): Path<String>) -> Response {
     }
     let path = format!("portal/assets/docs/{}", clean);
     match fs::read(&path) {
-        Ok(bytes) => ([(header::CONTENT_TYPE, "image/png")], bytes).into_response(),
+        Ok(bytes) => ([(axum::http::header::CONTENT_TYPE, "image/png")], bytes).into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
 }
