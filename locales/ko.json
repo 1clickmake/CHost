@@ -40,7 +40,7 @@
   "tip_ssl": "Let's Encrypt 무료 HTTPS SSL 인증서 자동 발급",
   "tip_ftp": "파일 업로드를 위한 전용 FTP/SFTP 계정 자동 생성",
   "tip_db": "MariaDB/MySQL 데이터베이스 및 전용 계정 자동 생성",
-  "chk_ssl": "Issue SSL (HTTPS 자물쇠 인증서 자동발급)",
+  "chk_ssl": "Issue SSL (HTTPS 인증서 자동발급)",
   "chk_ftp": "Create FTP/SFTP (파일 접속 계정 생성)",
   "chk_db": "Auto Create DB (데이터베이스 자동 생성)",
   "ph_ftp_user": "FTP/SFTP 아이디 (비우면 도메인명_ftp 자동생성)",

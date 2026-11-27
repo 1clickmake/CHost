@@ -207,7 +207,7 @@
             </div>
             <div id="sub-port-help" class="guide-box hidden" data-i18n="port_help_proxy">💡 앱 포트(App Port)란? PHP와 달리 Rust·Python·Node.js·Java 앱은 서버 내부에서 고유 번호(포트)로 실행된 뒤 Nginx가 도메인과 연결해 줍니다. 앱이 사용하는 포트 번호를 입력하세요 (예: Node.js 3000, Python Django 8000, Rust/Spring Boot 8080).</div>
             <div class="row" style="margin-top:12px">
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" data-i18n-title="tip_ssl" title="Let's Encrypt 무료 HTTPS SSL 인증서 자동 발급"><input type="checkbox" id="sub-ssl" style="width:auto" /> <span data-i18n="chk_ssl">Issue SSL (HTTPS 자물쇠 인증서 자동발급)</span></label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" data-i18n-title="tip_ssl" title="Let's Encrypt 무료 HTTPS SSL 인증서 자동 발급"><input type="checkbox" id="sub-ssl" style="width:auto" /> <span data-i18n="chk_ssl">Issue SSL (HTTPS 인증서 자동발급)</span></label>
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" data-i18n-title="tip_ftp" title="파일 업로드를 위한 전용 FTP/SFTP 계정 자동 생성"><input type="checkbox" id="sub-ssh" style="width:auto" onchange="toggleProvisionInputs()" /> <span data-i18n="chk_ftp">Create FTP/SFTP (파일 접속 계정 생성)</span></label>
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" data-i18n-title="tip_db" title="MariaDB/MySQL 데이터베이스 및 전용 계정 자동 생성"><input type="checkbox" id="sub-db" style="width:auto" onchange="toggleProvisionInputs()" /> <span data-i18n="chk_db">Auto Create DB (데이터베이스 자동 생성)</span> <span id="db-guard-badge"></span></label>
             </div>
@@ -639,8 +639,8 @@ async function loadSites() {
       <td>${escAttr(s.site_type)}</td>
       <td>${s.site_type === 'proxy' ? ':' + s.proxy_port : escAttr(s.root_path)}</td>
       <td>${escAttr(s.php_version || '-')}</td>
-      <td>${renderCredCell(s.ftp_user, s.ftp_pass)}</td>
-      <td>${renderCredCell(s.db_name ? (s.db_name + (s.db_user && s.db_user !== s.db_name ? ' / ' + s.db_user : '')) : s.db_user, s.db_pass)}</td>
+      <td>${s.ftp_user ? renderCredCell(s.ftp_user, s.ftp_pass) : `<button class="btn btn-sm" onclick="quickProvisionCred(${s.id}, 'ftp', this)"><i class="bi bi-folder-plus"></i> ${t('btn_create_ftp', 'FTP 생성')}</button>`}</td>
+      <td>${(s.db_name || s.db_user) ? renderCredCell(s.db_name ? (s.db_name + (s.db_user && s.db_user !== s.db_name ? ' / ' + s.db_user : '')) : s.db_user, s.db_pass) : `<button class="btn btn-sm" onclick="quickProvisionCred(${s.id}, 'db', this)"><i class="bi bi-database-add"></i> ${t('btn_create_db', 'DB 생성')}</button>`}</td>
       <td>${s.ssl_enabled ? '<span class="badge badge-ok">HTTPS</span>' : `<button class="btn btn-sm" onclick="issueSsl(${s.id}, this)">${t('btn_issue_ssl', 'Issue SSL')}</button>`}</td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:nowrap;align-items:center">
@@ -649,6 +649,28 @@ async function loadSites() {
         </div>
       </td>
     </tr>`).join('');
+}
+async function quickProvisionCred(id, kind, btn) {
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = t('msg_creating', '생성 중...');
+  }
+  try {
+    const r = await api(`/api/sites/${id}/credentials`, {
+      method: 'POST',
+      body: JSON.stringify({ create_ftp: kind === 'ftp', create_db: kind === 'db' })
+    });
+    if (r.success) {
+      await loadSites();
+    } else {
+      alert((kind === 'ftp' ? 'FTP' : 'DB') + ' 생성 실패: ' + (r.error || 'Unknown error'));
+      if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+    }
+  } catch (e) {
+    alert((kind === 'ftp' ? 'FTP' : 'DB') + ' 생성 실패: ' + (e.message || e));
+    if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+  }
 }
 function openSiteInfoModal(id) {
   const s = (window.SITES_CACHE || []).find(x => x.id === id);
@@ -1005,11 +1027,11 @@ checkAuth();
           <input id="si-ftp-user" readonly style="opacity:.8;cursor:text" data-i18n-ph="si_ph_ftp_user" placeholder="FTP 아이디" />
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_ftp_pass">FTP 비밀번호</div>
-        <div class="row">
-          <input id="si-ftp-pass" type="password" data-i18n-ph="si_ph_ftp_pass" placeholder="새 FTP 비밀번호 입력" />
-          <button class="btn btn-sm pw-eye-btn" type="button" onclick="togglePwEye('si-ftp-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
-          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
-          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
+        <div class="row" style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
+          <input id="si-ftp-pass" type="password" style="flex:1;min-width:0" data-i18n-ph="si_ph_ftp_pass" placeholder="새 FTP 비밀번호 입력" />
+          <button class="btn btn-sm pw-eye-btn" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="togglePwEye('si-ftp-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
+          <button class="btn btn-sm" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="copyVal('si-ftp-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
       <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
@@ -1025,11 +1047,11 @@ checkAuth();
           </div>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_pass">DB 비밀번호</div>
-        <div class="row">
-          <input id="si-db-pass" type="password" data-i18n-ph="si_ph_db_pass" placeholder="새 DB 비밀번호 입력" />
-          <button class="btn btn-sm pw-eye-btn" type="button" onclick="togglePwEye('si-db-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
-          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
-          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
+        <div class="row" style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
+          <input id="si-db-pass" type="password" style="flex:1;min-width:0" data-i18n-ph="si_ph_db_pass" placeholder="새 DB 비밀번호 입력" />
+          <button class="btn btn-sm pw-eye-btn" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="togglePwEye('si-db-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
+          <button class="btn btn-sm" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="copyVal('si-db-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
     </div>
