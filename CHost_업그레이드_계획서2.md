@@ -162,3 +162,10 @@ flowchart LR
 - [x] 다국어 마무리: 터미널 퀵 버튼·상위 폴더·예제 버튼·SQL placeholder·확인 퀴즈·생성 실패 알림 (5개국어 275키, 키 누락 0)
 - [ ] 한계: Node 앱은 `npm install` 이 실행 중 앱의 node_modules 를 직접 갱신(순간적 영향 가능), Rust 첫 빌드는 오래 걸림 / Nginx 환경 실검증 미완
 - [ ] 다음: Phase 3 Pro (배포 이력·원클릭 롤백), Nginx 환경 검증
+
+**v0.1.21 – Nginx 환경 실검증 & 웹서버 전환 자동 이전 (테스트 서버 실검증 완료)**
+- [x] 테스트 서버를 Apache → Nginx 로 실제 전환하고 기존 사이트 3개(PHP/Rust 프록시/정적, 그중 2개 HTTPS)가 전환 전후 동일한 응답(301/200)임을 확인
+- [x] 신규: `POST /api/webserver/migrate` — 전환 후 DB 의 모든 사이트 설정을 활성 웹서버 형식으로 재생성(추가 도메인 보존) + Let's Encrypt 인증서 재연결. 런타임 스토어에서 nginx/apache2 설치 시 자동 실행. **Apache→Nginx→Apache→Nginx 왕복 모두 검증**
+- [x] Nginx 에서 검증 완료: Laravel(공용 vendor) 생성·200, Git 설치 Node 앱 '준비 중' 안내 페이지(502 + 자동 새로고침)→정상 기동, 설정 편집기(문법 오류 저장 시 자동 복구·서비스 유지), 추가 도메인 반영, 접속 로그 조회, SSL 신규 발급(certbot --nginx, 체인 검증 OK), Git 업데이트, 삭제 시 설정 정리
+- [x] 수정: 사이트 삭제 시 certbot 이 만든 Apache `-le-ssl.conf` 와 Let's Encrypt 인증서(`certbot delete`)까지 정리 (SSL 사이트 생성→삭제로 인증서 디렉터리 정리 확인)
+- [ ] 남은 항목: Nginx 프록시 사이트 WebSocket 헤더 토글(Conf 모달), Phase 3 Pro (배포 이력·롤백, AI 에러 닥터, 클라우드 백업)
