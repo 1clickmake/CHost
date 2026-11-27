@@ -263,5 +263,15 @@
   "ver_update_fail": "Error de actualización: ",
   "ver_check_title": "Comprobar versión / actualizar",
   "lbl_recommended": "última, recomendada",
-  "lbl_legacy_gnuboard": "para Gnuboard antiguo"
+  "lbl_legacy_gnuboard": "para Gnuboard antiguo",
+  "btn_ex_show_tables": "Ejemplo: SHOW TABLES;",
+  "btn_ex_sites": "Ejemplo: SELECT * FROM sites",
+  "btn_up_dir": "⬆️ Carpeta superior",
+  "qc_disk": "💾 Disco (df -h)",
+  "qc_mem": "🧠 Memoria (free -m)",
+  "qc_nginx": "✅ Comprobar Nginx",
+  "qc_apache": "✅ Comprobar Apache",
+  "ph_maria_sql": "SHOW TABLES; o SELECT * FROM nombre_tabla LIMIT 20;",
+  "sec_reset_quiz": "⚠️ Pregunta de confirmación:",
+  "msg_create_fail": "error al crear: "
 }

@@ -308,10 +308,10 @@
                 <button class="btn btn-primary" onclick="downloadMariaBackup()" data-i18n="btn_backup_sql">SQL 백업 다운로드</button>
               </div>
               <div id="maria-tables" style="margin-bottom:10px;font-size:12px;color:var(--muted)"></div>
-              <textarea id="maria-sql" rows="3" placeholder="SHOW TABLES; 또는 SELECT * FROM 테이블명 LIMIT 20;"></textarea>
+              <textarea id="maria-sql" rows="3" data-i18n-ph="ph_maria_sql" placeholder="SHOW TABLES; 또는 SELECT * FROM 테이블명 LIMIT 20;"></textarea>
               <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
                 <button class="btn btn-primary" onclick="runMariaQuery()" data-i18n="btn_run_sql">SQL 실행</button>
-                <button class="btn btn-sm" onclick="document.getElementById('maria-sql').value='SHOW TABLES;'">예제: SHOW TABLES;</button>
+                <button class="btn btn-sm" onclick="document.getElementById('maria-sql').value='SHOW TABLES;'" data-i18n="btn_ex_show_tables">예제: SHOW TABLES;</button>
               </div>
               <pre id="maria-result" class="console"></pre>
             </div>
@@ -324,7 +324,7 @@
               <textarea id="db-sql" rows="3" data-i18n-ph="ph_db_sql" placeholder="SELECT * FROM sites LIMIT 20;"></textarea>
               <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
                 <button class="btn btn-primary" onclick="runSqliteQuery()" data-i18n="btn_run_sql">SQL 실행</button>
-                <button class="btn btn-sm" onclick="document.getElementById('db-sql').value='SELECT * FROM sites LIMIT 20;'">예제: SELECT * FROM sites</button>
+                <button class="btn btn-sm" onclick="document.getElementById('db-sql').value='SELECT * FROM sites LIMIT 20;'" data-i18n="btn_ex_sites">예제: SELECT * FROM sites</button>
               </div>
               <pre id="db-result" class="console"></pre>
             </div>
@@ -363,7 +363,7 @@
               <button class="btn btn-sm" onclick="browseDir('/etc/nginx/sites-available')">🌐 Nginx Conf</button>
               <button class="btn btn-sm" onclick="browseDir('/etc/apache2/sites-available')">🪶 Apache Conf</button>
               <button class="btn btn-sm" onclick="browseDir('/www/wwwlogs')">📜 /www/wwwlogs</button>
-              <button class="btn btn-sm" onclick="browseUpDir()">⬆️ 상위 폴더</button>
+              <button class="btn btn-sm" onclick="browseUpDir()" data-i18n="btn_up_dir">⬆️ 상위 폴더</button>
             </div>
             <div id="file-browser-list" class="file-list"></div>
             <div class="row" style="margin-bottom:8px">
@@ -379,10 +379,10 @@
               💡 <strong>사용법 안내:</strong> SSH 접속 없이 서버 상태를 빠르게 확인하는 단발성 명령 실행기입니다. 아래 퀵 버튼을 누르면 자주 쓰는 명령이 바로 실행됩니다.
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-              <button class="btn btn-sm" onclick="runQuickCmd('df -h')">💾 디스크 (df -h)</button>
-              <button class="btn btn-sm" onclick="runQuickCmd('free -m')">🧠 메모리 (free -m)</button>
-              <button class="btn btn-sm" onclick="runQuickCmd('nginx -t')">✅ Nginx 검사</button>
-              <button class="btn btn-sm" onclick="runQuickCmd('apache2ctl configtest')">✅ Apache 검사</button>
+              <button class="btn btn-sm" onclick="runQuickCmd('df -h')" data-i18n="qc_disk">💾 디스크 (df -h)</button>
+              <button class="btn btn-sm" onclick="runQuickCmd('free -m')" data-i18n="qc_mem">🧠 메모리 (free -m)</button>
+              <button class="btn btn-sm" onclick="runQuickCmd('nginx -t')" data-i18n="qc_nginx">✅ Nginx 검사</button>
+              <button class="btn btn-sm" onclick="runQuickCmd('apache2ctl configtest')" data-i18n="qc_apache">✅ Apache 검사</button>
             </div>
             <div class="row">
               <input id="term-cmd" data-i18n-ph="ph_term_cmd" placeholder="uname -a" />
@@ -420,7 +420,7 @@
                 <label style="display:flex;align-items:center;gap:8px;color:#fca5a5"><input type="radio" name="reset-mode" value="full" style="width:auto" /> <span data-i18n="opt_reset_full">완전 초기화 (모든 사이트·FTP·DB·웹 폴더까지 영구 삭제)</span></label>
               </div>
               <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.08);margin-bottom:8px">
-                <span style="font-size:12px;color:#fca5a5;white-space:nowrap">⚠️ 확인 퀴즈: <strong id="sec-reset-q"></strong></span>
+                <span style="font-size:12px;color:#fca5a5;white-space:nowrap"><span data-i18n="sec_reset_quiz">⚠️ 확인 퀴즈:</span> <strong id="sec-reset-q"></strong></span>
                 <input id="sec-reset-ans" type="number" style="width:76px;min-width:0;padding:4px 8px;font-size:12px" data-i18n-ph="ph_answer" placeholder="정답" />
               </div>
               <div id="sec-reset-msg" style="font-size:12px;margin-bottom:8px;min-height:16px"></div>
@@ -1009,11 +1009,11 @@ async function quickProvisionCred(id, kind, btn) {
     if (r.success) {
       await loadSites();
     } else {
-      alert((kind === 'ftp' ? 'FTP' : 'DB') + ' 생성 실패: ' + (r.error || 'Unknown error'));
+      alert((kind === 'ftp' ? 'FTP' : 'DB') + ' ' + t('msg_create_fail', '생성 실패: ') + (r.error || 'Unknown error'));
       if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
     }
   } catch (e) {
-    alert((kind === 'ftp' ? 'FTP' : 'DB') + ' 생성 실패: ' + (e.message || e));
+    alert((kind === 'ftp' ? 'FTP' : 'DB') + ' ' + t('msg_create_fail', '생성 실패: ') + (e.message || e));
     if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
   }
 }

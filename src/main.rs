@@ -726,8 +726,8 @@ fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework:
             let svc_owned = svc.clone();
             tokio::spawn(async move {
                 let build_cmd = format!(
-                    "export PATH=\"/root/.cargo/bin:$PATH\"; cd '{}' && cargo build --release && systemctl daemon-reload && systemctl enable --now '{}'",
-                    root_owned, svc_owned
+                    "export PATH=\"/root/.cargo/bin:$PATH\"; cd '{}' && cargo build --release && systemctl daemon-reload && systemctl enable '{}' && systemctl restart '{}'",
+                    root_owned, svc_owned, svc_owned
                 );
                 let _ = Command::new("sh").args(["-c", &build_cmd]).output();
             });
@@ -744,8 +744,8 @@ fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework:
             let svc_owned = svc.clone();
             tokio::task::spawn_blocking(move || {
                 let cmd = format!(
-                    "export PATH=\"/root/.cargo/bin:$PATH\"; cd '{}' && cargo build --release && systemctl daemon-reload && systemctl enable --now '{}'",
-                    root_owned, svc_owned
+                    "export PATH=\"/root/.cargo/bin:$PATH\"; cd '{}' && cargo build --release && systemctl daemon-reload && systemctl enable '{}' && systemctl restart '{}'",
+                    root_owned, svc_owned, svc_owned
                 );
                 let _ = Command::new("sh").args(["-c", &cmd]).output();
             });
@@ -762,7 +762,7 @@ fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework:
             let svc_owned = svc.clone();
             tokio::task::spawn_blocking(move || {
                 let setup_cmd = format!(
-                    "{base} && cd '{r}' && ([ -f '{r}/manage.py' ] || ('{r}/venv/bin/python' -m django startproject mysite . && sed -i \"s/ALLOWED_HOSTS = \\\\[\\\\]/ALLOWED_HOSTS = ['*']/\" '{r}/mysite/settings.py')); systemctl daemon-reload && systemctl enable --now '{s}'",
+                    "{base} && cd '{r}' && ([ -f '{r}/manage.py' ] || ('{r}/venv/bin/python' -m django startproject mysite . && sed -i \"s/ALLOWED_HOSTS = \\\\[\\\\]/ALLOWED_HOSTS = ['*']/\" '{r}/mysite/settings.py')); systemctl daemon-reload && systemctl enable '{s}' && systemctl restart '{s}'",
                     base = engine::python_setup_cmd(&root_owned), r = root_owned, s = svc_owned
                 );
                 let _ = Command::new("sh").args(["-c", &setup_cmd]).output();
@@ -780,7 +780,7 @@ fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework:
             let svc_owned = svc.clone();
             tokio::task::spawn_blocking(move || {
                 let cmd = format!(
-                    "{base} && systemctl daemon-reload && systemctl enable --now '{s}'",
+                    "{base} && systemctl daemon-reload && systemctl enable '{s}' && systemctl restart '{s}'",
                     base = engine::python_setup_cmd(&root_owned), s = svc_owned
                 );
                 let _ = Command::new("sh").args(["-c", &cmd]).output();
@@ -797,7 +797,7 @@ fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework:
             let svc_owned = svc.clone();
             tokio::task::spawn_blocking(move || {
                 let cmd = format!(
-                    "cd '{r}' && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs)) && npm install --silent && npm run build --if-present && systemctl daemon-reload && systemctl enable --now '{s}'",
+                    "cd '{r}' && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs)) && npm install --silent && npm run build --if-present && systemctl daemon-reload && systemctl enable '{s}' && systemctl restart '{s}'",
                     r = root_owned, s = svc_owned
                 );
                 let _ = Command::new("sh").args(["-c", &cmd]).output();
@@ -844,7 +844,7 @@ fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework:
             let svc_owned = svc.clone();
             tokio::spawn(async move {
                 let cmd = format!(
-                    "cd '{r}' && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs)) && ([ -f package.json ] || npm init -y >/dev/null 2>&1) && ([ -d node_modules/express ] || npm install --silent express) && systemctl daemon-reload && systemctl enable --now '{s}'",
+                    "cd '{r}' && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs)) && ([ -f package.json ] || npm init -y >/dev/null 2>&1) && ([ -d node_modules/express ] || npm install --silent express) && systemctl daemon-reload && systemctl enable '{s}' && systemctl restart '{s}'",
                     r = root_owned, s = svc_owned
                 );
                 let _ = Command::new("sh").args(["-c", &cmd]).output();
@@ -873,7 +873,7 @@ fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework:
             let svc_owned = svc.clone();
             tokio::spawn(async move {
                 let cmd = format!(
-                    "cd '{r}' && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs)) && npm install --silent && npm run build && systemctl daemon-reload && systemctl enable --now '{s}'",
+                    "cd '{r}' && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs)) && npm install --silent && npm run build && systemctl daemon-reload && systemctl enable '{s}' && systemctl restart '{s}'",
                     r = root_owned, s = svc_owned
                 );
                 let _ = Command::new("sh").args(["-c", &cmd]).output();
@@ -1026,7 +1026,7 @@ async fn handle_create_site(
                 }
             }
             if let Some(svc) = app_service.clone() {
-                spawn_health_watch(state.clone(), domain.clone(), proxy_port, svc);
+                spawn_health_watch(state.clone(), domain.clone(), proxy_port, svc, false);
             }
             state
                 .db
@@ -1238,7 +1238,7 @@ async fn handle_create_subdomain(
                 }
             }
             if let Some(svc) = app_service.clone() {
-                spawn_health_watch(state.clone(), full_domain.clone(), proxy_port, svc);
+                spawn_health_watch(state.clone(), full_domain.clone(), proxy_port, svc, false);
             }
             state.db.log_audit(
                 "admin",
@@ -1311,15 +1311,28 @@ async fn handle_detect(
     }
 }
 
-fn spawn_health_watch(state: Arc<AppState>, domain: String, port: i64, svc: String) {
+fn svc_active_ts(svc: &str) -> String {
+    Command::new("systemctl")
+        .args(["show", "-p", "ActiveEnterTimestampMonotonic", "--value", svc])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default()
+}
+
+fn spawn_health_watch(state: Arc<AppState>, domain: String, port: i64, svc: String, wait_restart: bool) {
     if !cfg!(unix) || port <= 0 {
         return;
     }
     tokio::spawn(async move {
         let mut elapsed: u64 = 0;
+        let ts0 = if wait_restart { svc_active_ts(&svc) } else { String::new() };
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             elapsed += 5;
+            if wait_restart && elapsed < 1200 && svc_active_ts(&svc) == ts0 {
+                // 새 빌드가 끝나 서비스가 재시작될 때까지 기존 앱은 그대로 서비스 중
+                continue;
+            }
             let (p, d) = (port, domain.clone());
             let code = tokio::task::spawn_blocking(move || engine::probe_http(p, &d))
                 .await
@@ -1418,8 +1431,6 @@ async fn handle_site_git_update(
             let _ = tokio::task::spawn_blocking(move || engine::setup_php_project(&rp, &tag)).await;
             deployed = "php";
         } else if site.site_type == "proxy" {
-            let svc = app_service_name(&site.domain);
-            let _ = Command::new("systemctl").args(["stop", &svc]).output();
             if lang == "rust" {
                 let bin = if fw == "crust" { "rust_board".to_string() } else { engine::cargo_bin_name(&root).unwrap_or_default() };
                 if !bin.is_empty() {
@@ -1428,7 +1439,7 @@ async fn handle_site_git_update(
             }
             let (service, _building) = provision_proxy_app(&site.domain, &root, &lang, &fw, site.proxy_port);
             if let Some(svc) = service {
-                spawn_health_watch(state.clone(), site.domain.clone(), site.proxy_port, svc);
+                spawn_health_watch(state.clone(), site.domain.clone(), site.proxy_port, svc, true);
             }
             deployed = "proxy";
         }

@@ -263,5 +263,15 @@
   "ver_update_fail": "업데이트 실패: ",
   "ver_check_title": "버전 확인 / 업데이트",
   "lbl_recommended": "최신 권장",
-  "lbl_legacy_gnuboard": "구형 그누보드용"
+  "lbl_legacy_gnuboard": "구형 그누보드용",
+  "btn_ex_show_tables": "예제: SHOW TABLES;",
+  "btn_ex_sites": "예제: SELECT * FROM sites",
+  "btn_up_dir": "⬆️ 상위 폴더",
+  "qc_disk": "💾 디스크 (df -h)",
+  "qc_mem": "🧠 메모리 (free -m)",
+  "qc_nginx": "✅ Nginx 검사",
+  "qc_apache": "✅ Apache 검사",
+  "ph_maria_sql": "SHOW TABLES; 또는 SELECT * FROM 테이블명 LIMIT 20;",
+  "sec_reset_quiz": "⚠️ 확인 퀴즈:",
+  "msg_create_fail": "생성 실패: "
 }

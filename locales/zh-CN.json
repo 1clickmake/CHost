@@ -263,5 +263,15 @@
   "ver_update_fail": "更新失败：",
   "ver_check_title": "检查版本 / 更新",
   "lbl_recommended": "最新推荐",
-  "lbl_legacy_gnuboard": "适用于旧版 Gnuboard"
+  "lbl_legacy_gnuboard": "适用于旧版 Gnuboard",
+  "btn_ex_show_tables": "示例：SHOW TABLES;",
+  "btn_ex_sites": "示例：SELECT * FROM sites",
+  "btn_up_dir": "⬆️ 上级文件夹",
+  "qc_disk": "💾 磁盘 (df -h)",
+  "qc_mem": "🧠 内存 (free -m)",
+  "qc_nginx": "✅ 检查 Nginx",
+  "qc_apache": "✅ 检查 Apache",
+  "ph_maria_sql": "SHOW TABLES; 或 SELECT * FROM 表名 LIMIT 20;",
+  "sec_reset_quiz": "⚠️ 确认问题：",
+  "msg_create_fail": "创建失败："
 }

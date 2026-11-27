@@ -263,5 +263,15 @@
   "ver_update_fail": "更新に失敗: ",
   "ver_check_title": "バージョン確認 / 更新",
   "lbl_recommended": "最新・推奨",
-  "lbl_legacy_gnuboard": "旧グヌボード用"
+  "lbl_legacy_gnuboard": "旧グヌボード用",
+  "btn_ex_show_tables": "例: SHOW TABLES;",
+  "btn_ex_sites": "例: SELECT * FROM sites",
+  "btn_up_dir": "⬆️ 上のフォルダ",
+  "qc_disk": "💾 ディスク (df -h)",
+  "qc_mem": "🧠 メモリ (free -m)",
+  "qc_nginx": "✅ Nginxチェック",
+  "qc_apache": "✅ Apacheチェック",
+  "ph_maria_sql": "SHOW TABLES; または SELECT * FROM テーブル名 LIMIT 20;",
+  "sec_reset_quiz": "⚠️ 確認クイズ:",
+  "msg_create_fail": "作成に失敗: "
 }
