@@ -347,7 +347,17 @@ const COPY_I18N = {
 };
 function initPreCopyButtons() {
   document.querySelectorAll('pre').forEach(pre => {
-    if (pre.nextElementSibling && pre.nextElementSibling.classList.contains('pre-copy-bar')) return;
+    if (pre.parentElement && pre.parentElement.classList.contains('pre-wrap')) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'pre-wrap';
+    if (pre.id) {
+      wrap.id = pre.id;
+      pre.removeAttribute('id');
+    }
+    if (pre.style.display) {
+      wrap.style.display = pre.style.display;
+      pre.style.display = '';
+    }
     const bar = document.createElement('div');
     bar.className = 'pre-copy-bar';
     const btn = document.createElement('button');
@@ -368,7 +378,9 @@ function initPreCopyButtons() {
       }, 1300);
     };
     bar.appendChild(btn);
-    pre.insertAdjacentElement('afterend', bar);
+    pre.parentNode.insertBefore(wrap, pre);
+    wrap.appendChild(pre);
+    wrap.appendChild(bar);
   });
 }
 function setDocLang(l) {
