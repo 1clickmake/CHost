@@ -669,6 +669,13 @@ async function createUnifiedSite() {
     }
   }
 }
+function getNextFreeProxyPort(basePort = 8080) {
+  const used = new Set((window.SITES_CACHE || []).filter(s => s.site_type === 'proxy' && s.proxy_port > 0).map(s => Number(s.proxy_port)));
+  used.add(8800);
+  let p = Number(basePort) || 8080;
+  while (used.has(p) && p < 65535) p++;
+  return p;
+}
 function onSubLangChange() {
   const lang = document.getElementById('sub-lang').value;
   const rtEl = document.getElementById('sub-php');
@@ -682,6 +689,14 @@ function onSubLangChange() {
   }
   const needPort = ['rust', 'python', 'node', 'java'].includes(lang);
   portEl.classList.toggle('hidden', !needPort);
+  if (needPort) {
+    const defPort = lang === 'node' ? 3000 : (lang === 'python' ? 8000 : 8080);
+    const cur = parseInt(portEl.value || '0', 10);
+    const used = new Set((window.SITES_CACHE || []).filter(s => s.site_type === 'proxy' && s.proxy_port > 0).map(s => Number(s.proxy_port)));
+    if (!cur || used.has(cur) || cur === 8800) {
+      portEl.value = String(getNextFreeProxyPort(defPort));
+    }
+  }
   const helpEl = document.getElementById('sub-port-help');
   if (helpEl) helpEl.classList.toggle('hidden', !needPort);
 }
@@ -704,7 +719,7 @@ function onSubFwChange() {
     onSubLangChange();
     const rtEl = document.getElementById('sub-php');
     if (preset.rt && !rtEl.classList.contains('hidden')) rtEl.value = preset.rt;
-    if (preset.port) portEl.value = preset.port;
+    if (preset.port) portEl.value = String(getNextFreeProxyPort(parseInt(preset.port, 10)));
   } else if (fw === 'blank') {
     langEl.value = 'static';
     onSubLangChange();
