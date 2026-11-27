@@ -364,17 +364,23 @@ fn sanitize_ident(raw: Option<&str>, max_len: usize) -> String {
         .collect()
 }
 
+fn domain_prefix_slug(domain: &str, max_len: usize) -> String {
+    let first_label = domain.trim().split('.').next().unwrap_or("");
+    let slug: String = first_label
+        .chars()
+        .map(|c| if c == '-' { '_' } else { c.to_ascii_lowercase() })
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .take(max_len)
+        .collect();
+    if slug.is_empty() { "site".to_string() } else { slug }
+}
+
 fn provision_sftp_user(domain: &str, root_path: &str, custom_user: Option<&str>, custom_pass: Option<&str>) -> serde_json::Value {
     let cu = sanitize_ident(custom_user, 24);
     let user = if !cu.is_empty() {
         cu
     } else {
-        let safe_slug: String = domain
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric())
-            .take(12)
-            .collect();
-        format!("chost_{}", if safe_slug.is_empty() { "site".to_string() } else { safe_slug })
+        format!("{}_ftp", domain_prefix_slug(domain, 20))
     };
     let cp_raw = custom_pass.unwrap_or("").trim();
     let pass = if !cp_raw.is_empty() { cp_raw.to_string() } else { gen_random_secret(14) };
@@ -400,16 +406,11 @@ fn provision_sftp_user(domain: &str, root_path: &str, custom_user: Option<&str>,
 }
 
 fn provision_database(domain: &str, custom_db: Option<&str>, custom_user: Option<&str>, custom_pass: Option<&str>) -> serde_json::Value {
-    let safe_slug: String = domain
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .take(14)
-        .collect();
-    let suffix = if safe_slug.is_empty() { "site".to_string() } else { safe_slug };
+    let prefix = domain_prefix_slug(domain, 20);
     let cdb = sanitize_ident(custom_db, 32);
     let cu = sanitize_ident(custom_user, 24);
-    let db_name = if !cdb.is_empty() { cdb } else { format!("db_{}", suffix) };
-    let db_user = if !cu.is_empty() { cu } else { format!("u_{}", suffix) };
+    let db_name = if !cdb.is_empty() { cdb } else { format!("{}_db", prefix) };
+    let db_user = if !cu.is_empty() { cu } else { format!("{}_db", prefix) };
     let cp_raw = custom_pass.unwrap_or("").trim();
     let db_pass = if !cp_raw.is_empty() { cp_raw.to_string() } else { gen_random_secret(14) };
     let db_pass_sql = db_pass.replace('\'', "");
