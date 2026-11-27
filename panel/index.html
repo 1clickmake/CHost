@@ -134,8 +134,8 @@
             <div class="card"><div class="metric-label" data-i18n="uptime">Uptime</div><div class="metric-val" id="m-uptime">-</div></div>
           </div>
           <div class="card">
-            <h3 style="margin-bottom:10px;font-size:15px">PHP Runtimes</h3>
-            <div id="php-versions-list" class="row"></div>
+            <h3 style="margin-bottom:12px;font-size:15px">설치된 서버 패키지 &amp; 런타임</h3>
+            <div id="dash-packages-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px"></div>
           </div>
         </section>
 
@@ -382,11 +382,14 @@ async function refreshAll() {
     document.getElementById('m-disk-warn').innerHTML = s.disk_warning ? '<span class="badge badge-warn">Disk &gt; 80%</span>' : '<span class="badge badge-ok">Healthy</span>';
     document.getElementById('m-uptime').textContent = `${Math.floor(s.uptime_secs / 3600)}h`;
   }
-  const p = await api('/api/php/versions');
-  if (p.success) {
-    document.getElementById('php-versions-list').innerHTML = p.versions.map(v =>
-      `<span class="badge ${v.installed ? 'badge-ok' : 'badge-warn'}">PHP ${v.version}: ${v.installed ? 'Installed' : 'Not Installed'}</span>`
-    ).join('');
+  const pv = document.getElementById('php-versions-list');
+  if (pv) {
+    const p = await api('/api/php/versions');
+    if (p.success) {
+      pv.innerHTML = p.versions.map(v =>
+        `<span class="badge ${v.installed ? 'badge-ok' : 'badge-warn'}">PHP ${v.version}: ${v.installed ? 'Installed' : 'Not Installed'}</span>`
+      ).join('');
+    }
   }
 }
 const LANG_RUNTIMES = {
@@ -621,8 +624,8 @@ async function loadRuntimes(checkFirstSetup) {
     tbody.innerHTML = r.items.map(it => {
       const isWebServer = (it.id === 'nginx' || it.id === 'apache2');
       const ctrl = isWebServer
-        ? `<input type="radio" name="rt-web" class="rt-chk" value="${it.id}" style="width:auto" ${it.installed ? 'checked' : ''}>`
-        : `<input type="checkbox" class="rt-chk" value="${it.id}" style="width:auto" ${it.installed ? 'disabled' : ''}>`;
+        ? `<input type="radio" name="rt-web" class="rt-chk" value="${it.id}" data-installed="${it.installed ? '1' : '0'}" style="width:auto" ${it.installed ? 'checked' : ''}>`
+        : `<input type="checkbox" class="rt-chk" value="${it.id}" data-installed="${it.installed ? '1' : '0'}" style="width:auto" ${it.installed ? 'disabled' : ''}>`;
       return `
       <tr>
         <td>${ctrl}</td>
@@ -632,6 +635,17 @@ async function loadRuntimes(checkFirstSetup) {
         <td>${it.installed ? '<span class="badge badge-ok">설치됨</span>' : '<span class="badge badge-warn">미설치</span>'}</td>
       </tr>`;
     }).join('');
+  }
+  const dashGrid = document.getElementById('dash-packages-grid');
+  if (dashGrid) {
+    dashGrid.innerHTML = r.items.map(it => `
+      <div style="padding:12px 14px;border-radius:10px;border:1px solid ${it.installed ? 'rgba(16,185,129,.35)' : 'var(--border)'};background:${it.installed ? 'rgba(16,185,129,.06)' : 'var(--bg)'};display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div>
+          <div style="font-size:13px;font-weight:700">${it.name}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${catMap[it.category] || it.category}</div>
+        </div>
+        ${it.installed ? '<span class="badge badge-ok">설치됨</span>' : '<span class="badge badge-warn">미설치</span>'}
+      </div>`).join('');
   }
   const hasDb = r.items.some(it => it.id === 'mariadb' && it.installed);
   const dbBadge = document.getElementById('db-guard-badge');
@@ -644,8 +658,8 @@ async function loadRuntimes(checkFirstSetup) {
       const isWebServer = (it.id === 'nginx' || it.id === 'apache2');
       const checked = !it.installed && RECOMMENDED_STACK.includes(it.id);
       const ctrl = isWebServer
-        ? `<input type="radio" name="setup-web" class="setup-chk" value="${it.id}" style="width:auto" ${(it.installed || it.id === 'nginx') ? 'checked' : ''}>`
-        : `<input type="checkbox" class="setup-chk" value="${it.id}" style="width:auto" ${checked ? 'checked' : ''} ${it.installed ? 'disabled' : ''}>`;
+        ? `<input type="radio" name="setup-web" class="setup-chk" value="${it.id}" data-installed="${it.installed ? '1' : '0'}" style="width:auto" ${(it.installed || it.id === 'nginx') ? 'checked' : ''}>`
+        : `<input type="checkbox" class="setup-chk" value="${it.id}" data-installed="${it.installed ? '1' : '0'}" style="width:auto" ${checked ? 'checked' : ''} ${it.installed ? 'disabled' : ''}>`;
       return `<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-size:13px">
         <span style="display:flex;align-items:center;gap:8px">
           ${ctrl}
@@ -660,6 +674,25 @@ async function loadRuntimes(checkFirstSetup) {
     pollInstallLog('store');
   }
 }
+function setInstallLocked(mode, locked) {
+  if (mode === 'setup') {
+    const skipBtn = document.getElementById('btn-setup-skip');
+    const startBtn = document.getElementById('btn-setup-start');
+    if (skipBtn) skipBtn.disabled = locked;
+    if (startBtn) {
+      startBtn.disabled = locked;
+      startBtn.textContent = locked ? '설치 진행 중...' : '선택 패키지 설치 시작';
+    }
+    document.querySelectorAll('.setup-chk').forEach(el => { el.disabled = locked || el.dataset.installed === '1'; });
+  } else {
+    const rtBtn = document.getElementById('btn-rt-install');
+    if (rtBtn) {
+      rtBtn.disabled = locked;
+      rtBtn.textContent = locked ? '설치 진행 중...' : '선택 패키지 설치';
+    }
+    document.querySelectorAll('.rt-chk').forEach(el => { el.disabled = locked || el.dataset.installed === '1'; });
+  }
+}
 async function startRuntimeInstall(mode) {
   const cls = mode === 'setup' ? '.setup-chk:checked' : '.rt-chk:checked';
   const items = Array.from(document.querySelectorAll(cls)).map(el => el.value);
@@ -667,17 +700,20 @@ async function startRuntimeInstall(mode) {
     alert('설치할 패키지를 하나 이상 선택해 주세요.');
     return;
   }
+  setInstallLocked(mode, true);
   const r = await api('/api/runtimes/install', {
     method: 'POST',
     body: JSON.stringify({ items })
   });
   if (!r.success) {
+    setInstallLocked(mode, false);
     alert(r.error || '설치 시작 실패');
     return;
   }
   pollInstallLog(mode);
 }
 function pollInstallLog(mode) {
+  setInstallLocked(mode, true);
   const logEl = document.getElementById(mode === 'setup' ? 'setup-install-log' : 'rt-install-log');
   if (logEl) {
     logEl.classList.remove('hidden');
@@ -693,8 +729,13 @@ function pollInstallLog(mode) {
     if (r.success && !r.running) {
       clearInterval(_installPollTimer);
       _installPollTimer = null;
-      refreshAll();
-      loadRuntimes(false);
+      setInstallLocked(mode, false);
+      await refreshAll();
+      await loadRuntimes(false);
+      if (mode === 'setup') {
+        alert('모든 선택 패키지 설치 작업이 종료되었습니다.');
+        document.getElementById('setup-modal').classList.add('hidden');
+      }
     }
   };
   tick();
@@ -716,8 +757,8 @@ checkAuth();
     <div id="setup-items-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
     <pre id="setup-install-log" class="console hidden" style="max-height:180px"></pre>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
-      <button class="btn btn-sm" onclick="skipFirstSetup()">나중에 설치 (닫기)</button>
-      <button class="btn btn-sm btn-primary" onclick="startRuntimeInstall('setup')">선택 패키지 설치 시작</button>
+      <button class="btn btn-sm" id="btn-setup-skip" onclick="skipFirstSetup()">나중에 설치 (닫기)</button>
+      <button class="btn btn-sm btn-primary" id="btn-setup-start" onclick="startRuntimeInstall('setup')">선택 패키지 설치 시작</button>
     </div>
   </div>
 </div>
