@@ -439,6 +439,7 @@ async function checkAuth() {
     document.getElementById('app-view').classList.remove('hidden');
     refreshAll();
     loadRuntimes(true);
+    checkPanelVersion();
   }
 }
 async function doLogin() {
