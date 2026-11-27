@@ -678,28 +678,79 @@ function openSiteInfoModal(id) {
   document.getElementById('si-id').value = s.id;
   document.getElementById('si-domain').textContent = s.domain;
   document.getElementById('si-meta').textContent = `${s.site_type} · ${s.root_path}${s.php_version ? ' · PHP ' + s.php_version : ''}`;
-  const slug = s.domain.trim().split('.')[0].toLowerCase().replace(/-/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 20) || 'site';
   const fu = document.getElementById('si-ftp-user');
   const fp = document.getElementById('si-ftp-pass');
   const dn = document.getElementById('si-db-name');
   const du = document.getElementById('si-db-user');
   const dp = document.getElementById('si-db-pass');
-  fu.value = s.ftp_user || `${slug}_ftp`;
-  fu.readOnly = true;
+  fu.value = s.ftp_user || '';
+  fu.placeholder = s.ftp_user ? '' : t('lbl_not_created', '미생성');
   fp.value = s.ftp_pass || '';
   fp.type = 'password';
-  dn.value = s.db_name || `${slug}_db`;
-  dn.readOnly = true;
-  du.value = s.db_user || `${slug}_db`;
-  du.readOnly = true;
+  dn.value = s.db_name || '';
+  dn.placeholder = s.db_name ? '' : t('lbl_not_created', '미생성');
+  du.value = s.db_user || '';
+  du.placeholder = s.db_user ? '' : t('lbl_not_created', '미생성');
   dp.value = s.db_pass || '';
   dp.type = 'password';
+  document.getElementById('si-ftp-del-btn').disabled = !s.ftp_user;
+  document.getElementById('si-db-del-btn').disabled = !(s.db_name || s.db_user);
+  closeCredDeleteQuiz('ftp');
+  closeCredDeleteQuiz('db');
   document.querySelectorAll('#site-info-modal .pw-eye-btn').forEach(b => { b.innerHTML = '<i class="bi bi-eye"></i>'; });
   document.getElementById('si-msg').textContent = '';
   document.getElementById('site-info-modal').classList.remove('hidden');
 }
 function closeSiteInfoModal() {
   document.getElementById('site-info-modal').classList.add('hidden');
+}
+window.CRED_QUIZ = { ftp: 0, db: 0 };
+function openCredDeleteQuiz(target) {
+  const a = Math.floor(Math.random() * 9) + 1;
+  const b = Math.floor(Math.random() * 9) + 1;
+  window.CRED_QUIZ[target] = a + b;
+  document.getElementById(`si-${target}-q`).textContent = `${a} + ${b} = ?`;
+  const ans = document.getElementById(`si-${target}-ans`);
+  ans.value = '';
+  document.getElementById(`si-${target}-del-box`).classList.remove('hidden');
+  ans.focus();
+}
+function closeCredDeleteQuiz(target) {
+  const box = document.getElementById(`si-${target}-del-box`);
+  if (box) box.classList.add('hidden');
+}
+async function confirmCredDelete(target) {
+  const id = parseInt(document.getElementById('si-id').value, 10);
+  const ansEl = document.getElementById(`si-${target}-ans`);
+  const msgEl = document.getElementById('si-msg');
+  if (parseInt(ansEl.value.trim(), 10) !== window.CRED_QUIZ[target]) {
+    msgEl.style.color = '#fca5a5';
+    msgEl.textContent = t('msg_quiz_wrong', '❌ 계산 정답이 올바르지 않습니다. 다시 확인해 주세요.');
+    ansEl.focus();
+    return;
+  }
+  msgEl.style.color = 'var(--muted)';
+  msgEl.textContent = t('msg_deleting', '삭제 중...');
+  try {
+    const r = await api(`/api/sites/${id}/credentials/delete`, {
+      method: 'POST',
+      body: JSON.stringify({ target })
+    });
+    if (r.success) {
+      await loadSites();
+      openSiteInfoModal(id);
+      msgEl.style.color = '#6ee7b7';
+      msgEl.textContent = target === 'ftp'
+        ? t('msg_ftp_deleted', '✅ FTP 계정이 안전하게 삭제되었습니다. (사이트 파일 보존)')
+        : t('msg_db_deleted', '✅ DB 및 DB 계정이 삭제되었습니다.');
+    } else {
+      msgEl.style.color = '#fca5a5';
+      msgEl.textContent = r.error || 'Delete failed';
+    }
+  } catch (e) {
+    msgEl.style.color = '#fca5a5';
+    msgEl.textContent = e.message || 'Delete failed';
+  }
 }
 function togglePwEye(elId, btn) {
   const el = document.getElementById(elId);
@@ -1017,21 +1068,27 @@ checkAuth();
 <div id="site-info-modal" class="modal-backdrop hidden">
   <div class="modal-box" style="max-width:540px">
     <input type="hidden" id="si-id" />
-    <h3 style="margin-bottom:4px;font-size:17px">🔑 <span id="si-domain"></span> <span data-i18n="si_title_suffix">계정 정보 확인 / 수정</span></h3>
+    <h3 style="margin-bottom:4px;font-size:17px">🔑 <span id="si-domain"></span> <span data-i18n="si_title_suffix">계정 정보 확인</span></h3>
     <p id="si-meta" style="font-size:12px;color:var(--muted);margin-bottom:14px"></p>
     <div style="display:flex;flex-direction:column;gap:12px">
       <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
         <div style="font-size:12px;font-weight:700;color:#93c5fd;margin-bottom:8px" data-i18n="si_ftp_section">📁 FTP / SFTP 접속 정보 (Port 22)</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_ftp_user">FTP 아이디</div>
         <div class="row" style="margin-bottom:8px">
-          <input id="si-ftp-user" readonly style="opacity:.8;cursor:text" data-i18n-ph="si_ph_ftp_user" placeholder="FTP 아이디" />
+          <input id="si-ftp-user" readonly style="opacity:.85;cursor:text" data-i18n-ph="si_ph_ftp_user" placeholder="FTP 아이디" />
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_ftp_pass">FTP 비밀번호</div>
         <div class="row" style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
-          <input id="si-ftp-pass" type="password" style="flex:1 1 auto;min-width:0" data-i18n-ph="si_ph_ftp_pass" placeholder="새 FTP 비밀번호 입력" />
-          <button class="btn btn-sm pw-eye-btn" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 9px" onclick="togglePwEye('si-ftp-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
-          <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <input id="si-ftp-pass" type="password" readonly style="flex:1 1 auto;min-width:0;opacity:.85;cursor:text" placeholder="미생성" />
+          <button class="btn btn-sm pw-eye-btn" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 9px" onclick="togglePwEye('si-ftp-pass', this)" title="보기"><i class="bi bi-eye"></i></button>
           <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="copyVal('si-ftp-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
+          <button id="si-ftp-del-btn" class="btn btn-sm btn-danger" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="openCredDeleteQuiz('ftp')"><i class="bi bi-trash"></i> <span data-i18n="btn_delete">삭제</span></button>
+        </div>
+        <div id="si-ftp-del-box" class="hidden" style="margin-top:8px;padding:8px 10px;border-radius:8px;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.08);display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
+          <span style="font-size:12px;color:#fca5a5;white-space:nowrap">⚠️ FTP 삭제: <strong id="si-ftp-q"></strong></span>
+          <input id="si-ftp-ans" type="number" style="width:68px;min-width:0;padding:4px 8px;font-size:12px" placeholder="정답" />
+          <button class="btn btn-sm btn-danger" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:5px 10px" onclick="confirmCredDelete('ftp')">삭제 확정</button>
+          <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:5px 8px" onclick="closeCredDeleteQuiz('ftp')">취소</button>
         </div>
       </div>
       <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
@@ -1039,26 +1096,31 @@ checkAuth();
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
           <div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_name">DB 이름</div>
-            <input id="si-db-name" readonly style="opacity:.8;cursor:text" data-i18n-ph="si_ph_db_name" placeholder="DB 이름" />
+            <input id="si-db-name" readonly style="opacity:.85;cursor:text" data-i18n-ph="si_ph_db_name" placeholder="DB 이름" />
           </div>
           <div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_user">DB 유저 아이디</div>
-            <input id="si-db-user" readonly style="opacity:.8;cursor:text" data-i18n-ph="si_ph_db_user" placeholder="DB 유저 아이디" />
+            <input id="si-db-user" readonly style="opacity:.85;cursor:text" data-i18n-ph="si_ph_db_user" placeholder="DB 유저 아이디" />
           </div>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_pass">DB 비밀번호</div>
         <div class="row" style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
-          <input id="si-db-pass" type="password" style="flex:1 1 auto;min-width:0" data-i18n-ph="si_ph_db_pass" placeholder="새 DB 비밀번호 입력" />
-          <button class="btn btn-sm pw-eye-btn" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 9px" onclick="togglePwEye('si-db-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
-          <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <input id="si-db-pass" type="password" readonly style="flex:1 1 auto;min-width:0;opacity:.85;cursor:text" placeholder="미생성" />
+          <button class="btn btn-sm pw-eye-btn" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 9px" onclick="togglePwEye('si-db-pass', this)" title="보기"><i class="bi bi-eye"></i></button>
           <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="copyVal('si-db-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
+          <button id="si-db-del-btn" class="btn btn-sm btn-danger" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="openCredDeleteQuiz('db')"><i class="bi bi-trash"></i> <span data-i18n="btn_delete">삭제</span></button>
+        </div>
+        <div id="si-db-del-box" class="hidden" style="margin-top:8px;padding:8px 10px;border-radius:8px;border:1px solid rgba(239,68,68,.45);background:rgba(239,68,68,.08);display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
+          <span style="font-size:12px;color:#fca5a5;white-space:nowrap">⚠️ DB 삭제: <strong id="si-db-q"></strong></span>
+          <input id="si-db-ans" type="number" style="width:68px;min-width:0;padding:4px 8px;font-size:12px" placeholder="정답" />
+          <button class="btn btn-sm btn-danger" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:5px 10px" onclick="confirmCredDelete('db')">삭제 확정</button>
+          <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:5px 8px" onclick="closeCredDeleteQuiz('db')">취소</button>
         </div>
       </div>
     </div>
     <div id="si-msg" style="font-size:12px;margin-top:10px;min-height:16px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-sm" onclick="closeSiteInfoModal()" data-i18n="btn_close">닫기</button>
-      <button class="btn btn-sm btn-primary" onclick="saveSiteInfoCreds()" data-i18n="btn_apply_save">확인 및 서버 반영</button>
     </div>
   </div>
 </div>

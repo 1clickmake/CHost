@@ -1439,6 +1439,95 @@ async fn handle_update_site_credentials(
     Json(json!({ "success": true, "site": updated })).into_response()
 }
 
+#[derive(Deserialize)]
+struct DeleteSiteCredReq {
+    target: String,
+}
+
+async fn handle_delete_site_credential(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(req): Json<DeleteSiteCredReq>,
+) -> impl IntoResponse {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let site = match state.db.get_site(id) {
+        Ok(Some(s)) => s,
+        _ => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "error": "Site not found" })),
+            )
+                .into_response()
+        }
+    };
+
+    match req.target.as_str() {
+        "ftp" => {
+            let safe_fu = sanitize_ident(Some(&site.ftp_user), 24);
+            if !safe_fu.is_empty() && cfg!(unix) {
+                let _ = Command::new("userdel").arg(&safe_fu).output();
+            }
+            let _ = state.db.update_site_credentials(
+                id,
+                "",
+                "",
+                &site.db_name,
+                &site.db_user,
+                &site.db_pass,
+            );
+            state
+                .db
+                .log_audit("admin", "DELETE_SITE_FTP", &site.domain, &format!("user={}", safe_fu));
+        }
+        "db" => {
+            let safe_dn = sanitize_ident(Some(&site.db_name), 32);
+            let safe_du = sanitize_ident(Some(&site.db_user), 24);
+            if cfg!(unix) && (!safe_dn.is_empty() || !safe_du.is_empty()) {
+                let mut sql = String::new();
+                if !safe_dn.is_empty() {
+                    sql.push_str(&format!("DROP DATABASE IF EXISTS `{}`; ", safe_dn));
+                }
+                if !safe_du.is_empty() {
+                    sql.push_str(&format!("DROP USER IF EXISTS '{}'@'localhost'; ", safe_du));
+                }
+                sql.push_str("FLUSH PRIVILEGES;");
+                let out = Command::new("mysql").args(["-e", &sql]).output();
+                if !out.map(|o| o.status.success()).unwrap_or(false) {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({ "success": false, "error": "MariaDB 삭제 실패" })),
+                    )
+                        .into_response();
+                }
+            }
+            let _ = state.db.update_site_credentials(
+                id,
+                &site.ftp_user,
+                &site.ftp_pass,
+                "",
+                "",
+                "",
+            );
+            state
+                .db
+                .log_audit("admin", "DELETE_SITE_DB", &site.domain, &format!("db={}", safe_dn));
+        }
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "error": "Invalid target (expected ftp or db)" })),
+            )
+                .into_response();
+        }
+    }
+
+    let updated = state.db.get_site(id).ok().flatten();
+    Json(json!({ "success": true, "site": updated })).into_response()
+}
+
 #[tokio::main]
 async fn main() {
     let data_dir = PathBuf::from(
@@ -1498,6 +1587,7 @@ async fn main() {
         .route("/api/sites/subdomain", post(handle_create_subdomain))
         .route("/api/sites/{id}", delete(handle_delete_site))
         .route("/api/sites/{id}/credentials", post(handle_update_site_credentials))
+        .route("/api/sites/{id}/credentials/delete", post(handle_delete_site_credential))
         .route("/api/sites/{id}/php", post(handle_switch_site_php))
         .route("/api/sites/{id}/ssl", post(handle_issue_ssl))
         .route("/api/php/versions", get(handle_php_versions))
