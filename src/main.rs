@@ -395,6 +395,9 @@ fn provision_sftp_user(domain: &str, root_path: &str, custom_user: Option<&str>,
     let _ = Command::new("chown")
         .args(["-R", &format!("{}:www-data", user), root_path])
         .output();
+    let _ = Command::new("chmod")
+        .args(["-R", "g+rwX", root_path])
+        .output();
     let ok = cp.map(|o| o.status.success()).unwrap_or(false);
     json!({
         "created": ok,
