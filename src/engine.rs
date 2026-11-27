@@ -98,7 +98,7 @@ pub fn detect_project(dir: &Path) -> Value {
         php_version = "8.3";
         shared = "composer";
         if comp.contains("laravel/framework") {
-            if comp.contains("gnuboard") {
+            if comp.contains("gnuboard") || has("g7-setup.php") || has("g7-install") {
                 framework = "gnuboard7";
                 label = "Gnuboard7 (Laravel)".into();
             } else {
@@ -366,6 +366,16 @@ pub fn setup_php_project(root: &str, tag: &str) -> Vec<String> {
         );
         let _ = run_sh(&cmd);
         log.push("laravel .env / APP_KEY / permissions prepared".to_string());
+        // 라라벨 기본 스켈레톤(sqlite)은 DB 파일 + migrate 가 있어야 첫 화면이 열린다.
+        let env_txt = fs::read_to_string(p.join(".env")).unwrap_or_default();
+        if env_txt.lines().any(|l| l.trim() == "DB_CONNECTION=sqlite") {
+            let cmd = format!(
+                "cd '{r}' && mkdir -p database && touch database/database.sqlite && php artisan migrate --force >/dev/null 2>&1; chown -R www-data:www-data database 2>/dev/null; chmod -R 775 database 2>/dev/null; true",
+                r = root
+            );
+            let _ = run_sh(&cmd);
+            log.push("laravel sqlite database created and migrated".to_string());
+        }
     }
     let _ = run_sh(&format!("chown -R www-data:www-data '{r}' 2>/dev/null; chmod -R g+rwX '{r}' 2>/dev/null; true", r = root));
     log
@@ -486,6 +496,8 @@ mod tests {
     fn detects_frameworks() {
         let g7 = tmp("g7", &[("composer.json", r#"{"name":"gnuboard/g7","require":{"laravel/framework":"^12"}}"#)]);
         assert_eq!(detect_project(&g7)["framework"], "gnuboard7");
+        let g7b = tmp("g7b", &[("composer.json", r#"{"name":"laravel/laravel","require":{"laravel/framework":"^12"}}"#), ("g7-setup.php", "")]);
+        assert_eq!(detect_project(&g7b)["framework"], "gnuboard7");
         let lv = tmp("lv", &[("composer.json", r#"{"require":{"laravel/framework":"^11"}}"#)]);
         let d = detect_project(&lv);
         assert_eq!(d["framework"], "laravel");
