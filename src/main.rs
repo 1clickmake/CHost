@@ -2303,27 +2303,44 @@ async fn handle_panel_update(State(state): State<Arc<AppState>>, headers: Header
     }
     state.db.log_audit("admin", "PANEL_UPDATE", "panel", "Triggered self-update from GitHub Releases");
     let script = r#"
+exec > /tmp/chost_update.log 2>&1
 sleep 1
 ARCH=$(uname -m)
 case "$ARCH" in
   x86_64)  TAG="linux-x64" ;;
   aarch64) TAG="linux-arm64" ;;
-  *) exit 1 ;;
+  *) echo "Unsupported arch: $ARCH"; exit 1 ;;
 esac
-URL=$(curl -sSL "https://api.github.com/repos/1clickmake/CHost/releases/latest" | grep "browser_download_url" | grep "$TAG" | head -n 1 | cut -d '"' -f 4)
+URL=$(python3 -c '
+import urllib.request, json, sys
+tag = sys.argv[1]
+req = urllib.request.Request("https://api.github.com/repos/1clickmake/CHost/releases/latest", headers={"User-Agent": "CHost-Updater"})
+with urllib.request.urlopen(req, timeout=15) as r:
+    data = json.loads(r.read().decode("utf-8"))
+for a in data.get("assets", []):
+    if tag in a.get("name", ""):
+        print(a.get("browser_download_url", ""))
+        break
+' "$TAG")
+echo "Download URL: $URL"
 [ -z "$URL" ] && exit 1
 rm -rf /tmp/chost_upd && mkdir -p /tmp/chost_upd
-curl -sSL "$URL" -o /tmp/chost_upd/chost.tar.gz || exit 1
+curl -fsSL "$URL" -o /tmp/chost_upd/chost.tar.gz || exit 1
 tar -xzf /tmp/chost_upd/chost.tar.gz -C /tmp/chost_upd || exit 1
+[ -f /tmp/chost_upd/chost ] || exit 1
 [ -f /opt/chost/chost ] && cp -f /opt/chost/chost /opt/chost/chost.bak
-cp -rf /tmp/chost_upd/* /opt/chost/
-rm -f /opt/chost/chost.tar.gz
+systemctl stop chost
+cp -rf /tmp/chost_upd/chost /opt/chost/chost
+[ -d /tmp/chost_upd/panel ] && cp -rf /tmp/chost_upd/panel /opt/chost/
+[ -d /tmp/chost_upd/locales ] && cp -rf /tmp/chost_upd/locales /opt/chost/
 chmod +x /opt/chost/chost
 chown -R chost_ftp:chost_ftp /opt/chost 2>/dev/null || true
-systemctl restart chost
+systemctl start chost
+echo "Update completed!"
 "#;
-    let _ = Command::new("nohup")
-        .args(["sh", "-c", script])
+    let unit = format!("chost-upd-{}", chrono::Utc::now().timestamp());
+    let _ = Command::new("systemd-run")
+        .args(["--unit", &unit, "--collect", "sh", "-c", script])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
