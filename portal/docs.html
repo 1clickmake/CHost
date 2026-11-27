@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CHost Developer Docs</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <style>
     :root { --bg:#090d16; --surface:#111827; --border:#233048; --text:#f3f4f6; --muted:#9ca3af; --accent:#6366f1; }
     * { box-sizing:border-box; margin:0; padding:0; }
@@ -24,6 +25,9 @@
     .doc-card p, .doc-card li { font-size:14px; color:#d1d5db; }
     .doc-card ul { padding-left:20px; margin-top:8px; }
     pre { background:#060910; border:1px solid var(--border); border-radius:8px; padding:14px; overflow-x:auto; font-size:13px; color:#a5b4fc; margin-top:10px; }
+    .pre-copy-bar { display:flex; justify-content:flex-end; margin-top:6px; }
+    .btn-copy-code { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:6px; border:1px solid var(--border); background:#0f172a; color:var(--muted); font-size:12px; font-weight:600; cursor:pointer; }
+    .btn-copy-code:hover { border-color:var(--accent); color:var(--text); }
     code { font-family:Consolas,monospace; }
     table { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
     th, td { padding:10px 8px; border-bottom:1px solid var(--border); text-align:left; }
@@ -334,6 +338,39 @@ function showOs(id, btn) {
   btn.style.background = 'rgba(99,102,241,.2)';
   btn.style.color = '#c7d2fe';
 }
+const COPY_I18N = {
+  ko: { copy: "코드 복사", copied: "복사됨!" },
+  en: { copy: "Copy Code", copied: "Copied!" },
+  ja: { copy: "コピー", copied: "コピー済!" },
+  "zh-CN": { copy: "复制代码", copied: "已复制!" },
+  es: { copy: "Copiar código", copied: "¡Copiado!" }
+};
+function initPreCopyButtons() {
+  document.querySelectorAll('pre').forEach(pre => {
+    if (pre.nextElementSibling && pre.nextElementSibling.classList.contains('pre-copy-bar')) return;
+    const bar = document.createElement('div');
+    bar.className = 'pre-copy-bar';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-copy-code';
+    const l = localStorage.getItem('chost_lang') || 'ko';
+    const dict = COPY_I18N[l] || COPY_I18N.ko;
+    btn.innerHTML = `<i class="bi bi-clipboard"></i> <span class="copy-lbl">${dict.copy}</span>`;
+    btn.onclick = () => {
+      navigator.clipboard.writeText(pre.innerText.trim());
+      const curL = localStorage.getItem('chost_lang') || 'ko';
+      const d = COPY_I18N[curL] || COPY_I18N.ko;
+      btn.innerHTML = `<i class="bi bi-check2" style="color:#10b981"></i> <span class="copy-lbl" style="color:#6ee7b7">${d.copied}</span>`;
+      setTimeout(() => {
+        const nowL = localStorage.getItem('chost_lang') || 'ko';
+        const d2 = COPY_I18N[nowL] || COPY_I18N.ko;
+        btn.innerHTML = `<i class="bi bi-clipboard"></i> <span class="copy-lbl">${d2.copy}</span>`;
+      }, 1300);
+    };
+    bar.appendChild(btn);
+    pre.insertAdjacentElement('afterend', bar);
+  });
+}
 function setDocLang(l) {
   if (!DOC_I18N[l]) l = 'ko';
   localStorage.setItem('chost_lang', l);
@@ -343,7 +380,12 @@ function setDocLang(l) {
     const k = el.getAttribute('data-i18n');
     if (d[k]) el.textContent = d[k];
   });
+  const cd = COPY_I18N[l] || COPY_I18N.ko;
+  document.querySelectorAll('.btn-copy-code .copy-lbl').forEach(el => {
+    el.textContent = cd.copy;
+  });
 }
+initPreCopyButtons();
 setDocLang(localStorage.getItem('chost_lang') || 'ko');
 </script>
 </body>
