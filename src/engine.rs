@@ -406,8 +406,9 @@ pub fn setup_php_project(root: &str, tag: &str) -> Vec<String> {
 pub fn python_setup_cmd(root: &str) -> String {
     format!(
         "SH='{sh}'; R='{r}'; \
-         ([ -x \"$SH/bin/python\" ] || (mkdir -p '{sr}' && python3 -m venv \"$SH\" && \"$SH/bin/pip\" install -q django gunicorn uvicorn requests)) && \
-         ([ -x \"$R/venv/bin/python\" ] || python3 -m venv \"$R/venv\") && \
+         (python3 -c 'import ensurepip' >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-venv python3-pip >/dev/null 2>&1) && \
+         ([ -x \"$SH/bin/pip\" ] || (rm -rf \"$SH\"; true) && [ -x \"$SH/bin/pip\" ] || (mkdir -p '{sr}' && python3 -m venv \"$SH\" && \"$SH/bin/pip\" install -q django gunicorn uvicorn requests)) && \
+         ([ -x \"$R/venv/bin/pip\" ] || (rm -rf \"$R/venv\"; python3 -m venv \"$R/venv\")) && \
          SP=$(\"$R/venv/bin/python\" -c 'import sysconfig;print(sysconfig.get_paths()[\"purelib\"])') && \
          SHSP=$(\"$SH/bin/python\" -c 'import sysconfig;print(sysconfig.get_paths()[\"purelib\"])') && \
          echo \"$SHSP\" > \"$SP/chost_shared.pth\" && \
