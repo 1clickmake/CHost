@@ -443,6 +443,115 @@ fn reload_active_webserver(ws: &str) -> Result<(), String> {
     }
 }
 
+/// 다른 웹서버 설정 파일에서 추가 도메인(alias) 목록을 읽어온다. (Apache ServerAlias / Nginx server_name)
+fn read_aliases_from_other_ws(domain: &str, active_ws: &str) -> Vec<String> {
+    let path = if active_ws == "nginx" {
+        format!("/etc/apache2/sites-available/{}.conf", domain)
+    } else {
+        format!("/etc/nginx/sites-available/{}.conf", domain)
+    };
+    let txt = fs::read_to_string(&path).unwrap_or_default();
+    let mut out: Vec<String> = Vec::new();
+    for line in txt.lines() {
+        let t = line.trim().trim_end_matches(';');
+        let list: Vec<&str> = if let Some(r) = t.strip_prefix("ServerAlias ") {
+            r.split_whitespace().collect()
+        } else if let Some(r) = t.strip_prefix("server_name ") {
+            r.split_whitespace().collect()
+        } else {
+            continue;
+        };
+        for a in list {
+            let a = a.trim().to_lowercase();
+            if !a.is_empty() && a != domain && !out.contains(&a) && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '*') {
+                out.push(a);
+            }
+        }
+    }
+    out
+}
+
+/// Apache <-> Nginx 전환 후, DB 에 등록된 모든 사이트의 설정을 현재 활성 웹서버 형식으로 다시 만들고 SSL 을 재연결한다.
+fn migrate_sites_to_active_webserver(db: &Database) -> Value {
+    if !cfg!(unix) {
+        return json!({ "webserver": "n/a", "sites": [] });
+    }
+    let ws = detect_active_webserver();
+    let _ = fs::create_dir_all("/www/wwwlogs");
+    engine::ensure_starting_page();
+    let sites = db.list_sites().unwrap_or_default();
+    let mut report: Vec<Value> = Vec::new();
+    for s in &sites {
+        let aliases = read_aliases_from_other_ws(&s.domain, ws);
+        let web_root = if FsPath::new(&s.root_path).join("public").join("index.php").exists() {
+            format!("{}/public", s.root_path)
+        } else {
+            s.root_path.clone()
+        };
+        let mut conf = if ws == "apache2" {
+            write_apache_site_conf(&s.domain, &s.site_type, &web_root, s.proxy_port, &s.php_version)
+        } else {
+            write_nginx_site_conf(&s.domain, &s.site_type, &web_root, s.proxy_port, &s.php_version)
+        };
+        if !aliases.is_empty() {
+            if ws == "nginx" {
+                conf = conf.replace(
+                    &format!("server_name {};", s.domain),
+                    &format!("server_name {} {};", s.domain, aliases.join(" ")),
+                );
+            } else {
+                conf = conf.replace(
+                    &format!("ServerName {}\n", s.domain),
+                    &format!("ServerName {}\n    ServerAlias {}\n", s.domain, aliases.join(" ")),
+                );
+            }
+        }
+        if ws == "apache2" {
+            let _ = fs::write(format!("/etc/apache2/sites-available/{}.conf", s.domain), &conf);
+            let _ = Command::new("a2ensite").arg(format!("{}.conf", s.domain)).output();
+        } else {
+            let avail = format!("/etc/nginx/sites-available/{}.conf", s.domain);
+            let _ = fs::write(&avail, &conf);
+            let _ = Command::new("ln")
+                .args(["-sf", &avail, &format!("/etc/nginx/sites-enabled/{}.conf", s.domain)])
+                .output();
+        }
+        report.push(json!({ "domain": s.domain, "type": s.site_type, "aliases": aliases, "ssl": s.ssl_enabled }));
+    }
+    let reload = reload_active_webserver(ws);
+    let mut ssl_results: Vec<Value> = Vec::new();
+    if reload.is_ok() {
+        for s in sites.iter().filter(|s| s.ssl_enabled) {
+            let r = run_certbot_auto(&s.domain);
+            ssl_results.push(json!({ "domain": s.domain, "ok": r.is_ok(), "error": r.err() }));
+        }
+    }
+    json!({
+        "webserver": ws,
+        "reload": reload.map(|_| "ok".to_string()).unwrap_or_else(|e| e),
+        "sites": report,
+        "ssl": ssl_results
+    })
+}
+
+async fn handle_webserver_migrate(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let st = state.clone();
+    match tokio::task::spawn_blocking(move || migrate_sites_to_active_webserver(&st.db)).await {
+        Ok(rep) => {
+            state.db.log_audit("admin", "WEBSERVER_MIGRATE", "sites", &rep["webserver"].to_string());
+            Json(json!({ "success": true, "report": rep })).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "success": false, "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 fn provision_webserver_site(
     domain: &str,
     site_type: &str,
@@ -1793,6 +1902,11 @@ async fn handle_runtimes_install(
                     _ => {}
                 }
             }
+            if items.iter().any(|x| x == "nginx" || x == "apache2") {
+                append("\n>>> 기존 사이트 설정을 새 웹서버 형식으로 이전합니다...");
+                let rep = migrate_sites_to_active_webserver(&st.db);
+                append(&format!(">>> 이전 결과: {}", rep));
+            }
             append("\n=== 모든 선택 패키지 설치 작업이 종료되었습니다 ===");
         } else {
             append("Non-Unix environment: simulated install complete.");
@@ -3019,6 +3133,7 @@ async fn main() {
         .route("/api/sites/{id}/logs/clear", post(handle_clear_site_logs))
         .route("/api/sites/{id}/php", post(handle_switch_site_php))
     .route("/api/sites/{id}/health", get(handle_site_health))
+    .route("/api/webserver/migrate", post(handle_webserver_migrate))
     .route("/api/sites/{id}/git", get(handle_site_git_info))
     .route("/api/sites/{id}/git/update", post(handle_site_git_update))
     .route("/api/detect", post(handle_detect))
