@@ -351,7 +351,7 @@ fn write_nginx_site_conf(
 ) -> String {
     let body = match site_type {
         "proxy" => format!(
-            "    location / {{\n        proxy_pass http://127.0.0.1:{};\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }}\n",
+            "    error_page 502 503 504 /__chost_starting.html;\n    location = /__chost_starting.html {{\n        internal;\n        alias /opt/chost/shared/starting.html;\n    }}\n    location / {{\n        proxy_pass http://127.0.0.1:{};\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }}\n",
             proxy_port
         ),
         "php" => {
@@ -379,7 +379,7 @@ fn write_apache_site_conf(
 ) -> String {
     let extra = match site_type {
         "proxy" => format!(
-            "    ProxyPreserveHost On\n    ProxyPass / http://127.0.0.1:{}/\n    ProxyPassReverse / http://127.0.0.1:{}/\n",
+            "    Alias /__chost_starting.html /opt/chost/shared/starting.html\n    <Directory \"/opt/chost/shared\">\n        Require all granted\n    </Directory>\n    ErrorDocument 502 /__chost_starting.html\n    ErrorDocument 503 /__chost_starting.html\n    ProxyPass /__chost_starting.html !\n    ProxyPreserveHost On\n    ProxyPass / http://127.0.0.1:{}/\n    ProxyPassReverse / http://127.0.0.1:{}/\n",
             proxy_port, proxy_port
         ),
         "php" => {
@@ -454,6 +454,7 @@ fn provision_webserver_site(
         return;
     }
     let _ = fs::create_dir_all("/www/wwwlogs");
+    engine::ensure_starting_page();
     let ws = detect_active_webserver();
     if ws == "apache2" {
         let conf = write_apache_site_conf(domain, site_type, web_root, proxy_port, php_ver);
@@ -1024,6 +1025,9 @@ async fn handle_create_site(
                     }
                 }
             }
+            if let Some(svc) = app_service.clone() {
+                spawn_health_watch(state.clone(), domain.clone(), proxy_port, svc);
+            }
             state
                 .db
                 .log_audit("admin", "CREATE_SITE", &domain, &format!("type={}, port={}", site_type, proxy_port));
@@ -1233,6 +1237,9 @@ async fn handle_create_subdomain(
                     }
                 }
             }
+            if let Some(svc) = app_service.clone() {
+                spawn_health_watch(state.clone(), full_domain.clone(), proxy_port, svc);
+            }
             state.db.log_audit(
                 "admin",
                 "CREATE_SUBDOMAIN",
@@ -1302,6 +1309,49 @@ async fn handle_detect(
         )
             .into_response(),
     }
+}
+
+fn spawn_health_watch(state: Arc<AppState>, domain: String, port: i64, svc: String) {
+    if !cfg!(unix) || port <= 0 {
+        return;
+    }
+    tokio::spawn(async move {
+        let mut elapsed: u64 = 0;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            elapsed += 5;
+            let (p, d) = (port, domain.clone());
+            let code = tokio::task::spawn_blocking(move || engine::probe_http(p, &d))
+                .await
+                .ok()
+                .flatten();
+            if let Some(c) = code.filter(|c| *c < 500) {
+                state.db.log_audit("system", "HEALTHCHECK_OK", &domain, &format!("http={} after {}s", c, elapsed));
+                return;
+            }
+            let svc_c = svc.clone();
+            let st = tokio::task::spawn_blocking(move || {
+                Command::new("systemctl")
+                    .args(["is-active", &svc_c])
+                    .output()
+                    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                    .unwrap_or_default()
+            })
+            .await
+            .unwrap_or_default();
+            if st == "failed" || elapsed >= 1200 {
+                let svc_c = svc.clone();
+                let tail = tokio::task::spawn_blocking(move || engine::journal_tail(&svc_c)).await.unwrap_or_default();
+                state.db.log_audit(
+                    "system",
+                    "HEALTHCHECK_FAIL",
+                    &domain,
+                    &format!("service={} after {}s :: {}", st, elapsed, tail),
+                );
+                return;
+            }
+        }
+    });
 }
 
 async fn handle_site_health(

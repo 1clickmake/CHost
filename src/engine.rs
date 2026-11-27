@@ -492,6 +492,34 @@ pub fn probe_http(port: i64, host: &str) -> Option<u16> {
     head.split_whitespace().nth(1).and_then(|c| c.parse::<u16>().ok())
 }
 
+// ───────────────────────── 안전 기동 (Safe Start) ─────────────────────────
+
+pub const STARTING_PAGE_PATH: &str = "/opt/chost/shared/starting.html";
+
+const STARTING_PAGE_HTML: &str = r#"<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="5"><title>Starting...</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif}.c{max-width:520px;padding:36px;text-align:center;border:1px solid #1e293b;border-radius:16px;background:#111c33}h1{font-size:22px;margin:0 0 12px}p{color:#94a3b8;line-height:1.7;margin:6px 0}.s{display:inline-block;width:34px;height:34px;border:4px solid #334155;border-top-color:#38bdf8;border-radius:50%;animation:r 1s linear infinite;margin-bottom:16px}@keyframes r{to{transform:rotate(360deg)}}.f{margin-top:18px;font-size:12px;color:#64748b}</style></head><body><div class="c"><div class="s"></div><h1>🚀 사이트를 준비하고 있어요 / Site is starting</h1><p>앱을 빌드하고 실행하는 중입니다. 잠시 후 자동으로 새로고침됩니다.</p><p>The app is being built and started. This page refreshes automatically.</p><div class="f">Powered by CHost</div></div></body></html>"#;
+
+/// 앱이 아직 응답하지 않을 때(502/503/504) 방문자에게 보여줄 안내 페이지를 준비한다.
+pub fn ensure_starting_page() {
+    if !cfg!(unix) {
+        return;
+    }
+    let p = Path::new(STARTING_PAGE_PATH);
+    if let Some(parent) = p.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if fs::read_to_string(p).map(|t| t != STARTING_PAGE_HTML).unwrap_or(true) {
+        let _ = fs::write(p, STARTING_PAGE_HTML);
+    }
+}
+
+pub fn journal_tail(svc: &str) -> String {
+    Command::new("journalctl")
+        .args(["-u", svc, "-n", "6", "--no-pager", "-o", "cat"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).replace('\n', " | "))
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
