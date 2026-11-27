@@ -1,5 +1,6 @@
 mod db;
 mod engine;
+mod ops;
 
 use axum::{
     extract::{ConnectInfo, Path, Query, State},
@@ -1701,6 +1702,291 @@ async fn handle_dashboard_sites(State(state): State<Arc<AppState>>, headers: Hea
     Json(json!({ "success": true, "sites": out, "apps": app_list })).into_response()
 }
 
+#[derive(Deserialize)]
+struct AlertSettingsReq {
+    enabled: bool,
+    webhook_url: String,
+    telegram_token: String,
+    telegram_chat: String,
+}
+
+async fn handle_alerts_get(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let tok = state.db.get_setting("alert_tg_token", "");
+    Json(json!({
+        "success": true,
+        "enabled": state.db.get_setting("alert_enabled", "0") == "1",
+        "webhook_url": state.db.get_setting("alert_webhook_url", ""),
+        "telegram_token": if tok.is_empty() { "".to_string() } else { "********".to_string() },
+        "telegram_chat": state.db.get_setting("alert_tg_chat", "")
+    }))
+    .into_response()
+}
+
+async fn handle_alerts_save(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AlertSettingsReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let bad = |m: &str| (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": m }))).into_response();
+    let url = req.webhook_url.trim().to_string();
+    if !url.is_empty() && !ops::valid_http_url(&url) {
+        return bad("Invalid webhook URL (http:// or https:// only).");
+    }
+    let mut token = req.telegram_token.trim().to_string();
+    if token == "********" {
+        token = state.db.get_setting("alert_tg_token", "");
+    }
+    if !token.is_empty() && !ops::valid_tg_token(&token) {
+        return bad("Invalid Telegram bot token.");
+    }
+    let chat = req.telegram_chat.trim().to_string();
+    if !chat.is_empty() && !ops::valid_tg_chat(&chat) {
+        return bad("Invalid Telegram chat id.");
+    }
+    let _ = state.db.set_setting("alert_enabled", if req.enabled { "1" } else { "0" });
+    let _ = state.db.set_setting("alert_webhook_url", &url);
+    let _ = state.db.set_setting("alert_tg_token", &token);
+    let _ = state.db.set_setting("alert_tg_chat", &chat);
+    state.db.log_audit("admin", "ALERT_SETTINGS", "panel", &format!("enabled={}", req.enabled));
+    Json(json!({ "success": true })).into_response()
+}
+
+async fn handle_alerts_test(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let (w, t, c) = (
+        state.db.get_setting("alert_webhook_url", ""),
+        state.db.get_setting("alert_tg_token", ""),
+        state.db.get_setting("alert_tg_chat", ""),
+    );
+    let host = System::host_name().unwrap_or_else(|| "server".into());
+    let res = tokio::task::spawn_blocking(move || ops::send_alert(&w, &t, &c, &format!("✅ [CHost] Test alert from {}", host)))
+        .await
+        .unwrap_or_default();
+    let ok = res.iter().any(|r| r.ends_with(":ok"));
+    Json(json!({ "success": ok, "results": res })).into_response()
+}
+
+struct AlertCheck {
+    key: String,
+    bad: Option<bool>,
+    bad_text: String,
+    ok_text: String,
+    need: u32,
+}
+
+fn collect_alert_checks(db: &Database, check_ssl: bool) -> Vec<AlertCheck> {
+    let host = System::host_name().unwrap_or_else(|| "server".into());
+    let mut out: Vec<AlertCheck> = Vec::new();
+    // disk
+    let disks = Disks::new_with_refreshed_list();
+    let (mut total, mut avail) = (0u64, 0u64);
+    for d in disks.list() {
+        total += d.total_space();
+        avail += d.available_space();
+    }
+    if total > 0 {
+        let pct = (total.saturating_sub(avail)) as f64 / total as f64 * 100.0;
+        out.push(AlertCheck {
+            key: "disk".into(),
+            bad: Some(pct >= 90.0),
+            bad_text: format!("🚨 [CHost:{}] Disk usage is {:.1}% (>= 90%)", host, pct),
+            ok_text: format!("✅ [CHost:{}] Disk usage is back to {:.1}%", host, pct),
+            need: 2,
+        });
+    }
+    for s in db.list_sites().unwrap_or_default() {
+        let (code, svc_state) = if s.site_type == "proxy" {
+            let svc = app_service_name(&s.domain);
+            let st = Command::new("systemctl")
+                .args(["is-active", &svc])
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default();
+            (engine::probe_http(s.proxy_port, &s.domain), st)
+        } else {
+            (engine::probe_http(80, &s.domain), String::new())
+        };
+        let bad = match (code, svc_state.as_str()) {
+            (Some(c), _) if c < 500 => Some(false),
+            (None, "activating") => None,
+            _ => Some(true),
+        };
+        out.push(AlertCheck {
+            key: format!("site:{}", s.domain),
+            bad,
+            bad_text: format!("🚨 [CHost:{}] Site DOWN: {} (http={:?}, service={})", host, s.domain, code, svc_state),
+            ok_text: format!("✅ [CHost:{}] Site recovered: {}", host, s.domain),
+            need: 2,
+        });
+        if check_ssl && s.ssl_enabled {
+            if let Some(days) = ops::cert_days_left(&s.domain) {
+                out.push(AlertCheck {
+                    key: format!("ssl:{}", s.domain),
+                    bad: Some(days <= 14),
+                    bad_text: format!("⚠️ [CHost:{}] SSL certificate of {} expires in {} days", host, s.domain, days),
+                    ok_text: format!("✅ [CHost:{}] SSL certificate of {} renewed ({} days left)", host, s.domain, days),
+                    need: 1,
+                });
+            }
+        }
+    }
+    out
+}
+
+fn spawn_alert_monitor(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        let mut seen: std::collections::HashMap<String, (u32, bool)> = std::collections::HashMap::new();
+        let mut tick: u64 = 0;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            tick += 1;
+            if state.db.get_setting("alert_enabled", "0") != "1" {
+                continue;
+            }
+            let st = state.clone();
+            let check_ssl = tick % 60 == 1;
+            let checks = tokio::task::spawn_blocking(move || collect_alert_checks(&st.db, check_ssl))
+                .await
+                .unwrap_or_default();
+            let (w, t, c) = (
+                state.db.get_setting("alert_webhook_url", ""),
+                state.db.get_setting("alert_tg_token", ""),
+                state.db.get_setting("alert_tg_chat", ""),
+            );
+            for ck in checks {
+                let Some(bad) = ck.bad else { continue };
+                let e = seen.entry(ck.key.clone()).or_insert((0, false));
+                let mut msg: Option<String> = None;
+                if bad {
+                    e.0 += 1;
+                    if e.0 >= ck.need && !e.1 {
+                        e.1 = true;
+                        msg = Some(ck.bad_text.clone());
+                    }
+                } else {
+                    if e.1 {
+                        msg = Some(ck.ok_text.clone());
+                    }
+                    *e = (0, false);
+                }
+                if let Some(m) = msg {
+                    let (w2, t2, c2, key) = (w.clone(), t.clone(), c.clone(), ck.key.clone());
+                    let m2 = m.clone();
+                    let res = tokio::task::spawn_blocking(move || ops::send_alert(&w2, &t2, &c2, &m2)).await.unwrap_or_default();
+                    state.db.log_audit("system", if bad { "ALERT_SENT" } else { "ALERT_RECOVERED" }, &key, &format!("{} :: {}", m, res.join(",")));
+                }
+            }
+        }
+    });
+}
+
+async fn handle_firewall_status(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let st = tokio::task::spawn_blocking(ops::ufw_status).await.unwrap_or(json!({}));
+    Json(json!({ "success": true, "ufw": st })).into_response()
+}
+
+#[derive(Deserialize)]
+struct FirewallReq {
+    enable: bool,
+}
+
+async fn handle_firewall_apply(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<FirewallReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let panel_port: u16 = std::env::var("CHOST_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8800);
+    let enable = req.enable;
+    let res = tokio::task::spawn_blocking(move || if enable { ops::ufw_enable(panel_port) } else { ops::ufw_disable() })
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()));
+    match res {
+        Ok(msg) => {
+            state.db.log_audit("admin", if enable { "UFW_ENABLE" } else { "UFW_DISABLE" }, "firewall", &msg);
+            Json(json!({ "success": true, "message": msg })).into_response()
+        }
+        Err(e) => (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": e }))).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+struct PhpIniQuery {
+    version: String,
+}
+
+async fn handle_php_ini_get(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(q): Query<PhpIniQuery>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !ops::valid_php_version(&q.version) {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "Invalid PHP version." }))).into_response();
+    }
+    let v = q.version.clone();
+    let info = tokio::task::spawn_blocking(move || ops::php_ini_get(&v)).await.unwrap_or(json!({}));
+    Json(json!({ "success": true, "ini": info })).into_response()
+}
+
+#[derive(Deserialize)]
+struct PhpIniReq {
+    version: String,
+    upload_max_filesize: String,
+    post_max_size: String,
+    memory_limit: String,
+    max_execution_time: String,
+}
+
+async fn handle_php_ini_save(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<PhpIniReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let bad = |m: &str| (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": m }))).into_response();
+    if !ops::valid_php_version(&req.version) {
+        return bad("Invalid PHP version.");
+    }
+    let vals = vec![
+        ("upload_max_filesize".to_string(), req.upload_max_filesize.trim().to_string()),
+        ("post_max_size".to_string(), req.post_max_size.trim().to_string()),
+        ("memory_limit".to_string(), req.memory_limit.trim().to_string()),
+        ("max_execution_time".to_string(), req.max_execution_time.trim().to_string()),
+    ];
+    for (k, v) in &vals {
+        if !ops::valid_ini_value(k, v) {
+            return bad(&format!("Invalid value for {} (e.g. 64M / 300).", k));
+        }
+    }
+    let ver = req.version.clone();
+    let res = tokio::task::spawn_blocking(move || ops::php_ini_set(&ver, &vals)).await.unwrap_or_else(|e| Err(e.to_string()));
+    match res {
+        Ok(()) => {
+            state.db.log_audit("admin", "PHP_INI", &format!("php{}", req.version), "core options updated");
+            Json(json!({ "success": true })).into_response()
+        }
+        Err(e) => bad(&e),
+    }
+}
+
 async fn handle_site_health(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -1929,6 +2215,8 @@ async fn handle_runtimes_status(State(state): State<Arc<AppState>>, headers: Hea
         { "id": "certbot", "name": "Certbot (SSL)", "category": "web", "desc": "Let's Encrypt 무료 HTTPS 자동발급", "installed": cmd_exists("certbot") },
         { "id": "php8.3", "name": "PHP 8.3", "category": "lang", "desc": "최신 PHP-FPM 런타임 (CBoard/WordPress 권장)", "installed": FsPath::new("/usr/sbin/php-fpm8.3").exists() || cmd_exists("php8.3") },
         { "id": "php8.2", "name": "PHP 8.2", "category": "lang", "desc": "안정화 PHP-FPM 런타임", "installed": FsPath::new("/usr/sbin/php-fpm8.2").exists() || cmd_exists("php8.2") },
+        { "id": "php8.4", "name": "PHP 8.4", "category": "lang", "desc": "최신 PHP / 신규 프레임워크", "installed": FsPath::new("/usr/sbin/php-fpm8.4").exists() || cmd_exists("php8.4") },
+        { "id": "php8.1", "name": "PHP 8.1", "category": "lang", "desc": "안정 PHP / 호환용", "installed": FsPath::new("/usr/sbin/php-fpm8.1").exists() || cmd_exists("php8.1") },
         { "id": "php7.4", "name": "PHP 7.4", "category": "lang", "desc": "레거시 그누보드5 / 구형 PHP 호환", "installed": FsPath::new("/usr/sbin/php-fpm7.4").exists() || cmd_exists("php7.4") },
         { "id": "python3", "name": "Python 3 (pip/venv)", "category": "lang", "desc": "FastAPI / Django / Flask 런타임", "installed": cmd_exists("python3") && cmd_exists("pip3") },
         { "id": "node", "name": "Node.js 22 LTS", "category": "lang", "desc": "Next.js / Express / React 런타임", "installed": cmd_exists("node") },
@@ -2045,6 +2333,8 @@ async fn handle_runtimes_install(
                     "mariadb" => run_step("MariaDB", "DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server && systemctl enable --now mariadb"),
                     "certbot" => run_step("Certbot", "DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx python3-certbot-apache && (if systemctl is-active --quiet apache2 && ! systemctl is-active --quiet nginx; then systemctl disable --now nginx 2>/dev/null || true; else systemctl disable --now apache2 2>/dev/null || true; fi)"),
                     "php8.3" => run_step("PHP 8.3", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-gd && systemctl enable --now php8.3-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
+                    "php8.4" => run_step("PHP 8.4", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.4-fpm php8.4-mysql php8.4-mbstring php8.4-xml php8.4-curl php8.4-zip php8.4-gd && systemctl enable --now php8.4-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
+                    "php8.1" => run_step("PHP 8.1", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.1-fpm php8.1-mysql php8.1-mbstring php8.1-xml php8.1-curl php8.1-zip php8.1-gd && systemctl enable --now php8.1-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
                     "php8.2" => run_step("PHP 8.2", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.2-fpm php8.2-mysql php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip php8.2-gd && systemctl enable --now php8.2-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
                     "php7.4" => run_step("PHP 7.4", "DEBIAN_FRONTEND=noninteractive apt-get install -y php7.4-fpm php7.4-mysql php7.4-mbstring php7.4-xml php7.4-curl php7.4-zip php7.4-gd && systemctl enable --now php7.4-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
                     "python3" => run_step("Python 3", "DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip python3-venv"),
@@ -3265,6 +3555,8 @@ async fn main() {
         login_guard: Default::default(),
     });
 
+    spawn_alert_monitor(state.clone());
+
     let app = Router::new()
         .route("/", get(serve_panel))
         .route("/api/auth/me", get(handle_auth_me))
@@ -3289,6 +3581,11 @@ async fn main() {
         .route("/api/sites/{id}/php", post(handle_switch_site_php))
     .route("/api/sites/{id}/health", get(handle_site_health))
     .route("/api/dashboard/sites", get(handle_dashboard_sites))
+    .route("/api/alerts/settings", get(handle_alerts_get).post(handle_alerts_save))
+    .route("/api/alerts/test", post(handle_alerts_test))
+    .route("/api/firewall/status", get(handle_firewall_status))
+    .route("/api/firewall/apply", post(handle_firewall_apply))
+    .route("/api/php/ini", get(handle_php_ini_get).post(handle_php_ini_save))
     .route("/api/webserver/migrate", post(handle_webserver_migrate))
     .route("/api/sites/{id}/git", get(handle_site_git_info))
     .route("/api/sites/{id}/git/update", post(handle_site_git_update))

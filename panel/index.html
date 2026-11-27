@@ -432,6 +432,35 @@
             </div>
           </div>
 
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px">
+            <div class="card" style="margin-bottom:0">
+              <h3 style="margin-bottom:10px;font-size:15px" data-i18n="alert_title">🔔 장애·리소스 알림</h3>
+              <div class="guide-sky" data-i18n="guide_alert">💡 디스크 <strong>90% 초과</strong>, <strong>사이트 다운</strong>, <strong>SSL 만료 14일 전</strong>에 웹훅(Slack·Discord 등) 또는 텔레그램으로 알려드립니다. 복구되면 복구 알림도 보냅니다.</div>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px"><input type="checkbox" id="al-enabled" style="width:auto" /> <span data-i18n="alert_enable">알림 사용</span></label>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <input id="al-webhook" data-i18n-ph="ph_alert_webhook" placeholder="Webhook URL (https://hooks.slack.com/...)" />
+                <input id="al-tg-token" type="password" data-i18n-ph="ph_alert_tg_token" placeholder="Telegram Bot Token (123456:ABC...)" />
+                <input id="al-tg-chat" data-i18n-ph="ph_alert_tg_chat" placeholder="Telegram Chat ID (-100123... / @channel)" />
+              </div>
+              <div id="al-msg" style="font-size:12px;margin-top:8px;min-height:16px"></div>
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <button class="btn btn-primary btn-sm" onclick="saveAlertSettings()" data-i18n="btn_save">저장</button>
+                <button class="btn btn-sm" onclick="testAlert()" data-i18n="alert_test">테스트 발송</button>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:0">
+              <h3 style="margin-bottom:10px;font-size:15px" data-i18n="fw_title">🛡️ 방화벽 (UFW)</h3>
+              <div class="guide-sky" data-i18n="guide_fw">💡 버튼 한 번으로 <strong>SSH·웹(80/443)·패널 포트만 열고 나머지는 차단</strong>합니다. 켜기 전에 접속에 필요한 포트를 먼저 허용하므로 잠길 걱정이 없어요.</div>
+              <div style="font-size:13px;margin-bottom:8px"><span data-i18n="fw_status">상태</span>: <strong id="fw-state">-</strong></div>
+              <pre id="fw-rules" class="console" style="max-height:130px;margin-bottom:8px"></pre>
+              <div id="fw-msg" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="applyFirewall(true)" data-i18n="fw_enable">방화벽 켜기</button>
+                <button class="btn btn-sm btn-danger" onclick="applyFirewall(false)" data-i18n="fw_disable">방화벽 끄기</button>
+              </div>
+            </div>
+          </div>
+
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:15px" data-i18n="audit_title">보안 감사 로그</h3>
             <table>
@@ -508,6 +537,7 @@ async function loadLocale(lang) {
   }
 }
 function showTab(name, btn) {
+  if (name === 'security') { loadAlertSettings(); loadFirewall(); }
   document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
   document.getElementById('tab-' + name).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -527,6 +557,73 @@ function setUsageBar(id, pct) {
   el.classList.remove('warn', 'danger');
   if (v >= 90) el.classList.add('danger');
   else if (v >= 75) el.classList.add('warn');
+}
+function opsMsg(id, ok, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.color = ok ? '#6ee7b7' : '#fca5a5';
+  el.textContent = text;
+}
+async function loadAlertSettings() {
+  const r = await api('/api/alerts/settings');
+  if (!r || !r.success) return;
+  document.getElementById('al-enabled').checked = !!r.enabled;
+  document.getElementById('al-webhook').value = r.webhook_url || '';
+  document.getElementById('al-tg-token').value = r.telegram_token || '';
+  document.getElementById('al-tg-chat').value = r.telegram_chat || '';
+}
+async function saveAlertSettings() {
+  const body = {
+    enabled: document.getElementById('al-enabled').checked,
+    webhook_url: document.getElementById('al-webhook').value.trim(),
+    telegram_token: document.getElementById('al-tg-token').value.trim(),
+    telegram_chat: document.getElementById('al-tg-chat').value.trim()
+  };
+  const r = await api('/api/alerts/settings', { method: 'POST', body: JSON.stringify(body) });
+  opsMsg('al-msg', r.success, r.success ? t('alert_saved', '✅ 알림 설정이 저장되었습니다.') : (r.error || 'Failed'));
+}
+async function testAlert() {
+  opsMsg('al-msg', true, t('alert_testing', '⏳ 테스트 알림을 보내는 중...'));
+  const r = await api('/api/alerts/test', { method: 'POST', body: '{}' });
+  opsMsg('al-msg', r.success, (r.success ? t('alert_test_ok', '✅ 테스트 알림을 보냈습니다.') : t('alert_test_fail', '❌ 발송 실패 (먼저 저장했는지 확인하세요): ')) + ((r.results || []).join(', ')));
+}
+async function loadFirewall() {
+  const r = await api('/api/firewall/status');
+  if (!r || !r.success) return;
+  const u = r.ufw || {};
+  const st = document.getElementById('fw-state');
+  st.textContent = !u.installed ? t('fw_not_installed', '미설치') : (u.active ? t('fw_on', '켜짐 (보호 중)') : t('fw_off', '꺼짐'));
+  st.style.color = u.active ? '#4ade80' : '#fcd34d';
+  document.getElementById('fw-rules').textContent = u.rules || '';
+}
+async function applyFirewall(enable) {
+  if (enable && !confirm(t('fw_confirm', 'SSH·웹(80/443)·패널 포트를 허용하고 나머지 포트는 차단합니다. 계속할까요?'))) return;
+  opsMsg('fw-msg', true, t('fw_working', '⏳ 적용 중...'));
+  const r = await api('/api/firewall/apply', { method: 'POST', body: JSON.stringify({ enable }) });
+  opsMsg('fw-msg', r.success, r.success ? (enable ? t('fw_enabled_ok', '✅ 방화벽이 켜졌습니다.') : t('fw_disabled_ok', '✅ 방화벽이 꺼졌습니다.')) : (r.error || 'Failed'));
+  await loadFirewall();
+}
+async function loadPhpIni(ver) {
+  const r = await api('/api/php/ini?version=' + encodeURIComponent(ver));
+  if (!r || !r.success) return;
+  const v = (r.ini && r.ini.values) || {};
+  document.getElementById('ini-upload').value = v.upload_max_filesize || '';
+  document.getElementById('ini-post').value = v.post_max_size || '';
+  document.getElementById('ini-mem').value = v.memory_limit || '';
+  document.getElementById('ini-time').value = v.max_execution_time || '';
+}
+async function savePhpIni() {
+  const body = {
+    version: document.getElementById('sc-php-sel').value,
+    upload_max_filesize: document.getElementById('ini-upload').value.trim(),
+    post_max_size: document.getElementById('ini-post').value.trim(),
+    memory_limit: document.getElementById('ini-mem').value.trim(),
+    max_execution_time: document.getElementById('ini-time').value.trim()
+  };
+  const r = await api('/api/php/ini', { method: 'POST', body: JSON.stringify(body) });
+  const msg = document.getElementById('sc-msg');
+  msg.style.color = r.success ? '#6ee7b7' : '#fca5a5';
+  msg.textContent = r.success ? t('ini_saved', '✅ php.ini 옵션이 적용되었습니다.') : (r.error || 'Failed');
 }
 let _dashSitesTs = 0;
 async function loadDashSites(force) {
@@ -594,7 +691,7 @@ async function refreshAll() {
   }
 }
 const LANG_RUNTIMES = {
-  php: [ ['8.4','PHP 8.4'], ['8.3','PHP 8.3 (최신 권장)'], ['8.2','PHP 8.2'], ['7.4','PHP 7.4 (구형 그누보드용)'] ],
+  php: [ ['8.4','PHP 8.4'], ['8.3','PHP 8.3 (최신 권장)'], ['8.2','PHP 8.2'], ['8.1','PHP 8.1'], ['7.4','PHP 7.4 (구형 그누보드용)'] ],
   python: [ ['3.12','Python 3.12 (최신 권장)'], ['3.11','Python 3.11'], ['3.10','Python 3.10'] ],
   node: [ ['22','Node.js 22 LTS (최신 권장)'], ['20','Node.js 20 LTS'], ['18','Node.js 18'] ],
   rust: [ ['stable','Rust Stable (최신 권장)'], ['nightly','Rust Nightly'] ],
@@ -1306,6 +1403,8 @@ async function openSiteConfModal(id, tab) {
   document.getElementById('sc-conf-editor').value = r.content || '';
   document.getElementById('sc-php-sel').value = s.php_version || '8.3';
   document.getElementById('sc-php-wrap').classList.toggle('hidden', s.site_type !== 'php');
+  document.getElementById('sc-ini-box').classList.toggle('hidden', s.site_type !== 'php');
+  if (s.site_type === 'php') loadPhpIni(s.php_version || '8.3');
   document.getElementById('sc-ssl-status').textContent = s.ssl_enabled
     ? `${t('sc_ssl_on', 'HTTPS 활성')} (${r.ssl_expiry || 'Let\'s Encrypt'})`
     : t('sc_ssl_off', '미발급 (HTTP)');
@@ -1729,12 +1828,24 @@ checkAuth();
         <div id="sc-pane-php" class="conf-pane hidden">
           <div class="guide-sky" data-i18n="sc_php_help">💡 PHP 사이트의 버전을 즉시 전환합니다. (구형 그누보드는 7.4, 최신 사이트는 8.3 권장)</div>
           <div id="sc-php-wrap" class="row">
-            <select id="sc-php-sel" class="compact">
+            <select id="sc-php-sel" class="compact" onchange="loadPhpIni(this.value)">
+              <option value="8.4">PHP 8.4</option>
               <option value="8.3">PHP 8.3</option>
               <option value="8.2">PHP 8.2</option>
+              <option value="8.1">PHP 8.1</option>
               <option value="7.4">PHP 7.4</option>
             </select>
             <button class="btn btn-primary btn-sm" onclick="saveSitePhpSwitch()" data-i18n="sc_btn_php">PHP 버전 전환</button>
+          </div>
+          <div id="sc-ini-box" style="margin-top:14px">
+            <div class="guide-sky" data-i18n="guide_php_ini">💡 선택한 PHP 버전의 <strong>핵심 옵션</strong>을 바로 수정합니다. (같은 버전을 쓰는 모든 사이트에 적용 · 업로드 용량 등)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <label style="font-size:12px"><span data-i18n="ini_upload">업로드 최대 크기 (upload_max_filesize)</span><input id="ini-upload" placeholder="64M" /></label>
+              <label style="font-size:12px"><span data-i18n="ini_post">POST 최대 크기 (post_max_size)</span><input id="ini-post" placeholder="64M" /></label>
+              <label style="font-size:12px"><span data-i18n="ini_mem">메모리 제한 (memory_limit)</span><input id="ini-mem" placeholder="256M" /></label>
+              <label style="font-size:12px"><span data-i18n="ini_time">최대 실행 시간(초) (max_execution_time)</span><input id="ini-time" placeholder="300" /></label>
+            </div>
+            <div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="savePhpIni()" data-i18n="ini_save">php.ini 적용</button></div>
           </div>
         </div>
         <div id="sc-pane-ssl" class="conf-pane hidden">
