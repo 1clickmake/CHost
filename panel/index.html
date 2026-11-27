@@ -209,18 +209,19 @@
               </select>
               <select id="sub-fw" class="compact" onchange="onSubFwChange()">
                 <option value="blank" data-i18n="opt_fw_blank">Blank (기본 빈 페이지)</option>
-                <option value="cmake_board" data-i18n="opt_fw_cboard">CBoard (PHP 게시판 - .php)</option>
-                <option value="crust" data-i18n="opt_fw_crust">CRust (Rust 게시판 - .rs)</option>
-                <option value="gnuboard5" data-i18n="opt_fw_gnu">Gnuboard5 (PHP 그누보드5 - .php)</option>
-                <option value="wordpress" data-i18n="opt_fw_wp">WordPress (PHP 워드프레스 - .php)</option>
-                <option value="laravel" data-i18n="opt_fw_laravel">Laravel (PHP 라라벨 - 공용 vendor)</option>
-                <option value="gnuboard7" data-i18n="opt_fw_g7">Gnuboard7 (그누보드7 / Laravel - 공용 vendor)</option>
-                <option value="django" data-i18n="opt_fw_django">Django (Python 웹프레임워크 - .py)</option>
-                <option value="express" data-i18n="opt_fw_express">Express (Node.js 웹프레임워크 - .js)</option>
-                <option value="nextjs" data-i18n="opt_fw_nextjs">Next.js (React/TS 풀스택 - .ts)</option>
-                <option value="springboot" data-i18n="opt_fw_spring">Spring Boot (Java 스프링부트 - .jar)</option>
+                <option value="cmake_board" data-lang="php" data-i18n="opt_fw_cboard">CBoard (PHP 게시판 - .php)</option>
+                <option value="crust" data-lang="rust" data-i18n="opt_fw_crust">CRust (Rust 게시판 - .rs)</option>
+                <option value="gnuboard5" data-lang="php" data-i18n="opt_fw_gnu">Gnuboard5 (PHP 그누보드5 - .php)</option>
+                <option value="wordpress" data-lang="php" data-i18n="opt_fw_wp">WordPress (PHP 워드프레스 - .php)</option>
+                <option value="laravel" data-lang="php" data-i18n="opt_fw_laravel">Laravel (PHP 라라벨 - 공용 vendor)</option>
+                <option value="gnuboard7" data-lang="php" data-i18n="opt_fw_g7">Gnuboard7 (그누보드7 / Laravel - 공용 vendor)</option>
+                <option value="django" data-lang="python" data-i18n="opt_fw_django">Django (Python 웹프레임워크 - .py)</option>
+                <option value="express" data-lang="node" data-i18n="opt_fw_express">Express (Node.js 웹프레임워크 - .js)</option>
+                <option value="nextjs" data-lang="node" data-i18n="opt_fw_nextjs">Next.js (React/TS 풀스택 - .ts)</option>
+                <option value="springboot" data-lang="java" data-i18n="opt_fw_spring">Spring Boot (Java 스프링부트 - .jar)</option>
               </select>
               <select id="sub-php" class="compact">
+                <option value="8.4">PHP 8.4</option>
                 <option value="8.3">PHP 8.3 (최신 권장)</option>
                 <option value="8.2">PHP 8.2</option>
                 <option value="7.4">PHP 7.4</option>
@@ -544,7 +545,7 @@ async function refreshAll() {
   }
 }
 const LANG_RUNTIMES = {
-  php: [ ['8.3','PHP 8.3 (최신 권장)'], ['8.2','PHP 8.2'], ['7.4','PHP 7.4 (구형 그누보드용)'] ],
+  php: [ ['8.4','PHP 8.4'], ['8.3','PHP 8.3 (최신 권장)'], ['8.2','PHP 8.2'], ['7.4','PHP 7.4 (구형 그누보드용)'] ],
   python: [ ['3.12','Python 3.12 (최신 권장)'], ['3.11','Python 3.11'], ['3.10','Python 3.10'] ],
   node: [ ['22','Node.js 22 LTS (최신 권장)'], ['20','Node.js 20 LTS'], ['18','Node.js 18'] ],
   rust: [ ['stable','Rust Stable (최신 권장)'], ['nightly','Rust Nightly'] ],
@@ -723,6 +724,9 @@ function getNextFreeProxyPort(basePort = 8080) {
 }
 function onSubLangChange() {
   const lang = document.getElementById('sub-lang').value;
+  const fwSel = document.getElementById('sub-fw');
+  [...fwSel.options].forEach(o => { const ok = !o.dataset.lang || o.dataset.lang === lang; o.hidden = !ok; o.disabled = !ok; });
+  if (fwSel.selectedOptions[0] && fwSel.selectedOptions[0].disabled) fwSel.value = 'blank';
   const rtEl = document.getElementById('sub-php');
   const portEl = document.getElementById('sub-port');
   const opts = LANG_RUNTIMES[lang] || [];
