@@ -93,8 +93,9 @@ CHOST_PORT=8800 ./target/release/chost</pre>
           <tr><td>POST</td><td><code>/api/auth/login</code></td><td data-i18n="api_1">관리자 인증 및 JWT 세션 발급</td></tr>
           <tr><td>POST</td><td><code>/api/auth/change-password</code></td><td>패널 로그인 후 관리자 비밀번호 변경</td></tr>
           <tr><td>GET</td><td><code>/api/system/stats</code></td><td data-i18n="api_2">CPU, 메모리, 디스크 사용률(80% 경고) 및 업타임 조회</td></tr>
-          <tr><td>GET / POST</td><td><code>/api/sites</code></td><td data-i18n="api_3">도메인 목록 조회 및 /www/wwwroot 사이트 생성</td></tr>
-          <tr><td>POST</td><td><code>/api/sites/subdomain</code></td><td data-i18n="api_3_sub">서브도메인·언어·프레임워크·SSL/SSH 자동 생성</td></tr>
+          <tr><td>GET / POST</td><td><code>/api/sites</code></td><td data-i18n="api_3">도메인 목록 조회 및 /www/wwwroot 사이트 생성 (SSL·FTP/SFTP·DB 자동 발급 지원)</td></tr>
+          <tr><td>POST</td><td><code>/api/sites/subdomain</code></td><td data-i18n="api_3_sub">서브도메인·언어·프레임워크·SSL·FTP/SFTP·DB 자동 생성</td></tr>
+          <tr><td>GET / POST</td><td><code>/api/runtimes/status</code> · <code>/install</code></td><td>초기 세팅 마법사 &amp; 런타임 스토어(Nginx/Apache2/MariaDB/PHP/Python/Node/Rust/Java) 원클릭 설치</td></tr>
           <tr><td>POST</td><td><code>/api/sites/{id}/php</code></td><td data-i18n="api_4">사이트별 PHP 버전(7.4~8.4) 즉시 전환</td></tr>
           <tr><td>POST</td><td><code>/api/sites/{id}/ssl</code></td><td data-i18n="api_5">Certbot 기반 Let's Encrypt SSL 인증서 발급</td></tr>
           <tr><td>GET / POST</td><td><code>/api/apps</code></td><td data-i18n="api_6">언어 프리셋(Rust/Python/Node/PHP) 앱 등록</td></tr>
@@ -130,13 +131,18 @@ CHOST_PORT=8800 ./target/release/chost</pre>
       </div>
 
       <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-2. 사이트 및 도메인 (Sites &amp; Domains)</h3>
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-2. 사이트 및 도메인 (Sites &amp; Domains) · 통합 마법사 (v0.1.2)</h3>
         <ul>
-          <li><strong>Add Site (새 사이트 추가)</strong>: <code>Static HTML</code>(정적 웹), <code>Reverse Proxy</code>(Node/Rust/Python 앱 서버 내부 포트 예: <code>3000</code> 연결), <code>PHP Site</code>(PHP 8.3/8.2/7.4 선택) 중 목적에 맞게 선택합니다.</li>
-          <li><strong>Subdomain &amp; Framework Wizard</strong>: 언어(PHP/Rust/Python/Node.js/Java/Static)와 프레임워크(CBoard, CRust, 그누보드5 등)를 고르면 권장 버전·포트가 자동 설정됩니다.</li>
-          <li><strong>App Port</strong>: 앱 서버가 리슨 중인 내부 포트(예: 8080) | <strong>Issue SSL</strong>: Let's Encrypt 무료 HTTPS 자동 발급 | <strong>Create SSH User</strong>: 해당 서브도메인 전용 SSH/SFTP 계정 생성.</li>
+          <li><strong>통합 생성 폼</strong>: 직접 도메인(<code>aaa.com</code>)과 서브도메인(<code>sub.chost.work</code>)을 한 화면에서 전환해 동일하게 언어·프레임워크·런타임 버전을 설정합니다.</li>
+          <li><strong>App Port</strong>: Rust/Python/Node/Java 앱 서버가 리슨 중인 내부 포트(예: 8080) | <strong>Issue SSL</strong>: Let's Encrypt 무료 HTTPS 자동 발급.</li>
+          <li><strong>Create FTP/SFTP &amp; Auto Create DB</strong>: 고객 전용 SFTP 계정 및 MariaDB 데이터베이스·유저를 자동 발급하거나, 원하는 ID/비밀번호를 직접 지정해 생성합니다.</li>
         </ul>
         <img src="/assets/docs/tab2_sites.png" alt="사이트 및 도메인" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-2b. 초기 세팅 마법사 &amp; 런타임 스토어 (v0.1.2)</h3>
+        <p>최초 로그인 시 <strong>초기 서버 환경 세팅 팝업</strong>이 자동 실행되어 Nginx / Apache2 / MariaDB / Certbot / PHP(8.3·8.2·7.4) / Python 3 / Node.js 22 / Rust / Java 21 중 필요한 패키지만 선택해 실시간 로그를 보며 원클릭 설치할 수 있습니다. 이후 좌측 <strong>런타임 스토어</strong> 메뉴에서 언제든 추가 설치가 가능합니다.</p>
       </div>
 
       <div style="margin-bottom:28px;">
