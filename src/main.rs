@@ -905,10 +905,10 @@ async fn handle_runtimes_install(
 
             for item in &items {
                 match item.as_str() {
-                    "nginx" => run_step("Nginx", "DEBIAN_FRONTEND=noninteractive apt-get install -y nginx && systemctl enable --now nginx"),
-                    "apache2" => run_step("Apache2", "DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 && systemctl enable --now apache2"),
+                    "nginx" => run_step("Nginx (80/443)", "systemctl disable --now apache2 2>/dev/null || true; DEBIAN_FRONTEND=noninteractive apt-get install -y nginx && systemctl enable --now nginx"),
+                    "apache2" => run_step("Apache2 (80/443)", "systemctl disable --now nginx 2>/dev/null || true; DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 && a2enmod rewrite proxy proxy_http proxy_fcgi setenvif ssl && systemctl enable --now apache2"),
                     "mariadb" => run_step("MariaDB", "DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server && systemctl enable --now mariadb"),
-                    "certbot" => run_step("Certbot", "DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx"),
+                    "certbot" => run_step("Certbot", "DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx python3-certbot-apache"),
                     "php8.3" => run_step("PHP 8.3", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-gd && systemctl enable --now php8.3-fpm"),
                     "php8.2" => run_step("PHP 8.2", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.2-fpm php8.2-mysql php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip php8.2-gd && systemctl enable --now php8.2-fpm"),
                     "php7.4" => run_step("PHP 7.4", "DEBIAN_FRONTEND=noninteractive apt-get install -y php7.4-fpm php7.4-mysql php7.4-mbstring php7.4-xml php7.4-curl php7.4-zip php7.4-gd && systemctl enable --now php7.4-fpm"),

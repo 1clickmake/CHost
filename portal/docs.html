@@ -63,12 +63,12 @@
         <button class="os-tab" onclick="showOs('amzn', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #233048;background:#090d16;color:#9ca3af;font-size:12px;font-weight:600;cursor:pointer">Amazon Linux 2023</button>
         <button class="os-tab" onclick="showOs('docker', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #233048;background:#090d16;color:#9ca3af;font-size:12px;font-weight:600;cursor:pointer">Docker (Test)</button>
       </div>
-      <pre id="os-ubuntu">sudo apt update && sudo apt install -y curl tar nginx certbot
+      <pre id="os-ubuntu">sudo apt update && sudo apt install -y curl tar
 curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
-      <pre id="os-rhel" style="display:none">sudo dnf install -y curl tar epel-release nginx certbot
+      <pre id="os-rhel" style="display:none">sudo dnf install -y curl tar epel-release
 sudo firewall-cmd --permanent --add-port=8800/tcp && sudo firewall-cmd --reload
 curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
-      <pre id="os-amzn" style="display:none">sudo dnf install -y curl tar nginx
+      <pre id="os-amzn" style="display:none">sudo dnf install -y curl tar
 curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
       <pre id="os-docker" style="display:none">git clone https://github.com/1clickmake/CHost.git && cd CHost
 docker run -d --name chost -p 8800:8800 -v $(pwd):/app -w /app ubuntu:24.04 bash -c "apt update && apt install -y curl ca-certificates && ./install.sh && tail -f /dev/null"</pre>

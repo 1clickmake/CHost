@@ -618,14 +618,20 @@ async function loadRuntimes(checkFirstSetup) {
   const catMap = { web: '웹서버/SSL', db: '데이터베이스', lang: '언어 런타임' };
   const tbody = document.getElementById('runtimes-tbody');
   if (tbody) {
-    tbody.innerHTML = r.items.map(it => `
+    tbody.innerHTML = r.items.map(it => {
+      const isWebServer = (it.id === 'nginx' || it.id === 'apache2');
+      const ctrl = isWebServer
+        ? `<input type="radio" name="rt-web" class="rt-chk" value="${it.id}" style="width:auto" ${it.installed ? 'checked' : ''}>`
+        : `<input type="checkbox" class="rt-chk" value="${it.id}" style="width:auto" ${it.installed ? 'disabled' : ''}>`;
+      return `
       <tr>
-        <td><input type="checkbox" class="rt-chk" value="${it.id}" style="width:auto" ${it.installed ? 'disabled' : ''}></td>
+        <td>${ctrl}</td>
         <td><strong>${it.name}</strong></td>
         <td>${catMap[it.category] || it.category}</td>
         <td style="color:var(--muted)">${it.desc}</td>
         <td>${it.installed ? '<span class="badge badge-ok">설치됨</span>' : '<span class="badge badge-warn">미설치</span>'}</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
   const hasDb = r.items.some(it => it.id === 'mariadb' && it.installed);
   const dbBadge = document.getElementById('db-guard-badge');
@@ -635,10 +641,14 @@ async function loadRuntimes(checkFirstSetup) {
   if (checkFirstSetup && !r.setup_completed) {
     const setupList = document.getElementById('setup-items-list');
     setupList.innerHTML = r.items.map(it => {
+      const isWebServer = (it.id === 'nginx' || it.id === 'apache2');
       const checked = !it.installed && RECOMMENDED_STACK.includes(it.id);
+      const ctrl = isWebServer
+        ? `<input type="radio" name="setup-web" class="setup-chk" value="${it.id}" style="width:auto" ${(it.installed || it.id === 'nginx') ? 'checked' : ''}>`
+        : `<input type="checkbox" class="setup-chk" value="${it.id}" style="width:auto" ${checked ? 'checked' : ''} ${it.installed ? 'disabled' : ''}>`;
       return `<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-size:13px">
         <span style="display:flex;align-items:center;gap:8px">
-          <input type="checkbox" class="setup-chk" value="${it.id}" style="width:auto" ${checked ? 'checked' : ''} ${it.installed ? 'disabled' : ''}>
+          ${ctrl}
           <strong>${it.name}</strong> <span style="color:var(--muted);font-size:12px">- ${it.desc}</span>
         </span>
         ${it.installed ? '<span class="badge badge-ok">설치됨</span>' : '<span class="badge badge-warn">미설치</span>'}
