@@ -36,5 +36,6 @@
   "ph_term_cmd": "输入命令 (例如: uname -a)",
   "ph_pw_cur": "当前密码",
   "ph_pw_new": "新密码 (至少4位)",
-  "ph_pw_new2": "确认新密码"
+  "ph_pw_new2": "确认新密码",
+  "nav_runtimes": "运行环境商店"
 }

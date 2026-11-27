@@ -36,5 +36,6 @@
   "ph_term_cmd": "Shell Command (e.g. uname -a)",
   "ph_pw_cur": "Current Password",
   "ph_pw_new": "New Password (min 4 chars)",
-  "ph_pw_new2": "Confirm New Password"
+  "ph_pw_new2": "Confirm New Password",
+  "nav_runtimes": "Runtime Store"
 }

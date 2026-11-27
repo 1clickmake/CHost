@@ -18,7 +18,10 @@ use std::{
     fs,
     path::{Path as FsPath, PathBuf},
     process::Command,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::SystemTime,
 };
 use sysinfo::{Disks, System};
@@ -29,6 +32,7 @@ struct AppState {
     db: Database,
     jwt_secret: String,
     data_dir: PathBuf,
+    install_running: AtomicBool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -46,6 +50,11 @@ struct LoginReq {
 struct ChangePasswordReq {
     current_password: String,
     new_password: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct InstallRuntimesReq {
+    items: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -762,6 +771,166 @@ async fn handle_delete_site(
     Json(json!({ "success": true })).into_response()
 }
 
+fn cmd_exists(bin: &str) -> bool {
+    if !cfg!(unix) {
+        return false;
+    }
+    Command::new("sh")
+        .args(["-c", &format!("export PATH=\"$HOME/.cargo/bin:$PATH\"; command -v {} >/dev/null 2>&1", bin)])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+async fn handle_runtimes_status(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let setup_completed = state.db.get_setting("setup_completed", "0") == "1";
+    let items = json!([
+        { "id": "nginx", "name": "Nginx", "category": "web", "desc": "고성능 웹서버 & 리버스 프록시 (권장)", "installed": cmd_exists("nginx") },
+        { "id": "apache2", "name": "Apache2", "category": "web", "desc": ".htaccess 호환 전통 웹서버", "installed": cmd_exists("apache2") },
+        { "id": "mariadb", "name": "MariaDB (MySQL)", "category": "db", "desc": "MySQL 호환 관계형 데이터베이스", "installed": cmd_exists("mariadb") || cmd_exists("mysql") },
+        { "id": "certbot", "name": "Certbot (SSL)", "category": "web", "desc": "Let's Encrypt 무료 HTTPS 자동발급", "installed": cmd_exists("certbot") },
+        { "id": "php8.3", "name": "PHP 8.3", "category": "lang", "desc": "최신 PHP-FPM 런타임 (CBoard/WordPress 권장)", "installed": FsPath::new("/usr/sbin/php-fpm8.3").exists() || cmd_exists("php8.3") },
+        { "id": "php8.2", "name": "PHP 8.2", "category": "lang", "desc": "안정화 PHP-FPM 런타임", "installed": FsPath::new("/usr/sbin/php-fpm8.2").exists() || cmd_exists("php8.2") },
+        { "id": "php7.4", "name": "PHP 7.4", "category": "lang", "desc": "레거시 그누보드5 / 구형 PHP 호환", "installed": FsPath::new("/usr/sbin/php-fpm7.4").exists() || cmd_exists("php7.4") },
+        { "id": "python3", "name": "Python 3 (pip/venv)", "category": "lang", "desc": "FastAPI / Django / Flask 런타임", "installed": cmd_exists("python3") && cmd_exists("pip3") },
+        { "id": "node", "name": "Node.js 22 LTS", "category": "lang", "desc": "Next.js / Express / React 런타임", "installed": cmd_exists("node") },
+        { "id": "rust", "name": "Rust (cargo)", "category": "lang", "desc": "CRust / 초고속 시스템 웹 런타임", "installed": cmd_exists("cargo") },
+        { "id": "java", "name": "OpenJDK 21 LTS", "category": "lang", "desc": "Spring Boot / Java 런타임", "installed": cmd_exists("java") }
+    ]);
+    Json(json!({
+        "success": true,
+        "setup_completed": setup_completed,
+        "running": state.install_running.load(Ordering::SeqCst),
+        "items": items
+    }))
+    .into_response()
+}
+
+async fn handle_runtimes_log(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let log_path = state.data_dir.join("install.log");
+    let log = fs::read_to_string(&log_path).unwrap_or_default();
+    Json(json!({
+        "success": true,
+        "running": state.install_running.load(Ordering::SeqCst),
+        "log": log
+    }))
+    .into_response()
+}
+
+async fn handle_runtimes_skip_setup(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let _ = state.db.set_setting("setup_completed", "1");
+    Json(json!({ "success": true })).into_response()
+}
+
+async fn handle_runtimes_install(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<InstallRuntimesReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if req.items.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": "설치할 패키지를 하나 이상 선택해 주세요." })),
+        )
+            .into_response();
+    }
+    if state.install_running.swap(true, Ordering::SeqCst) {
+        return (
+            StatusCode::CONFLICT,
+            Json(json!({ "success": false, "error": "이미 패키지 설치가 진행 중입니다." })),
+        )
+            .into_response();
+    }
+
+    let items = req.items.clone();
+    let log_path = state.data_dir.join("install.log");
+    let _ = fs::write(&log_path, format!("=== CHost Runtime Installer Started ({}) ===\nSelected: {}\n\n", Utc::now().format("%Y-%m-%d %H:%M:%S"), items.join(", ")));
+    state.db.log_audit("admin", "RUNTIME_INSTALL", "runtimes", &items.join(","));
+
+    let st = state.clone();
+    tokio::task::spawn_blocking(move || {
+        use std::io::Write;
+        let append = |msg: &str| {
+            if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+                let _ = writeln!(f, "{}", msg);
+            }
+        };
+
+        if cfg!(unix) {
+            let run_step = |label: &str, cmd: &str| {
+                append(&format!("\n>>> [{}] 설치 중...", label));
+                match Command::new("bash").args(["-c", cmd]).output() {
+                    Ok(o) => {
+                        let out = String::from_utf8_lossy(&o.stdout);
+                        let err = String::from_utf8_lossy(&o.stderr);
+                        let tail_out: Vec<&str> = out.lines().rev().take(12).collect();
+                        for l in tail_out.into_iter().rev() {
+                            append(l);
+                        }
+                        if !o.status.success() {
+                            let tail_err: Vec<&str> = err.lines().rev().take(12).collect();
+                            for l in tail_err.into_iter().rev() {
+                                append(&format!("[ERR] {}", l));
+                            }
+                            append(&format!(">>> [{}] 실패 (code: {:?})", label, o.status.code()));
+                        } else {
+                            append(&format!(">>> [{}] 완료!", label));
+                        }
+                    }
+                    Err(e) => append(&format!(">>> [{}] 실행 오류: {}", label, e)),
+                }
+            };
+
+            run_step("APT Update", "DEBIAN_FRONTEND=noninteractive apt-get update -y");
+
+            let need_php_ppa = items.iter().any(|x| x.starts_with("php"));
+            if need_php_ppa {
+                run_step(
+                    "PHP PPA (ondrej/php)",
+                    "DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common ca-certificates && (grep -rq 'ondrej/php' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null || LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php) && apt-get update -y",
+                );
+            }
+
+            for item in &items {
+                match item.as_str() {
+                    "nginx" => run_step("Nginx", "DEBIAN_FRONTEND=noninteractive apt-get install -y nginx && systemctl enable --now nginx"),
+                    "apache2" => run_step("Apache2", "DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 && systemctl enable --now apache2"),
+                    "mariadb" => run_step("MariaDB", "DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server && systemctl enable --now mariadb"),
+                    "certbot" => run_step("Certbot", "DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx"),
+                    "php8.3" => run_step("PHP 8.3", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-gd && systemctl enable --now php8.3-fpm"),
+                    "php8.2" => run_step("PHP 8.2", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.2-fpm php8.2-mysql php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip php8.2-gd && systemctl enable --now php8.2-fpm"),
+                    "php7.4" => run_step("PHP 7.4", "DEBIAN_FRONTEND=noninteractive apt-get install -y php7.4-fpm php7.4-mysql php7.4-mbstring php7.4-xml php7.4-curl php7.4-zip php7.4-gd && systemctl enable --now php7.4-fpm"),
+                    "python3" => run_step("Python 3", "DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip python3-venv"),
+                    "node" => run_step("Node.js 22 LTS", "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs"),
+                    "rust" => run_step("Rust", "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"),
+                    "java" => run_step("OpenJDK 21", "DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-21-jdk"),
+                    _ => {}
+                }
+            }
+            append("\n=== 모든 선택 패키지 설치 작업이 종료되었습니다 ===");
+        } else {
+            append("Non-Unix environment: simulated install complete.");
+        }
+
+        let _ = st.db.set_setting("setup_completed", "1");
+        st.install_running.store(false, Ordering::SeqCst);
+    });
+
+    Json(json!({ "success": true, "started": true })).into_response()
+}
+
 async fn handle_php_versions(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
     if !is_authed(&state, &headers) {
         return unauthorized();
@@ -1126,6 +1295,7 @@ async fn main() {
         db,
         jwt_secret,
         data_dir,
+        install_running: AtomicBool::new(false),
     });
 
     let app = Router::new()
@@ -1136,6 +1306,10 @@ async fn main() {
         .route("/api/auth/logout", post(handle_logout))
         .route("/api/locales/{lang}", get(handle_locale))
         .route("/api/system/stats", get(handle_system_stats))
+        .route("/api/runtimes/status", get(handle_runtimes_status))
+        .route("/api/runtimes/install", post(handle_runtimes_install))
+        .route("/api/runtimes/log", get(handle_runtimes_log))
+        .route("/api/runtimes/skip-setup", post(handle_runtimes_skip_setup))
         .route("/api/sites", get(handle_list_sites).post(handle_create_site))
         .route("/api/sites/subdomain", post(handle_create_subdomain))
         .route("/api/sites/{id}", delete(handle_delete_site))

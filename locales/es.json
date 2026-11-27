@@ -36,5 +36,6 @@
   "ph_term_cmd": "Comando (ej: uname -a)",
   "ph_pw_cur": "Contraseña actual",
   "ph_pw_new": "Nueva contraseña (mín. 4)",
-  "ph_pw_new2": "Confirmar nueva contraseña"
+  "ph_pw_new2": "Confirmar nueva contraseña",
+  "nav_runtimes": "Tienda de Runtimes"
 }
