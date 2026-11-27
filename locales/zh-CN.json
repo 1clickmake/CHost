@@ -175,5 +175,13 @@
   "health_healthy": "🟢 运行正常",
   "health_starting": "🟡 启动中...",
   "health_error": "🔴 错误",
-  "health_down": "⚫ 已停止"
+  "health_down": "⚫ 已停止",
+  "sc_tab_git": "🔄 Git 更新",
+  "sc_git_help": "💡 通过 Git 地址安装的站点可在此更新到最新源码。更新后应用会自动重新构建并重启，期间访客会看到“准备中”页面。",
+  "sc_git_none": "此站点不是通过 Git 安装的。（新建站点时填写 Git 地址即可使用）",
+  "sc_git_commit": "当前提交",
+  "sc_git_btn": "⬇️ 更新到最新源码",
+  "sc_git_running": "⏳ 正在获取最新源码...",
+  "sc_git_done": "✅ 更新完成",
+  "sc_git_latest": "✅ 已是最新版本。"
 }

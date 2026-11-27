@@ -1260,6 +1260,40 @@ function switchConfTab(tab) {
   document.querySelectorAll('.conf-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.conf-pane').forEach(p => p.classList.toggle('hidden', p.id !== 'sc-pane-' + tab));
   if (tab === 'logs') loadSiteLogs('error');
+  if (tab === 'git') loadGitPane();
+}
+async function loadGitPane() {
+  const id = parseInt(document.getElementById('sc-id').value, 10);
+  if (!id) return;
+  const r = await api(`/api/sites/${id}/git`);
+  const none = document.getElementById('sc-git-none');
+  const box = document.getElementById('sc-git-box');
+  if (!r || !r.success || !r.has_git) { none.classList.remove('hidden'); box.classList.add('hidden'); return; }
+  none.classList.add('hidden'); box.classList.remove('hidden');
+  document.getElementById('sc-git-commit').textContent = r.git.commit || '-';
+  document.getElementById('sc-git-branch').textContent = r.git.branch || '-';
+  document.getElementById('sc-git-remote').textContent = r.git.remote || '-';
+  document.getElementById('sc-git-log').textContent = r.git.log || '';
+}
+async function runGitUpdate() {
+  const id = parseInt(document.getElementById('sc-id').value, 10);
+  const msg = document.getElementById('sc-msg');
+  const btn = document.getElementById('sc-git-btn');
+  btn.disabled = true;
+  msg.style.color = 'var(--muted)';
+  msg.textContent = t('sc_git_running', '⏳ 최신 소스를 받아오는 중...');
+  try {
+    const r = await api(`/api/sites/${id}/git/update`, { method: 'POST', body: '{}' });
+    if (!r.success) { msg.style.color = '#fca5a5'; msg.textContent = r.error || 'Failed'; return; }
+    msg.style.color = '#6ee7b7';
+    msg.textContent = r.update.changed
+      ? t('sc_git_done', '✅ 업데이트 완료') + ` (${String(r.update.old).slice(0, 7)} → ${String(r.update.new).slice(0, 7)})`
+      : t('sc_git_latest', '✅ 이미 최신 버전입니다.');
+    await loadGitPane();
+    if (typeof refreshSiteHealth === 'function') refreshSiteHealth(0);
+  } finally {
+    btn.disabled = false;
+  }
 }
 async function saveSiteDomains() {
   const id = parseInt(document.getElementById('sc-id').value, 10);
@@ -1618,6 +1652,7 @@ checkAuth();
         <button class="conf-tab-btn" data-tab="conf" onclick="switchConfTab('conf')">📝 웹서버 Conf</button>
         <button class="conf-tab-btn" data-tab="php" onclick="switchConfTab('php')">🐘 PHP 버전</button>
         <button class="conf-tab-btn" data-tab="ssl" onclick="switchConfTab('ssl')">🔒 SSL 관리</button>
+        <button class="conf-tab-btn" data-tab="git" onclick="switchConfTab('git')" data-i18n="sc_tab_git">🔄 Git 업데이트</button>
         <button class="conf-tab-btn" data-tab="logs" onclick="switchConfTab('logs')">📜 로그 &amp; 용량</button>
       </div>
       <div style="flex:1;min-width:0">
@@ -1649,6 +1684,18 @@ checkAuth();
             <div id="sc-ssl-status" style="font-size:14px;font-weight:700;margin-top:4px">-</div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="issueSslFromConf()">SSL 발급 / 갱신</button>
+        </div>
+        <div id="sc-pane-git" class="conf-pane hidden">
+          <div class="guide-sky" data-i18n="sc_git_help">💡 Git 주소로 설치한 사이트는 여기서 최신 소스로 업데이트할 수 있어요. 업데이트 후 앱은 자동으로 다시 빌드·재시작되며, 그동안 방문자에게는 '준비 중' 안내 페이지가 보입니다.</div>
+          <div id="sc-git-none" class="hidden" style="font-size:13px;color:var(--muted)" data-i18n="sc_git_none">이 사이트는 Git으로 설치되지 않았습니다. (새 사이트 생성 시 Git 주소를 넣으면 사용할 수 있어요)</div>
+          <div id="sc-git-box" class="hidden">
+            <div style="padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:10px;font-size:12px">
+              <div><span style="color:var(--muted)" data-i18n="sc_git_commit">현재 커밋</span>: <strong id="sc-git-commit">-</strong> · <span id="sc-git-branch">-</span></div>
+              <div style="margin-top:4px;word-break:break-all"><span style="color:var(--muted)">origin</span>: <span id="sc-git-remote">-</span></div>
+            </div>
+            <pre id="sc-git-log" class="console" style="max-height:140px"></pre>
+            <div style="margin-top:10px"><button class="btn btn-primary btn-sm" id="sc-git-btn" onclick="runGitUpdate()" data-i18n="sc_git_btn">⬇️ 최신 소스로 업데이트</button></div>
+          </div>
         </div>
         <div id="sc-pane-logs" class="conf-pane hidden">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">

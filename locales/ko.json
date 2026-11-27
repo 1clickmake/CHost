@@ -175,5 +175,13 @@
   "health_healthy": "🟢 정상 동작 중",
   "health_starting": "🟡 시작 중...",
   "health_error": "🔴 오류",
-  "health_down": "⚫ 중지됨"
+  "health_down": "⚫ 중지됨",
+  "sc_tab_git": "🔄 Git 업데이트",
+  "sc_git_help": "💡 Git 주소로 설치한 사이트는 여기서 최신 소스로 업데이트할 수 있어요. 업데이트 후 앱은 자동으로 다시 빌드·재시작되며, 그동안 방문자에게는 '준비 중' 안내 페이지가 보입니다.",
+  "sc_git_none": "이 사이트는 Git으로 설치되지 않았습니다. (새 사이트 생성 시 Git 주소를 넣으면 사용할 수 있어요)",
+  "sc_git_commit": "현재 커밋",
+  "sc_git_btn": "⬇️ 최신 소스로 업데이트",
+  "sc_git_running": "⏳ 최신 소스를 받아오는 중...",
+  "sc_git_done": "✅ 업데이트 완료",
+  "sc_git_latest": "✅ 이미 최신 버전입니다."
 }

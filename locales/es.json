@@ -175,5 +175,13 @@
   "health_healthy": "🟢 En marcha",
   "health_starting": "🟡 Iniciando...",
   "health_error": "🔴 Error",
-  "health_down": "⚫ Detenido"
+  "health_down": "⚫ Detenido",
+  "sc_tab_git": "🔄 Actualizar Git",
+  "sc_git_help": "💡 Los sitios instalados desde una URL de Git pueden actualizarse aquí al código más reciente. La app se recompila y reinicia automáticamente y los visitantes ven una página de «iniciando».",
+  "sc_git_none": "Este sitio no se instaló desde Git. (Introduce una URL de Git al crear un sitio nuevo para usarlo.)",
+  "sc_git_commit": "Commit actual",
+  "sc_git_btn": "⬇️ Actualizar al código más reciente",
+  "sc_git_running": "⏳ Obteniendo el código más reciente...",
+  "sc_git_done": "✅ Actualización completa",
+  "sc_git_latest": "✅ Ya está actualizado."
 }

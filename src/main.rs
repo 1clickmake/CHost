@@ -1354,6 +1354,94 @@ fn spawn_health_watch(state: Arc<AppState>, domain: String, port: i64, svc: Stri
     });
 }
 
+async fn handle_site_git_info(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Ok(Some(site)) = state.db.get_site(id) else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response();
+    };
+    let root = site.root_path.clone();
+    let info = tokio::task::spawn_blocking(move || engine::git_info(&root)).await.ok().flatten();
+    match info {
+        Some(i) => Json(json!({ "success": true, "has_git": true, "git": i })).into_response(),
+        None => Json(json!({ "success": true, "has_git": false })).into_response(),
+    }
+}
+
+async fn handle_site_git_update(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Ok(Some(site)) = state.db.get_site(id) else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response();
+    };
+    let root = site.root_path.clone();
+    if !FsPath::new(&root).join(".git").exists() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": "This site was not installed from Git." })),
+        )
+            .into_response();
+    }
+    let rp = root.clone();
+    let res = tokio::task::spawn_blocking(move || engine::git_update(&rp)).await;
+    let upd = match res {
+        Ok(Ok(v)) => v,
+        Ok(Err(e)) => {
+            return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": e }))).into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+    let mut deployed = "none";
+    if upd["changed"] == true && cfg!(unix) {
+        let det = engine::detect_project(FsPath::new(&root));
+        let fw = det["framework"].as_str().unwrap_or("blank").to_string();
+        let lang = det["language"].as_str().unwrap_or("static").to_string();
+        if site.site_type == "php" {
+            let rp = root.clone();
+            let tag = fw.clone();
+            let _ = tokio::task::spawn_blocking(move || engine::setup_php_project(&rp, &tag)).await;
+            deployed = "php";
+        } else if site.site_type == "proxy" {
+            let svc = app_service_name(&site.domain);
+            let _ = Command::new("systemctl").args(["stop", &svc]).output();
+            if lang == "rust" {
+                let bin = if fw == "crust" { "rust_board".to_string() } else { engine::cargo_bin_name(&root).unwrap_or_default() };
+                if !bin.is_empty() {
+                    let _ = fs::remove_file(FsPath::new(&root).join("target/release").join(bin));
+                }
+            }
+            let (service, _building) = provision_proxy_app(&site.domain, &root, &lang, &fw, site.proxy_port);
+            if let Some(svc) = service {
+                spawn_health_watch(state.clone(), site.domain.clone(), site.proxy_port, svc);
+            }
+            deployed = "proxy";
+        }
+    }
+    state.db.log_audit(
+        "admin",
+        "GIT_UPDATE",
+        &site.domain,
+        &format!("{} -> {} (changed={})", upd["old"].as_str().unwrap_or(""), upd["new"].as_str().unwrap_or(""), upd["changed"]),
+    );
+    Json(json!({ "success": true, "update": upd, "deployed": deployed })).into_response()
+}
+
 async fn handle_site_health(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -2920,6 +3008,8 @@ async fn main() {
         .route("/api/sites/{id}/logs/clear", post(handle_clear_site_logs))
         .route("/api/sites/{id}/php", post(handle_switch_site_php))
     .route("/api/sites/{id}/health", get(handle_site_health))
+    .route("/api/sites/{id}/git", get(handle_site_git_info))
+    .route("/api/sites/{id}/git/update", post(handle_site_git_update))
     .route("/api/detect", post(handle_detect))
         .route("/api/sites/{id}/ssl", post(handle_issue_ssl))
         .route("/api/php/versions", get(handle_php_versions))

@@ -175,5 +175,13 @@
   "health_healthy": "🟢 正常稼働中",
   "health_starting": "🟡 起動中...",
   "health_error": "🔴 エラー",
-  "health_down": "⚫ 停止中"
+  "health_down": "⚫ 停止中",
+  "sc_tab_git": "🔄 Git更新",
+  "sc_git_help": "💡 Git URLでインストールしたサイトは、ここで最新ソースに更新できます。更新後はアプリが自動で再ビルド・再起動され、その間は訪問者に「準備中」ページが表示されます。",
+  "sc_git_none": "このサイトはGitでインストールされていません。（新規作成時にGit URLを入力すると利用できます）",
+  "sc_git_commit": "現在のコミット",
+  "sc_git_btn": "⬇️ 最新ソースに更新",
+  "sc_git_running": "⏳ 最新ソースを取得中...",
+  "sc_git_done": "✅ 更新完了",
+  "sc_git_latest": "✅ すでに最新です。"
 }

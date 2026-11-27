@@ -520,6 +520,42 @@ pub fn journal_tail(svc: &str) -> String {
         .unwrap_or_default()
 }
 
+// ───────────────────────── Git 소스 관리 ─────────────────────────
+
+fn git_out(root: &str, args: &[&str]) -> Result<String, String> {
+    let out = Command::new("git")
+        .args(["-c", "safe.directory=*", "-C", root])
+        .args(args)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+    }
+}
+
+/// .git 이 있는 사이트의 현재 커밋 / 브랜치 / 원격 / 최근 이력
+pub fn git_info(root: &str) -> Option<Value> {
+    if !Path::new(root).join(".git").exists() {
+        return None;
+    }
+    let commit = git_out(root, &["rev-parse", "--short", "HEAD"]).unwrap_or_default();
+    let branch = git_out(root, &["rev-parse", "--abbrev-ref", "HEAD"]).unwrap_or_default();
+    let remote = git_out(root, &["remote", "get-url", "origin"]).unwrap_or_default();
+    let log = git_out(root, &["log", "-n", "8", "--date=short", "--pretty=format:%h  %ad  %s"]).unwrap_or_default();
+    Some(json!({ "commit": commit, "branch": branch, "remote": remote, "log": log }))
+}
+
+/// git pull --ff-only 로 최신 소스를 받는다. (이전/이후 커밋 반환)
+pub fn git_update(root: &str) -> Result<Value, String> {
+    let old = git_out(root, &["rev-parse", "HEAD"])?;
+    let output = git_out(root, &["pull", "--ff-only"])?;
+    let new = git_out(root, &["rev-parse", "HEAD"])?;
+    Ok(json!({ "old": old, "new": new, "changed": old != new, "output": output }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

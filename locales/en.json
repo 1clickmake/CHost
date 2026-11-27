@@ -175,5 +175,13 @@
   "health_healthy": "🟢 Running",
   "health_starting": "🟡 Starting...",
   "health_error": "🔴 Error",
-  "health_down": "⚫ Stopped"
+  "health_down": "⚫ Stopped",
+  "sc_tab_git": "🔄 Git Update",
+  "sc_git_help": "💡 Sites installed from a Git URL can be updated to the latest source here. The app is rebuilt and restarted automatically, and visitors see a 'starting' page meanwhile.",
+  "sc_git_none": "This site was not installed from Git. (Enter a Git URL when creating a new site to use this.)",
+  "sc_git_commit": "Current commit",
+  "sc_git_btn": "⬇️ Update to latest source",
+  "sc_git_running": "⏳ Fetching latest source...",
+  "sc_git_done": "✅ Update complete",
+  "sc_git_latest": "✅ Already up to date."
 }
