@@ -139,5 +139,17 @@
   "ph_term_cmd": "리눅스 명령어 입력 (예: uname -a)",
   "ph_pw_cur": "현재 비밀번호",
   "ph_pw_new": "새 비밀번호 (4자 이상)",
-  "ph_pw_new2": "새 비밀번호 확인"
+  "ph_pw_new2": "새 비밀번호 확인",
+  "badge_active": "실행 중",
+  "badge_inactive": "비활성",
+  "btn_conf": "Conf",
+  "btn_log": "Log",
+  "btn_mode_mariadb": "MariaDB / MySQL",
+  "btn_mode_sqlite": "SQLite (.db)",
+  "btn_refresh_dbs": "DB 새로고침",
+  "btn_backup_sql": "SQL 백업 다운로드",
+  "guide_db_studio": "💡 <strong>사용법 안내:</strong> 별도의 phpMyAdmin 없이 웹에서 안전하게 DB를 조회·백업할 수 있습니다.<br/>• <strong>MariaDB</strong>: 사이트와 함께 자동 생성된 DB를 선택하고 테이블 조회 또는 <code>.sql</code> 백업을 다운로드하세요.<br/>• <strong>SQLite</strong>: 서버 내 <code>.db</code> 파일 경로를 입력해 테이블과 데이터를 바로 조회합니다. (예: <code>/var/lib/chost/chost.db</code>)",
+  "guide_storage": "💡 <strong>사용법 안내:</strong> 서버 디스크가 오래된 로그로 가득 차는 것을 막아줍니다.<br/>1) 먼저 <strong>[미리보기 스캔]</strong>을 눌러 정리 대상 파일과 확보 용량을 확인하세요.<br/>2) 확인 후 <strong>[안전 정리 실행]</strong>을 누르면 오래된 <code>.log</code>는 압축하고 <code>.gz</code>/<code>.tmp</code>만 안전하게 정리합니다. (DB 파일과 업로드 폴더는 절대 보호됩니다)",
+  "guide_file_editor": "💡 <strong>사용법 안내:</strong> 아래 탐색기에서 폴더나 파일을 클릭하면 경로를 외우지 않아도 바로 열어 수정할 수 있습니다.",
+  "guide_web_term": "💡 <strong>사용법 안내:</strong> SSH 접속 없이 서버 상태를 빠르게 확인하는 단발성 명령 실행기입니다. 아래 퀵 버튼을 누르면 자주 쓰는 명령이 바로 실행됩니다."
 }

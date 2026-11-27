@@ -139,5 +139,17 @@
   "ph_term_cmd": "Linux 命令",
   "ph_pw_cur": "当前密码",
   "ph_pw_new": "新密码 (至少4位)",
-  "ph_pw_new2": "确认新密码"
+  "ph_pw_new2": "确认新密码",
+  "badge_active": "运行中",
+  "badge_inactive": "未启用",
+  "btn_conf": "Conf",
+  "btn_log": "Log",
+  "btn_mode_mariadb": "MariaDB / MySQL",
+  "btn_mode_sqlite": "SQLite (.db)",
+  "btn_refresh_dbs": "刷新数据库",
+  "btn_backup_sql": "下载 SQL 备份",
+  "guide_db_studio": "💡 <strong>使用指南:</strong> 无需 phpMyAdmin 即可安全查询和备份数据库。<br/>• <strong>MariaDB</strong>: 选择数据库查看表或下载 <code>.sql</code> 备份。<br/>• <strong>SQLite</strong>: 输入 <code>.db</code> 文件路径即可查询。",
+  "guide_storage": "💡 <strong>使用指南:</strong> 1) 先点击<strong>[预览扫描]</strong>查看旧日志，2) 再点击<strong>[安全清理]</strong>压缩或清理。(数据库与上传目录受严格保护)",
+  "guide_file_editor": "💡 <strong>使用指南:</strong> 点击下方目录或文件即可直接打开编辑，无需手动输入路径。",
+  "guide_web_term": "💡 <strong>使用指南:</strong> 可直接使用下方快捷按钮快速检查服务器状态。"
 }

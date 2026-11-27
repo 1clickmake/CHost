@@ -139,5 +139,17 @@
   "ph_term_cmd": "Comando shell",
   "ph_pw_cur": "Contraseña actual",
   "ph_pw_new": "Nueva contraseña",
-  "ph_pw_new2": "Confirmar contraseña"
+  "ph_pw_new2": "Confirmar contraseña",
+  "badge_active": "Activo",
+  "badge_inactive": "Inactivo",
+  "btn_conf": "Conf",
+  "btn_log": "Log",
+  "btn_mode_mariadb": "MariaDB / MySQL",
+  "btn_mode_sqlite": "SQLite (.db)",
+  "btn_refresh_dbs": "Actualizar DBs",
+  "btn_backup_sql": "Descargar SQL",
+  "guide_db_studio": "💡 <strong>Guía rápida:</strong> Consulta y respalda bases de datos sin phpMyAdmin.<br/>• <strong>MariaDB</strong>: Elige una DB para ver tablas o descargar un respaldo <code>.sql</code>.<br/>• <strong>SQLite</strong>: Ingresa la ruta del archivo <code>.db</code>.",
+  "guide_storage": "💡 <strong>Guía rápida:</strong> 1) Haz clic en <strong>[Vista previa]</strong> y luego en <strong>[Limpieza segura]</strong>. (Las bases de datos y archivos subidos están protegidos)",
+  "guide_file_editor": "💡 <strong>Guía rápida:</strong> Haz clic en cualquier carpeta o archivo para abrirlo y editarlo al instante.",
+  "guide_web_term": "💡 <strong>Guía rápida:</strong> Usa los botones rápidos para verificar el estado del servidor."
 }

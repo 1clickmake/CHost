@@ -139,5 +139,17 @@
   "ph_term_cmd": "シェルコマンド",
   "ph_pw_cur": "現在のパスワード",
   "ph_pw_new": "新しいパスワード",
-  "ph_pw_new2": "パスワード確認"
+  "ph_pw_new2": "パスワード確認",
+  "badge_active": "稼働中",
+  "badge_inactive": "停止",
+  "btn_conf": "Conf",
+  "btn_log": "Log",
+  "btn_mode_mariadb": "MariaDB / MySQL",
+  "btn_mode_sqlite": "SQLite (.db)",
+  "btn_refresh_dbs": "DB更新",
+  "btn_backup_sql": "SQLバックアップ",
+  "guide_db_studio": "💡 <strong>使い方:</strong> phpMyAdminなしで安全にDBを参照・バックアップできます。<br/>• <strong>MariaDB</strong>: DBを選択してテーブル参照や<code>.sql</code>ダウンロードができます。<br/>• <strong>SQLite</strong>: <code>.db</code>パスを入力してすぐ参照できます。",
+  "guide_storage": "💡 <strong>使い方:</strong> 1) <strong>[プレビュースキャン]</strong>で対象を確認し、2) <strong>[安全クリーン実行]</strong>で古いログを整理します。(DB・アップロードは保護されます)",
+  "guide_file_editor": "💡 <strong>使い方:</strong> 下のファイル一覧からフォルダやファイルをクリックするとすぐに編集できます。",
+  "guide_web_term": "💡 <strong>使い方:</strong> クイックボタンやコマンドでサーバー状態をすぐ確認できます。"
 }

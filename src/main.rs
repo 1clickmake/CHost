@@ -319,6 +319,26 @@ async fn handle_list_sites(State(state): State<Arc<AppState>>, headers: HeaderMa
     Json(json!({ "success": true, "sites": sites })).into_response()
 }
 
+fn service_is_active(svc: &str) -> bool {
+    if !cfg!(unix) {
+        return false;
+    }
+    Command::new("systemctl")
+        .args(["is-active", "--quiet", svc])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Detect active webserver ("apache2" if apache2 is running and nginx is not, else "nginx").
+fn detect_active_webserver() -> &'static str {
+    if service_is_active("apache2") && !service_is_active("nginx") {
+        "apache2"
+    } else {
+        "nginx"
+    }
+}
+
 fn write_nginx_site_conf(
     domain: &str,
     site_type: &str,
@@ -342,34 +362,73 @@ fn write_nginx_site_conf(
             .to_string(),
     };
     format!(
-        "server {{\n    listen 80;\n    server_name {};\n    root {};\n{}\n}}\n",
-        domain, root_path, body
+        "server {{\n    listen 80;\n    server_name {};\n    root {};\n    access_log /www/wwwlogs/{}.access.log;\n    error_log /www/wwwlogs/{}.error.log;\n{}\n}}\n",
+        domain, root_path, domain, domain, body
     )
 }
 
-/// Ensure Nginx owns ports 80/443 (stopping Apache2 if it grabbed them) and reload/start Nginx.
-fn ensure_nginx_active_and_reload() -> Result<(), String> {
+fn write_apache_site_conf(
+    domain: &str,
+    site_type: &str,
+    root_path: &str,
+    proxy_port: i64,
+    php_version: &str,
+) -> String {
+    let extra = match site_type {
+        "proxy" => format!(
+            "    ProxyPreserveHost On\n    ProxyPass / http://127.0.0.1:{}/\n    ProxyPassReverse / http://127.0.0.1:{}/\n",
+            proxy_port, proxy_port
+        ),
+        "php" => {
+            let ver = if php_version.is_empty() { "8.3" } else { php_version };
+            format!(
+                "    <FilesMatch \\.php$>\n        SetHandler \"proxy:unix:/run/php/php{}-fpm.sock|fcgi://localhost\"\n    </FilesMatch>\n",
+                ver
+            )
+        }
+        _ => String::new(),
+    };
+    format!(
+        "<VirtualHost *:80>\n    ServerName {}\n    DocumentRoot \"{}\"\n    <Directory \"{}\">\n        Options FollowSymLinks\n        AllowOverride All\n        Require all granted\n    </Directory>\n    ErrorLog \"/www/wwwlogs/{}.error.log\"\n    CustomLog \"/www/wwwlogs/{}.access.log\" combined\n{}\n</VirtualHost>\n",
+        domain, root_path, root_path, domain, domain, extra
+    )
+}
+
+fn reload_active_webserver(ws: &str) -> Result<(), String> {
     if !cfg!(unix) {
         return Ok(());
     }
+    if ws == "apache2" {
+        let _ = Command::new("sh")
+            .args(["-c", "systemctl disable --now nginx 2>/dev/null || true"])
+            .output();
+        let test = Command::new("apache2ctl").arg("configtest").output();
+        match test {
+            Ok(o) if o.status.success() => {}
+            Ok(o) => return Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
+            Err(e) => return Err(format!("apache2ctl failed: {}", e)),
+        }
+        let act = if service_is_active("apache2") {
+            Command::new("systemctl").args(["reload", "apache2"]).output()
+        } else {
+            Command::new("systemctl").args(["enable", "--now", "apache2"]).output()
+        };
+        return match act {
+            Ok(o) if o.status.success() => Ok(()),
+            Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
+            Err(e) => Err(format!("systemctl apache2 failed: {}", e)),
+        };
+    }
+
     let _ = Command::new("sh")
         .args(["-c", "systemctl disable --now apache2 2>/dev/null || true"])
         .output();
     match Command::new("nginx").arg("-t").output() {
         Ok(out) if out.status.success() => {}
-        Ok(out) => {
-            return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
-        }
-        Err(e) => {
-            return Err(format!("nginx -t failed: {}", e));
-        }
+        Ok(out) => return Err(String::from_utf8_lossy(&out.stderr).trim().to_string()),
+        Err(e) => return Err(format!("nginx -t failed: {}", e)),
     }
-    let active = Command::new("systemctl")
-        .args(["is-active", "--quiet", "nginx"])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
-    let act_out = if active {
+    let act_out = if service_is_active("nginx") {
         Command::new("systemctl").args(["reload", "nginx"]).output()
     } else {
         Command::new("systemctl").args(["enable", "--now", "nginx"]).output()
@@ -381,15 +440,48 @@ fn ensure_nginx_active_and_reload() -> Result<(), String> {
     }
 }
 
-/// Issue a Let's Encrypt certificate via certbot --nginx after ensuring Nginx is active.
-fn run_certbot_nginx(domain: &str) -> Result<(), String> {
+fn provision_webserver_site(
+    domain: &str,
+    site_type: &str,
+    web_root: &str,
+    proxy_port: i64,
+    php_ver: &str,
+) {
+    if !cfg!(unix) {
+        return;
+    }
+    let _ = fs::create_dir_all("/www/wwwlogs");
+    let ws = detect_active_webserver();
+    if ws == "apache2" {
+        let conf = write_apache_site_conf(domain, site_type, web_root, proxy_port, php_ver);
+        let avail = format!("/etc/apache2/sites-available/{}.conf", domain);
+        let _ = fs::write(&avail, &conf);
+        let _ = Command::new("a2enmod")
+            .args(["rewrite", "proxy", "proxy_http", "proxy_fcgi", "setenvif", "ssl"])
+            .output();
+        let _ = Command::new("a2ensite").arg(format!("{}.conf", domain)).output();
+        let _ = reload_active_webserver("apache2");
+    } else {
+        let conf = write_nginx_site_conf(domain, site_type, web_root, proxy_port, php_ver);
+        let avail = format!("/etc/nginx/sites-available/{}.conf", domain);
+        let enabled = format!("/etc/nginx/sites-enabled/{}.conf", domain);
+        let _ = fs::write(&avail, &conf);
+        let _ = Command::new("ln").args(["-sf", &avail, &enabled]).output();
+        let _ = reload_active_webserver("nginx");
+    }
+}
+
+/// Issue a Let's Encrypt certificate via certbot for the active webserver (nginx or apache2).
+fn run_certbot_auto(domain: &str) -> Result<(), String> {
     if !cfg!(unix) {
         return Ok(());
     }
-    ensure_nginx_active_and_reload()?;
+    let ws = detect_active_webserver();
+    reload_active_webserver(ws)?;
+    let plugin = if ws == "apache2" { "--apache" } else { "--nginx" };
     let out = Command::new("certbot")
         .args([
-            "--nginx",
+            plugin,
             "-d",
             domain,
             "--non-interactive",
@@ -546,15 +638,7 @@ async fn handle_create_site(
     let proxy_port = req.proxy_port.unwrap_or(0);
     let php_ver = req.php_version.unwrap_or_default();
     let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
-    let conf = write_nginx_site_conf(&domain, &req.site_type, &web_root, proxy_port, &php_ver);
-
-    if cfg!(unix) {
-        let avail = format!("/etc/nginx/sites-available/{}.conf", domain);
-        let enabled = format!("/etc/nginx/sites-enabled/{}.conf", domain);
-        let _ = fs::write(&avail, &conf);
-        let _ = Command::new("ln").args(["-sf", &avail, &enabled]).output();
-        let _ = ensure_nginx_active_and_reload();
-    }
+    provision_webserver_site(&domain, &req.site_type, &web_root, proxy_port, &php_ver);
 
     let ftp_info = if req.create_ssh.unwrap_or(false) {
         Some(provision_sftp_user(&domain, &root_path, req.ftp_user.as_deref(), req.ftp_pass.as_deref()))
@@ -583,7 +667,7 @@ async fn handle_create_site(
             let mut ssl_enabled = false;
             let mut ssl_error: Option<String> = None;
             if req.issue_ssl.unwrap_or(false) && cfg!(unix) {
-                match run_certbot_nginx(&domain) {
+                match run_certbot_auto(&domain) {
                     Ok(()) => {
                         let _ = state.db.update_site_ssl(id, true);
                         ssl_enabled = true;
@@ -723,15 +807,7 @@ async fn handle_create_subdomain(
     let proxy_port = req.proxy_port.unwrap_or(8080);
     let php_ver = req.php_version.unwrap_or_else(|| "8.3".to_string());
     let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
-    let conf = write_nginx_site_conf(&full_domain, site_type, &web_root, proxy_port, &php_ver);
-
-    if cfg!(unix) {
-        let avail = format!("/etc/nginx/sites-available/{}.conf", full_domain);
-        let enabled = format!("/etc/nginx/sites-enabled/{}.conf", full_domain);
-        let _ = fs::write(&avail, &conf);
-        let _ = Command::new("ln").args(["-sf", &avail, &enabled]).output();
-        let _ = ensure_nginx_active_and_reload();
-    }
+    provision_webserver_site(&full_domain, site_type, &web_root, proxy_port, &php_ver);
     let ftp_info = if req.create_ssh.unwrap_or(false) {
         Some(provision_sftp_user(&full_domain, &root_path, req.ftp_user.as_deref(), req.ftp_pass.as_deref()))
     } else {
@@ -759,7 +835,7 @@ async fn handle_create_subdomain(
             let mut ssl_enabled = false;
             let mut ssl_error: Option<String> = None;
             if req.issue_ssl.unwrap_or(false) && cfg!(unix) {
-                match run_certbot_nginx(&full_domain) {
+                match run_certbot_auto(&full_domain) {
                     Ok(()) => {
                         let _ = state.db.update_site_ssl(id, true);
                         ssl_enabled = true;
@@ -804,12 +880,31 @@ async fn handle_switch_site_php(
     if !is_authed(&state, &headers) {
         return unauthorized();
     }
-    let _ = state.db.update_site_php(id, req.php_version.trim());
+    let ver = req.php_version.trim();
+    if let Ok(Some(site)) = state.db.get_site(id) {
+        if cfg!(unix) {
+            let ws = detect_active_webserver();
+            let conf_path = if ws == "apache2" {
+                format!("/etc/apache2/sites-available/{}.conf", site.domain)
+            } else {
+                format!("/etc/nginx/sites-available/{}.conf", site.domain)
+            };
+            if let Ok(txt) = fs::read_to_string(&conf_path) {
+                let mut updated = txt;
+                for v in ["7.4", "8.0", "8.1", "8.2", "8.3", "8.4"] {
+                    updated = updated.replace(&format!("php{}-fpm.sock", v), &format!("php{}-fpm.sock", ver));
+                }
+                let _ = fs::write(&conf_path, updated);
+                let _ = reload_active_webserver(ws);
+            }
+        }
+    }
+    let _ = state.db.update_site_php(id, ver);
     state.db.log_audit(
         "admin",
         "SWITCH_PHP",
         &format!("site:{}", id),
-        &format!("php={}", req.php_version),
+        &format!("php={}", ver),
     );
     Json(json!({ "success": true })).into_response()
 }
@@ -827,7 +922,7 @@ async fn handle_issue_ssl(
         return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response();
     };
     if cfg!(unix) {
-        if let Err(err) = run_certbot_nginx(&site.domain) {
+        if let Err(err) = run_certbot_auto(&site.domain) {
             return (
                 StatusCode::BAD_REQUEST,
                 Json(json!({ "success": false, "error": err })),
@@ -840,16 +935,69 @@ async fn handle_issue_ssl(
     Json(json!({ "success": true })).into_response()
 }
 
+#[derive(Deserialize, Default)]
+struct DeleteSiteQuery {
+    del_ftp: Option<bool>,
+    del_db: Option<bool>,
+    del_files: Option<bool>,
+}
+
 async fn handle_delete_site(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<i64>,
+    Query(q): Query<DeleteSiteQuery>,
 ) -> Response {
     if !is_authed(&state, &headers) {
         return unauthorized();
     }
+    let site = state.db.get_site(id).ok().flatten();
+    if let Some(ref s) = site {
+        if cfg!(unix) {
+            let _ = fs::remove_file(format!("/etc/nginx/sites-enabled/{}.conf", s.domain));
+            let _ = fs::remove_file(format!("/etc/nginx/sites-available/{}.conf", s.domain));
+            let _ = Command::new("a2dissite").arg(format!("{}.conf", s.domain)).output();
+            let _ = fs::remove_file(format!("/etc/apache2/sites-available/{}.conf", s.domain));
+            let _ = reload_active_webserver(detect_active_webserver());
+
+            if q.del_ftp.unwrap_or(false) {
+                let safe_fu = sanitize_ident(Some(&s.ftp_user), 24);
+                if !safe_fu.is_empty() {
+                    let _ = Command::new("userdel").arg(&safe_fu).output();
+                }
+            }
+            if q.del_db.unwrap_or(false) {
+                let safe_dn = sanitize_ident(Some(&s.db_name), 32);
+                let safe_du = sanitize_ident(Some(&s.db_user), 24);
+                if !safe_dn.is_empty() || !safe_du.is_empty() {
+                    let mut sql = String::new();
+                    if !safe_dn.is_empty() {
+                        sql.push_str(&format!("DROP DATABASE IF EXISTS `{}`; ", safe_dn));
+                    }
+                    if !safe_du.is_empty() {
+                        sql.push_str(&format!("DROP USER IF EXISTS '{}'@'localhost'; ", safe_du));
+                    }
+                    sql.push_str("FLUSH PRIVILEGES;");
+                    let _ = Command::new("mysql").args(["-e", &sql]).output();
+                }
+            }
+            if q.del_files.unwrap_or(false) && s.root_path.starts_with("/www/wwwroot/") && s.root_path.len() > 14 {
+                let _ = fs::remove_dir_all(&s.root_path);
+            }
+        }
+        state.db.log_audit(
+            "admin",
+            "DELETE_SITE",
+            &s.domain,
+            &format!(
+                "ftp={}, db={}, files={}",
+                q.del_ftp.unwrap_or(false),
+                q.del_db.unwrap_or(false),
+                q.del_files.unwrap_or(false)
+            ),
+        );
+    }
     let _ = state.db.delete_site(id);
-    state.db.log_audit("admin", "DELETE_SITE", &format!("site:{}", id), "Site removed");
     Json(json!({ "success": true })).into_response()
 }
 
@@ -869,9 +1017,11 @@ async fn handle_runtimes_status(State(state): State<Arc<AppState>>, headers: Hea
         return unauthorized();
     }
     let setup_completed = state.db.get_setting("setup_completed", "0") == "1";
+    let nginx_active = service_is_active("nginx");
+    let apache_active = service_is_active("apache2");
     let items = json!([
-        { "id": "nginx", "name": "Nginx", "category": "web", "desc": "고성능 웹서버 & 리버스 프록시 (권장)", "installed": cmd_exists("nginx") },
-        { "id": "apache2", "name": "Apache2", "category": "web", "desc": ".htaccess 호환 전통 웹서버", "installed": cmd_exists("apache2") },
+        { "id": "nginx", "name": "Nginx", "category": "web", "desc": "고성능 웹서버 & 리버스 프록시 (권장)", "installed": nginx_active, "binary_present": cmd_exists("nginx"), "active": nginx_active },
+        { "id": "apache2", "name": "Apache2", "category": "web", "desc": ".htaccess 호환 전통 웹서버", "installed": apache_active, "binary_present": cmd_exists("apache2"), "active": apache_active },
         { "id": "mariadb", "name": "MariaDB (MySQL)", "category": "db", "desc": "MySQL 호환 관계형 데이터베이스", "installed": cmd_exists("mariadb") || cmd_exists("mysql") },
         { "id": "certbot", "name": "Certbot (SSL)", "category": "web", "desc": "Let's Encrypt 무료 HTTPS 자동발급", "installed": cmd_exists("certbot") },
         { "id": "php8.3", "name": "PHP 8.3", "category": "lang", "desc": "최신 PHP-FPM 런타임 (CBoard/WordPress 권장)", "installed": FsPath::new("/usr/sbin/php-fpm8.3").exists() || cmd_exists("php8.3") },
@@ -990,7 +1140,7 @@ async fn handle_runtimes_install(
                     "nginx" => run_step("Nginx (80/443)", "systemctl disable --now apache2 2>/dev/null || true; DEBIAN_FRONTEND=noninteractive apt-get install -y nginx && systemctl enable --now nginx"),
                     "apache2" => run_step("Apache2 (80/443)", "systemctl disable --now nginx 2>/dev/null || true; DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 && a2enmod rewrite proxy proxy_http proxy_fcgi setenvif ssl && systemctl enable --now apache2"),
                     "mariadb" => run_step("MariaDB", "DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server && systemctl enable --now mariadb"),
-                    "certbot" => run_step("Certbot", "DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
+                    "certbot" => run_step("Certbot", "DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx python3-certbot-apache && (if systemctl is-active --quiet apache2 && ! systemctl is-active --quiet nginx; then systemctl disable --now nginx 2>/dev/null || true; else systemctl disable --now apache2 2>/dev/null || true; fi)"),
                     "php8.3" => run_step("PHP 8.3", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-gd && systemctl enable --now php8.3-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
                     "php8.2" => run_step("PHP 8.2", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.2-fpm php8.2-mysql php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip php8.2-gd && systemctl enable --now php8.2-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
                     "php7.4" => run_step("PHP 7.4", "DEBIAN_FRONTEND=noninteractive apt-get install -y php7.4-fpm php7.4-mysql php7.4-mbstring php7.4-xml php7.4-curl php7.4-zip php7.4-gd && systemctl enable --now php7.4-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
@@ -1256,13 +1406,64 @@ async fn handle_storage_clean(
     if req.preview {
         return Json(json!({ "success": true, "preview": true, "message": "Preview mode completed." })).into_response();
     }
+    let cutoff = SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(req.days * 86400))
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    let scan_roots = if cfg!(unix) {
+        vec!["/var/log", "/www/wwwlogs", "/tmp"]
+    } else {
+        vec![]
+    };
+    let mut cleaned_count: usize = 0;
+    let mut freed_bytes: u64 = 0;
+    for root in scan_roots {
+        if !FsPath::new(root).exists() {
+            continue;
+        }
+        for entry in WalkDir::new(root).max_depth(3).into_iter().flatten() {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let p = entry.path();
+            if is_protected_path(p) {
+                continue;
+            }
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if !(name.ends_with(".log") || name.ends_with(".gz") || name.ends_with(".tmp")) {
+                continue;
+            }
+            if let Ok(meta) = entry.metadata() {
+                if let Ok(modified) = meta.modified() {
+                    if modified < cutoff {
+                        let sz = meta.len();
+                        if req.compress && name.ends_with(".log") {
+                            if Command::new("gzip").args(["-f", &p.to_string_lossy()]).status().map(|s| s.success()).unwrap_or(false) {
+                                cleaned_count += 1;
+                                freed_bytes += sz / 2;
+                            }
+                        } else if fs::remove_file(p).is_ok() {
+                            cleaned_count += 1;
+                            freed_bytes += sz;
+                        }
+                    }
+                }
+            }
+        }
+    }
     state.db.log_audit(
         "admin",
         "STORAGE_CLEAN",
         "logs",
-        &format!("days={}, compress={}", req.days, req.compress),
+        &format!("days={}, compress={}, count={}", req.days, req.compress, cleaned_count),
     );
-    Json(json!({ "success": true, "preview": false, "message": "Safe log cleanup completed." })).into_response()
+    Json(json!({
+        "success": true,
+        "preview": false,
+        "cleaned_count": cleaned_count,
+        "freed_mb": (freed_bytes as f64 / 1048576.0 * 100.0).round() / 100.0,
+        "message": format!("Safe log cleanup completed ({} files).", cleaned_count)
+    }))
+    .into_response()
 }
 
 async fn handle_file_read(
@@ -1439,6 +1640,425 @@ async fn handle_update_site_credentials(
     Json(json!({ "success": true, "site": updated })).into_response()
 }
 
+fn dir_size_bytes(path: &str) -> u64 {
+    if !cfg!(unix) || !FsPath::new(path).exists() {
+        return 0;
+    }
+    if let Ok(o) = Command::new("du").args(["-sb", path]).output() {
+        if o.status.success() {
+            let s = String::from_utf8_lossy(&o.stdout);
+            if let Some(tok) = s.split_whitespace().next() {
+                if let Ok(n) = tok.parse::<u64>() {
+                    return n;
+                }
+            }
+        }
+    }
+    0
+}
+
+fn mariadb_db_size_bytes(db_name: &str) -> u64 {
+    let safe = sanitize_ident(Some(db_name), 32);
+    if !cfg!(unix) || safe.is_empty() {
+        return 0;
+    }
+    let sql = format!(
+        "SELECT COALESCE(SUM(DATA_LENGTH + INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA='{}';",
+        safe
+    );
+    if let Ok(o) = Command::new("mysql").args(["-N", "-B", "-e", &sql]).output() {
+        if o.status.success() {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            return s.parse::<u64>().unwrap_or(0);
+        }
+    }
+    0
+}
+
+fn active_site_conf_path(domain: &str) -> (&'static str, String) {
+    let ws = detect_active_webserver();
+    if ws == "apache2" {
+        ("apache2", format!("/etc/apache2/sites-available/{}.conf", domain))
+    } else {
+        ("nginx", format!("/etc/nginx/sites-available/{}.conf", domain))
+    }
+}
+
+async fn handle_get_site_conf(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Some(site) = state.db.get_site(id).ok().flatten() else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "error": "Site not found" }))).into_response();
+    };
+    let (ws, conf_path) = active_site_conf_path(&site.domain);
+    let content = fs::read_to_string(&conf_path).unwrap_or_default();
+    let web_bytes = dir_size_bytes(&site.root_path);
+    let db_bytes = mariadb_db_size_bytes(&site.db_name);
+
+    // Parse aliases from server_name / ServerAlias
+    let mut aliases: Vec<String> = Vec::new();
+    for line in content.lines() {
+        let t = line.trim();
+        if ws == "nginx" && t.starts_with("server_name ") {
+            for tok in t.trim_start_matches("server_name ").trim_end_matches(';').split_whitespace() {
+                if tok != site.domain && !aliases.contains(&tok.to_string()) {
+                    aliases.push(tok.to_string());
+                }
+            }
+        } else if ws == "apache2" && t.starts_with("ServerAlias ") {
+            for tok in t.trim_start_matches("ServerAlias ").split_whitespace() {
+                if tok != site.domain && !aliases.contains(&tok.to_string()) {
+                    aliases.push(tok.to_string());
+                }
+            }
+        }
+    }
+
+    let ssl_expiry = if cfg!(unix) && site.ssl_enabled {
+        let cert_path = format!("/etc/letsencrypt/live/{}/fullchain.pem", site.domain);
+        if FsPath::new(&cert_path).exists() {
+            Command::new("openssl")
+                .args(["x509", "-enddate", "-noout", "-in", &cert_path])
+                .output()
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().replace("notAfter=", ""))
+                .unwrap_or_default()
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
+    Json(json!({
+        "success": true,
+        "site": site,
+        "webserver": ws,
+        "conf_path": conf_path,
+        "content": content,
+        "aliases": aliases,
+        "ssl_expiry": ssl_expiry,
+        "web_size_bytes": web_bytes,
+        "db_size_bytes": db_bytes
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+struct SaveSiteConfReq {
+    content: String,
+}
+
+async fn handle_save_site_conf(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(req): Json<SaveSiteConfReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Some(site) = state.db.get_site(id).ok().flatten() else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "error": "Site not found" }))).into_response();
+    };
+    let (ws, conf_path) = active_site_conf_path(&site.domain);
+    let backup = fs::read_to_string(&conf_path).unwrap_or_default();
+    if let Err(e) = fs::write(&conf_path, &req.content) {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false, "error": e.to_string() }))).into_response();
+    }
+    if let Err(err) = reload_active_webserver(ws) {
+        let _ = fs::write(&conf_path, backup);
+        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": format!("문법 오류로 자동 복구됨: {}", err) }))).into_response();
+    }
+    state.db.log_audit("admin", "SAVE_SITE_CONF", &site.domain, &format!("ws={}", ws));
+    Json(json!({ "success": true })).into_response()
+}
+
+#[derive(Deserialize)]
+struct SaveSiteDomainsReq {
+    aliases: String,
+}
+
+async fn handle_save_site_domains(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(req): Json<SaveSiteDomainsReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Some(site) = state.db.get_site(id).ok().flatten() else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "error": "Site not found" }))).into_response();
+    };
+    let clean_aliases: Vec<String> = req
+        .aliases
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty() && *s != site.domain && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '*'))
+        .collect();
+    let (ws, conf_path) = active_site_conf_path(&site.domain);
+    let orig = fs::read_to_string(&conf_path).unwrap_or_default();
+    let mut lines: Vec<String> = Vec::new();
+    let mut replaced = false;
+    for line in orig.lines() {
+        let t = line.trim();
+        if ws == "nginx" && t.starts_with("server_name ") {
+            let joined = if clean_aliases.is_empty() {
+                site.domain.clone()
+            } else {
+                format!("{} {}", site.domain, clean_aliases.join(" "))
+            };
+            lines.push(format!("    server_name {};", joined));
+            replaced = true;
+        } else if ws == "apache2" && t.starts_with("ServerAlias ") {
+            if !clean_aliases.is_empty() {
+                lines.push(format!("    ServerAlias {}", clean_aliases.join(" ")));
+            }
+            replaced = true;
+        } else {
+            lines.push(line.to_string());
+            if ws == "apache2" && t.starts_with("ServerName ") && !clean_aliases.is_empty() && !orig.contains("ServerAlias ") {
+                lines.push(format!("    ServerAlias {}", clean_aliases.join(" ")));
+                replaced = true;
+            }
+        }
+    }
+    if !replaced {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "server_name / ServerName 지시어를 찾을 수 없습니다." }))).into_response();
+    }
+    let next = lines.join("\n") + "\n";
+    let _ = fs::write(&conf_path, &next);
+    if let Err(err) = reload_active_webserver(ws) {
+        let _ = fs::write(&conf_path, &orig);
+        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": err }))).into_response();
+    }
+    state.db.log_audit("admin", "UPDATE_SITE_DOMAINS", &site.domain, &clean_aliases.join(","));
+    Json(json!({ "success": true, "aliases": clean_aliases })).into_response()
+}
+
+#[derive(Deserialize)]
+struct SiteLogQuery {
+    kind: Option<String>,
+    lines: Option<usize>,
+}
+
+async fn handle_get_site_logs(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Query(q): Query<SiteLogQuery>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Some(site) = state.db.get_site(id).ok().flatten() else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "error": "Site not found" }))).into_response();
+    };
+    let kind = if q.kind.as_deref() == Some("access") { "access" } else { "error" };
+    let n = q.lines.unwrap_or(150).clamp(10, 1000);
+    let log_path = format!("/www/wwwlogs/{}.{}.log", site.domain, kind);
+    let content = if cfg!(unix) && FsPath::new(&log_path).exists() {
+        Command::new("tail")
+            .args(["-n", &n.to_string(), &log_path])
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    Json(json!({
+        "success": true,
+        "log_path": log_path,
+        "content": content
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+struct ClearSiteLogReq {
+    kind: String,
+}
+
+async fn handle_clear_site_logs(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(req): Json<ClearSiteLogReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Some(site) = state.db.get_site(id).ok().flatten() else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "error": "Site not found" }))).into_response();
+    };
+    let kind = if req.kind == "access" { "access" } else { "error" };
+    let log_path = format!("/www/wwwlogs/{}.{}.log", site.domain, kind);
+    if FsPath::new(&log_path).exists() {
+        let _ = fs::write(&log_path, "");
+    }
+    state.db.log_audit("admin", "CLEAR_SITE_LOG", &site.domain, kind);
+    Json(json!({ "success": true })).into_response()
+}
+
+async fn handle_mariadb_databases(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !cfg!(unix) {
+        return Json(json!({ "success": true, "databases": [] })).into_response();
+    }
+    let out = Command::new("mysql").args(["-N", "-B", "-e", "SHOW DATABASES;"]).output();
+    let dbs: Vec<String> = match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty() && !matches!(s.as_str(), "information_schema" | "performance_schema" | "mysql" | "sys"))
+            .collect(),
+        _ => Vec::new(),
+    };
+    Json(json!({ "success": true, "databases": dbs })).into_response()
+}
+
+#[derive(Deserialize)]
+struct MariaDbQueryParam {
+    db: String,
+}
+
+async fn handle_mariadb_tables(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(q): Query<MariaDbQueryParam>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let safe = sanitize_ident(Some(&q.db), 32);
+    if safe.is_empty() || !cfg!(unix) {
+        return Json(json!({ "success": false, "tables": [] })).into_response();
+    }
+    let sql = format!("SHOW TABLES FROM `{}`;", safe);
+    let out = Command::new("mysql").args(["-N", "-B", "-e", &sql]).output();
+    let tables: Vec<String> = match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
+        _ => Vec::new(),
+    };
+    Json(json!({ "success": true, "tables": tables })).into_response()
+}
+
+#[derive(Deserialize)]
+struct MariaDbExecReq {
+    db: String,
+    sql: String,
+}
+
+async fn handle_mariadb_query(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<MariaDbExecReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let safe = sanitize_ident(Some(&req.db), 32);
+    if safe.is_empty() || req.sql.trim().is_empty() || !cfg!(unix) {
+        return Json(json!({ "success": false, "error": "DB 또는 SQL이 비어 있습니다." })).into_response();
+    }
+    let out = Command::new("mysql").args(["-D", &safe, "-t", "-e", req.sql.trim()]).output();
+    state.db.log_audit("admin", "MARIADB_QUERY", &safe, req.sql.trim());
+    match out {
+        Ok(o) => {
+            let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            Json(json!({
+                "success": o.status.success(),
+                "output": if stdout.is_empty() { stderr } else { format!("{}{}", stdout, stderr) }
+            }))
+            .into_response()
+        }
+        Err(e) => Json(json!({ "success": false, "error": e.to_string() })).into_response(),
+    }
+}
+
+async fn handle_mariadb_backup(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(q): Query<MariaDbQueryParam>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let safe = sanitize_ident(Some(&q.db), 32);
+    if safe.is_empty() || !cfg!(unix) {
+        return (StatusCode::BAD_REQUEST, "Invalid database name").into_response();
+    }
+    let out = Command::new("mysqldump").arg(&safe).output();
+    match out {
+        Ok(o) if o.status.success() => {
+            state.db.log_audit("admin", "MARIADB_BACKUP", &safe, "SQL dump downloaded");
+            let disp = format!("attachment; filename=\"{}.sql\"", safe);
+            (
+                [
+                    (header::CONTENT_TYPE, "application/sql; charset=utf-8".to_string()),
+                    (header::CONTENT_DISPOSITION, disp),
+                ],
+                o.stdout,
+            )
+                .into_response()
+        }
+        Ok(o) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            String::from_utf8_lossy(&o.stderr).to_string(),
+        )
+            .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+async fn handle_file_list(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(q): Query<QueryPath>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let raw = q.path.unwrap_or_else(|| "/www/wwwroot".to_string());
+    let dir = if raw.trim().is_empty() { "/www/wwwroot" } else { raw.trim() };
+    let rd = match fs::read_dir(dir) {
+        Ok(r) => r,
+        Err(e) => return Json(json!({ "success": false, "error": e.to_string() })).into_response(),
+    };
+    let mut items: Vec<(bool, String, u64)> = Vec::new();
+    for entry in rd.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let meta = entry.metadata().ok();
+        let is_dir = meta.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+        let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+        items.push((is_dir, name, size));
+    }
+    items.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase())));
+    let json_items: Vec<Value> = items
+        .into_iter()
+        .take(200)
+        .map(|(is_dir, name, size)| json!({ "name": name, "is_dir": is_dir, "size": size }))
+        .collect();
+    Json(json!({ "success": true, "path": dir, "items": json_items })).into_response()
+}
+
 #[derive(Deserialize)]
 struct DeleteSiteCredReq {
     target: String,
@@ -1588,6 +2208,10 @@ async fn main() {
         .route("/api/sites/{id}", delete(handle_delete_site))
         .route("/api/sites/{id}/credentials", post(handle_update_site_credentials))
         .route("/api/sites/{id}/credentials/delete", post(handle_delete_site_credential))
+        .route("/api/sites/{id}/conf", get(handle_get_site_conf).post(handle_save_site_conf))
+        .route("/api/sites/{id}/domains", post(handle_save_site_domains))
+        .route("/api/sites/{id}/logs", get(handle_get_site_logs))
+        .route("/api/sites/{id}/logs/clear", post(handle_clear_site_logs))
         .route("/api/sites/{id}/php", post(handle_switch_site_php))
         .route("/api/sites/{id}/ssl", post(handle_issue_ssl))
         .route("/api/php/versions", get(handle_php_versions))
@@ -1596,8 +2220,13 @@ async fn main() {
         .route("/api/apps/{id}/action", post(handle_app_action))
         .route("/api/db/sqlite/tables", get(handle_sqlite_tables))
         .route("/api/db/sqlite/query", post(handle_sqlite_query))
+        .route("/api/db/mariadb/databases", get(handle_mariadb_databases))
+        .route("/api/db/mariadb/tables", get(handle_mariadb_tables))
+        .route("/api/db/mariadb/query", post(handle_mariadb_query))
+        .route("/api/db/mariadb/backup", get(handle_mariadb_backup))
         .route("/api/storage/scan", get(handle_storage_scan))
         .route("/api/storage/clean", post(handle_storage_clean))
+        .route("/api/files/list", get(handle_file_list))
         .route("/api/files", get(handle_file_read).post(handle_file_save))
         .route("/api/terminal", post(handle_terminal_exec))
         .route("/api/audits", get(handle_audits))
