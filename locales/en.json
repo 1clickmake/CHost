@@ -158,5 +158,6 @@
   "guide_sec_reset": "💡 <strong>Note:</strong> Reset the panel for clean testing. <strong>Soft Reset</strong> only resets panel lists and setup wizard; <strong>Full Reset</strong> removes all created sites, FTP, DBs, and web files.",
   "opt_reset_soft": "Soft Reset (Reset panel lists & setup wizard only)",
   "opt_reset_full": "Full Reset (Permanently delete all sites, FTP, DBs & web folders)",
-  "btn_panel_reset": "Run Panel Reset"
+  "btn_panel_reset": "Run Panel Reset",
+  "nav_forum_link": "Community Forum"
 }

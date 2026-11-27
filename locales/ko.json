@@ -158,5 +158,6 @@
   "guide_sec_reset": "💡 <strong>안내:</strong> 테스트 후 패널을 처음 상태로 되돌릴 때 사용합니다. <strong>가벼운 리셋</strong>은 패널 목록과 초기 설치 마법사만 초기화하며, <strong>완전 초기화</strong>는 생성된 사이트·FTP·DB·파일까지 모두 정리합니다.",
   "opt_reset_soft": "가벼운 리셋 (패널 목록 및 초기 세팅 마법사만 초기화)",
   "opt_reset_full": "완전 초기화 (모든 사이트·FTP·DB·웹 폴더까지 영구 삭제)",
-  "btn_panel_reset": "패널 초기화 실행"
+  "btn_panel_reset": "패널 초기화 실행",
+  "nav_forum_link": "포럼 바로가기"
 }

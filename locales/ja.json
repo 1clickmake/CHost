@@ -158,5 +158,6 @@
   "guide_sec_reset": "💡 <strong>案内:</strong> テスト後にパネルを初期状態へ戻します。",
   "opt_reset_soft": "ソフトリセット (一覧と初期設定ウィザードのみ)",
   "opt_reset_full": "完全初期化 (全サイト・FTP・DB・Webフォルダを削除)",
-  "btn_panel_reset": "初期化を実行"
+  "btn_panel_reset": "初期化を実行",
+  "nav_forum_link": "フォーラムへ"
 }

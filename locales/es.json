@@ -158,5 +158,6 @@
   "guide_sec_reset": "💡 <strong>Nota:</strong> Restablece el panel después de tus pruebas.",
   "opt_reset_soft": "Reinicio suave (Solo listas y asistente inicial)",
   "opt_reset_full": "Reinicio completo (Eliminar sitios, FTP, DB y carpetas)",
-  "btn_panel_reset": "Ejecutar restablecimiento"
+  "btn_panel_reset": "Ejecutar restablecimiento",
+  "nav_forum_link": "Foro de ayuda"
 }

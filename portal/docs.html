@@ -125,28 +125,23 @@ CHOST_PORT=8800 ./target/release/chost</pre>
     </div>
 
     <div class="doc-card">
-      <h2>6. 패널 메뉴별 화면 가이드 (실제 화면 캡처)</h2>
-      <p style="margin-bottom:18px;">CHost 관리자 패널(기본 포트 <code>8800</code>)의 7개 핵심 메뉴별 기능과 입력 항목 설명입니다. 상단 <strong>비밀번호 변경</strong> 버튼으로 언제든 관리자 암호를 바꿀 수 있습니다.</p>
+      <h2>6. 패널 메뉴별 화면 가이드 (실제 화면 캡처 · v0.1.10)</h2>
+      <p style="margin-bottom:18px;">CHost 관리자 패널(기본 포트 <code>8800</code>)의 8개 핵심 메뉴별 기능과 입력 항목 설명입니다. 상단 우측의 버전 배지/업데이트 버튼으로 언제든 GitHub 최신 릴리즈를 원클릭 적용할 수 있습니다.</p>
 
       <div style="margin-bottom:28px;">
         <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-1. 대시보드 (Dashboard)</h3>
-        <p>서버의 실시간 <strong>CPU 사용률</strong>(소수점 1자리), <strong>메모리(RAM)</strong>, <strong>디스크(Disk)</strong> 사용량과 진행률 그래프, 서버 가동 시간(Uptime), 설치된 <strong>PHP 런타임(7.4 ~ 8.4)</strong> 상태를 한눈에 모니터링합니다.</p>
+        <p>서버의 실시간 <strong>CPU 사용률</strong>, <strong>메모리(RAM)</strong>, <strong>디스크(Disk)</strong> 사용량과 진행률 그래프, 서버 가동 시간(Uptime), 설치된 서버 패키지 &amp; 런타임(Nginx/Apache2 실행 상태 포함)을 한눈에 모니터링합니다.</p>
         <img src="/assets/docs/tab1_dashboard.png" alt="대시보드" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
       </div>
 
       <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-2. 사이트 및 도메인 (Sites &amp; Domains) · 통합 마법사 (v0.1.2)</h3>
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-2. 사이트 및 도메인 (Sites &amp; Domains) · Conf / Log 통합</h3>
         <ul>
-          <li><strong>통합 생성 폼</strong>: 직접 도메인(<code>aaa.com</code>)과 서브도메인(<code>sub.chost.work</code>)을 한 화면에서 전환해 동일하게 언어·프레임워크·런타임 버전을 설정합니다.</li>
-          <li><strong>App Port</strong>: Rust/Python/Node/Java 앱 서버가 리슨 중인 내부 포트(예: 8080) | <strong>Issue SSL</strong>: Let's Encrypt 무료 HTTPS 자동 발급.</li>
-          <li><strong>Create FTP/SFTP &amp; Auto Create DB</strong>: 고객 전용 SFTP 계정 및 MariaDB 데이터베이스·유저를 자동 발급하거나, 원하는 ID/비밀번호를 직접 지정해 생성합니다.</li>
+          <li><strong>통합 생성 폼</strong>: 직접 도메인(<code>aaa.com</code>)과 서브도메인(<code>sub.chost.work</code>)을 한 화면에서 전환해 언어·프레임워크·런타임 버전을 설정하며, 활성 웹서버(Nginx / Apache2)에 맞춰 설정이 자동 생성됩니다.</li>
+          <li><strong>Issue SSL &amp; 원클릭 FTP/DB</strong>: Let's Encrypt 무료 HTTPS 자동 발급 및 사이트별 FTP/DB 원클릭 생성·조회·수학 퀴즈 안전 삭제를 지원합니다.</li>
+          <li><strong>Conf / Log 모달 &amp; 안전 삭제</strong>: 리스트 우측 <strong>Conf</strong> / <strong>Log</strong> 버튼으로 추가 도메인, 웹서버 설정 문법 검증 후 저장, PHP 버전 전환, 사이트별 로그 및 웹·DB 용량 확인이 가능합니다.</li>
         </ul>
         <img src="/assets/docs/tab2_sites.png" alt="사이트 및 도메인" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
-      </div>
-
-      <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-2b. 초기 세팅 마법사 &amp; 런타임 스토어 (v0.1.2)</h3>
-        <p>최초 로그인 시 <strong>초기 서버 환경 세팅 팝업</strong>이 자동 실행되어 Nginx / Apache2 / MariaDB / Certbot / PHP(8.3·8.2·7.4) / Python 3 / Node.js 22 / Rust / Java 21 중 필요한 패키지만 선택해 실시간 로그를 보며 원클릭 설치할 수 있습니다. 이후 좌측 <strong>런타임 스토어</strong> 메뉴에서 언제든 추가 설치가 가능합니다.</p>
       </div>
 
       <div style="margin-bottom:28px;">
@@ -157,26 +152,32 @@ CHOST_PORT=8800 ./target/release/chost</pre>
 
       <div style="margin-bottom:28px;">
         <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-4. 멀티 DB 스튜디오 (Multi-DB Studio)</h3>
-        <p>SQLite/MySQL 데이터베이스 경로를 지정해 테이블 목록을 조회하고 패널 내에서 바로 SQL 쿼리를 실행해 결과를 JSON으로 확인합니다.</p>
+        <p>phpMyAdmin 없이 <strong>MariaDB / MySQL</strong>(DB 목록, 테이블 조회, SQL 실행, 원클릭 <code>.sql</code> 백업 다운로드)과 <strong>SQLite (.db)</strong>를 웹에서 안전하게 관리합니다.</p>
         <img src="/assets/docs/tab4_db.png" alt="멀티 DB 스튜디오" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
       </div>
 
       <div style="margin-bottom:28px;">
         <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-5. 저장 공간 및 로그 (Storage &amp; Logs)</h3>
-        <p>지정된 일수(기본 30일) 이전의 오래된 로그 파일을 안전하게 스캔하고 정리(<code>copytruncate</code>)하여 디스크 용량을 확보합니다. DB 및 업로드 폴더는 자동 보호됩니다.</p>
+        <p>지정된 일수(7/15/30일) 이전의 오래된 로그 파일을 미리보기 스캔한 뒤 안전하게 압축(<code>.log</code>) 및 정리(<code>.gz</code>/<code>.tmp</code>)합니다. DB 및 업로드 폴더는 자동 보호됩니다.</p>
         <img src="/assets/docs/tab5_storage.png" alt="저장 공간 및 로그" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
       </div>
 
       <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-6. 파일 및 터미널 (Files &amp; Terminal)</h3>
-        <p>서버 설정 파일(<code>/etc/nginx/...</code>, 웹 소스 등)을 직접 열어 수정·저장하고, 하단 웹 터미널에서 리눅스 명령을 즉시 실행할 수 있습니다.</p>
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-6. 파일 탐색기 및 웹 터미널 (Files &amp; Terminal)</h3>
+        <p>경로를 외우지 않아도 폴더·파일 탐색기에서 클릭 한 번으로 설정 파일을 열어 수정·저장하고, 하단 웹 터미널의 퀵 버튼으로 서버 상태를 즉시 점검합니다.</p>
         <img src="/assets/docs/tab6_files.png" alt="파일 및 터미널" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
       </div>
 
-      <div>
+      <div style="margin-bottom:28px;">
         <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-7. 보안 및 감사 로그 (Security &amp; Audit)</h3>
-        <p>관리자 로그인 성공/실패, 비밀번호 변경, 사이트 생성, DB 쿼리, 터미널 명령 실행 등 모든 주요 보안 이벤트를 시간순으로 추적합니다.</p>
+        <p>페이지 내 <strong>관리자 비밀번호 변경</strong>, 수학 퀴즈 기반 <strong>패널 초기화(가벼운 리셋 / 완전 초기화)</strong>, 그리고 모든 주요 보안 이벤트의 감사 로그를 시간순으로 추적합니다.</p>
         <img src="/assets/docs/tab7_audit.png" alt="보안 및 감사 로그" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      </div>
+
+      <div>
+        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-8. 런타임 스토어 &amp; 포럼 바로가기 (Runtime Store)</h3>
+        <p>Nginx / Apache2(실행 상태 실시간 구분), MariaDB, Certbot, PHP(7.4~8.3), Python, Node.js, Rust, Java를 선택 설치할 수 있으며, 하단 <strong>포럼 바로가기</strong>로 커뮤니티 지원 페이지에 즉시 이동합니다.</p>
+        <img src="/assets/docs/tab8_runtimes.png" alt="런타임 스토어" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
       </div>
     </div>
   </main>
