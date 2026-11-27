@@ -531,6 +531,7 @@ async function loadLocale(lang) {
   });
   applyRtLabels();
   if (!document.getElementById('app-view').classList.contains('hidden')) {
+    loadDashSites(true);
     loadRuntimes(false);
     loadSites();
     checkPanelVersion();
