@@ -171,5 +171,9 @@
   "detect_port": "推奨ポート",
   "detect_shared": " · 共有vendorで超軽量インストール",
   "detect_unsupported": "自動実行は未対応です",
-  "detect_fail": "検出に失敗しました。"
+  "detect_fail": "検出に失敗しました。",
+  "health_healthy": "🟢 正常稼働中",
+  "health_starting": "🟡 起動中...",
+  "health_error": "🔴 エラー",
+  "health_down": "⚫ 停止中"
 }

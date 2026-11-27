@@ -943,7 +943,7 @@ async function loadSites() {
   document.getElementById('sites-tbody').innerHTML = r.sites.map(s => `
     <tr>
       <td><a href="${s.ssl_enabled ? 'https' : 'http'}://${escAttr(s.domain)}" target="_blank" rel="noopener noreferrer" style="color:#93c5fd;text-decoration:none;font-weight:600">${escAttr(s.domain)} <i class="bi bi-box-arrow-up-right" style="font-size:11px"></i></a></td>
-      <td>${escAttr(s.site_type)}</td>
+      <td>${escAttr(s.site_type)}${s.site_type === 'proxy' ? ` <span class="hbadge" data-sid="${s.id}"></span>` : ''}</td>
       <td>${s.site_type === 'proxy' ? ':' + s.proxy_port : escAttr(s.root_path)}</td>
       <td>${escAttr(s.php_version || '-')}</td>
       <td>${s.ftp_user ? renderCredCell(s.ftp_user, s.ftp_pass) : `<button class="btn btn-sm" onclick="quickProvisionCred(${s.id}, 'ftp', this)"><i class="bi bi-folder-plus"></i> ${t('btn_create_ftp', 'FTP 생성')}</button>`}</td>
@@ -958,6 +958,30 @@ async function loadSites() {
         </div>
       </td>
     </tr>`).join('');
+  refreshSiteHealth(0);
+}
+let _healthTimer = null;
+async function refreshSiteHealth(round = 0) {
+  clearTimeout(_healthTimer);
+  const spans = [...document.querySelectorAll('.hbadge')];
+  if (!spans.length) return;
+  const MAP = {
+    healthy: ['#4ade80', 'health_healthy', '🟢 Running'],
+    starting: ['#fcd34d', 'health_starting', '🟡 Starting...'],
+    error: ['#f87171', 'health_error', '🔴 Error'],
+    down: ['#f87171', 'health_down', '⚫ Stopped']
+  };
+  let pending = false;
+  await Promise.all(spans.map(async sp => {
+    try {
+      const r = await api(`/api/sites/${sp.dataset.sid}/health`);
+      if (!r || !r.success || !r.applicable) { sp.textContent = ''; return; }
+      const m = MAP[r.status] || MAP.down;
+      sp.innerHTML = `<span style="color:${m[0]};font-size:12px;font-weight:700;white-space:nowrap">${t(m[1], m[2])}</span>`;
+      if (r.status === 'starting' || r.status === 'down') pending = true;
+    } catch (e) { sp.textContent = ''; }
+  }));
+  if (pending && round < 24) _healthTimer = setTimeout(() => refreshSiteHealth(round + 1), 5000);
 }
 async function quickProvisionCred(id, kind, btn) {
   const origHtml = btn ? btn.innerHTML : '';

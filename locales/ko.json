@@ -171,5 +171,9 @@
   "detect_port": "추천 포트",
   "detect_shared": " · 공용 vendor로 초경량 설치",
   "detect_unsupported": "아직 자동 실행 미지원",
-  "detect_fail": "감지에 실패했습니다."
+  "detect_fail": "감지에 실패했습니다.",
+  "health_healthy": "🟢 정상 동작 중",
+  "health_starting": "🟡 시작 중...",
+  "health_error": "🔴 오류",
+  "health_down": "⚫ 중지됨"
 }

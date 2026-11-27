@@ -171,5 +171,9 @@
   "detect_port": "Puerto sugerido",
   "detect_shared": " · instalación ultraligera con vendor compartido",
   "detect_unsupported": "ejecución automática aún no compatible",
-  "detect_fail": "La detección falló."
+  "detect_fail": "La detección falló.",
+  "health_healthy": "🟢 En marcha",
+  "health_starting": "🟡 Iniciando...",
+  "health_error": "🔴 Error",
+  "health_down": "⚫ Detenido"
 }

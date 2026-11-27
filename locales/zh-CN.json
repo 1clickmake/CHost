@@ -171,5 +171,9 @@
   "detect_port": "建议端口",
   "detect_shared": " · 使用共享 vendor 超轻量安装",
   "detect_unsupported": "暂不支持自动运行",
-  "detect_fail": "检测失败。"
+  "detect_fail": "检测失败。",
+  "health_healthy": "🟢 运行正常",
+  "health_starting": "🟡 启动中...",
+  "health_error": "🔴 错误",
+  "health_down": "⚫ 已停止"
 }

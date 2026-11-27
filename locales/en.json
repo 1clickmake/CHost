@@ -171,5 +171,9 @@
   "detect_port": "Suggested port",
   "detect_shared": " · ultra-light install with shared vendor",
   "detect_unsupported": "automatic runtime not supported yet",
-  "detect_fail": "Detection failed."
+  "detect_fail": "Detection failed.",
+  "health_healthy": "🟢 Running",
+  "health_starting": "🟡 Starting...",
+  "health_error": "🔴 Error",
+  "health_down": "⚫ Stopped"
 }
