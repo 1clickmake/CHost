@@ -177,9 +177,18 @@
             </div>
             <div class="row">
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="Let's Encrypt 무료 HTTPS SSL 인증서 자동 발급"><input type="checkbox" id="sub-ssl" style="width:auto" /> Issue SSL (HTTPS 자동발급)</label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="고객에게 전달할 전용 SFTP/SSH 접속 계정 생성"><input type="checkbox" id="sub-ssh" style="width:auto" /> Create FTP/SFTP (고객 접속 계정)</label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="MariaDB/MySQL 데이터베이스 및 전용 계정 자동 생성"><input type="checkbox" id="sub-db" style="width:auto" /> Auto Create DB (DB 자동 생성)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="고객에게 전달할 전용 SFTP/SSH 접속 계정 생성"><input type="checkbox" id="sub-ssh" style="width:auto" onchange="toggleProvisionInputs()" /> Create FTP/SFTP (고객 접속 계정)</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" title="MariaDB/MySQL 데이터베이스 및 전용 계정 자동 생성"><input type="checkbox" id="sub-db" style="width:auto" onchange="toggleProvisionInputs()" /> Auto Create DB (DB 자동 생성)</label>
               <button class="btn btn-primary" onclick="createUnifiedSite()">Create Site</button>
+            </div>
+            <div id="ftp-custom-row" class="row hidden" style="margin-top:10px">
+              <input id="sub-ftp-user" placeholder="FTP/SFTP User ID (비우면 자동생성)" />
+              <input id="sub-ftp-pass" type="text" placeholder="FTP/SFTP Password (비우면 자동생성)" />
+            </div>
+            <div id="db-custom-row" class="row hidden" style="margin-top:10px">
+              <input id="sub-db-name" placeholder="DB 이름 (비우면 자동생성)" />
+              <input id="sub-db-user" placeholder="DB 유저 ID (비우면 자동생성)" />
+              <input id="sub-db-pass" type="text" placeholder="DB 비밀번호 (비우면 자동생성)" />
             </div>
             <div class="field-hint" id="sub-wizard-hint">고객 도메인(aaa.com) 또는 서브도메인(sub.chost.work) 모두 동일하게 언어·프레임워크·SSL·FTP/SFTP·DB를 한 번에 생성할 수 있습니다.</div>
             <pre id="site-provision-result" class="console hidden"></pre>
@@ -372,6 +381,10 @@ function onSiteModeChange() {
   document.getElementById('sub-parent').classList.toggle('hidden', mode !== 'subdomain');
 }
 function onSiteTypeChange() {}
+function toggleProvisionInputs() {
+  document.getElementById('ftp-custom-row').classList.toggle('hidden', !document.getElementById('sub-ssh').checked);
+  document.getElementById('db-custom-row').classList.toggle('hidden', !document.getElementById('sub-db').checked);
+}
 async function createUnifiedSite() {
   const mode = document.getElementById('site-mode').value;
   const language = document.getElementById('sub-lang').value;
@@ -381,6 +394,11 @@ async function createUnifiedSite() {
   const issue_ssl = document.getElementById('sub-ssl').checked;
   const create_ssh = document.getElementById('sub-ssh').checked;
   const create_db = document.getElementById('sub-db').checked;
+  const ftp_user = document.getElementById('sub-ftp-user').value.trim();
+  const ftp_pass = document.getElementById('sub-ftp-pass').value.trim();
+  const db_name = document.getElementById('sub-db-name').value.trim();
+  const db_user = document.getElementById('sub-db-user').value.trim();
+  const db_pass = document.getElementById('sub-db-pass').value.trim();
   const site_type = language === 'php' ? 'php' : (['rust','python','node','java'].includes(language) ? 'proxy' : 'static');
 
   let r;
@@ -388,14 +406,14 @@ async function createUnifiedSite() {
     const domain = document.getElementById('site-domain').value.trim();
     r = await api('/api/sites', {
       method: 'POST',
-      body: JSON.stringify({ domain, site_type, proxy_port, php_version, framework, issue_ssl, create_ssh, create_db })
+      body: JSON.stringify({ domain, site_type, proxy_port, php_version, framework, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
     });
   } else {
     const prefix = document.getElementById('sub-prefix').value.trim();
     const parent_domain = document.getElementById('sub-parent').value.trim();
     r = await api('/api/sites/subdomain', {
       method: 'POST',
-      body: JSON.stringify({ prefix, parent_domain, language, framework, php_version, proxy_port, issue_ssl, create_ssh, create_db })
+      body: JSON.stringify({ prefix, parent_domain, language, framework, php_version, proxy_port, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
     });
   }
   const box = document.getElementById('site-provision-result');

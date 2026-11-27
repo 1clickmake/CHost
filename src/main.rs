@@ -58,6 +58,11 @@ struct CreateSiteReq {
     issue_ssl: Option<bool>,
     create_ssh: Option<bool>,
     create_db: Option<bool>,
+    ftp_user: Option<String>,
+    ftp_pass: Option<String>,
+    db_name: Option<String>,
+    db_user: Option<String>,
+    db_pass: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -71,6 +76,11 @@ struct CreateSubdomainReq {
     issue_ssl: Option<bool>,
     create_ssh: Option<bool>,
     create_db: Option<bool>,
+    ftp_user: Option<String>,
+    ftp_pass: Option<String>,
+    db_name: Option<String>,
+    db_user: Option<String>,
+    db_pass: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -336,21 +346,36 @@ fn gen_random_secret(len: usize) -> String {
         .collect()
 }
 
-fn provision_sftp_user(domain: &str, root_path: &str) -> serde_json::Value {
-    let safe_slug: String = domain
+fn sanitize_ident(raw: Option<&str>, max_len: usize) -> String {
+    raw.unwrap_or("")
+        .trim()
         .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .take(12)
-        .collect();
-    let user = format!("chost_{}", if safe_slug.is_empty() { "site".to_string() } else { safe_slug });
-    let pass = gen_random_secret(14);
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .take(max_len)
+        .collect()
+}
+
+fn provision_sftp_user(domain: &str, root_path: &str, custom_user: Option<&str>, custom_pass: Option<&str>) -> serde_json::Value {
+    let cu = sanitize_ident(custom_user, 24);
+    let user = if !cu.is_empty() {
+        cu
+    } else {
+        let safe_slug: String = domain
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .take(12)
+            .collect();
+        format!("chost_{}", if safe_slug.is_empty() { "site".to_string() } else { safe_slug })
+    };
+    let cp_raw = custom_pass.unwrap_or("").trim();
+    let pass = if !cp_raw.is_empty() { cp_raw.to_string() } else { gen_random_secret(14) };
     if !cfg!(unix) {
         return json!({ "created": false, "note": "Unix only" });
     }
     let _ = Command::new("useradd")
         .args(["-d", root_path, "-s", "/bin/bash", &user])
         .output();
-    let chpasswd_cmd = format!("echo '{}:{}' | chpasswd", user, pass);
+    let chpasswd_cmd = format!("echo '{}:{}' | chpasswd", user, pass.replace('\'', ""));
     let cp = Command::new("sh").args(["-c", &chpasswd_cmd]).output();
     let _ = Command::new("chown")
         .args(["-R", &format!("{}:www-data", user), root_path])
@@ -365,22 +390,26 @@ fn provision_sftp_user(domain: &str, root_path: &str) -> serde_json::Value {
     })
 }
 
-fn provision_database(domain: &str) -> serde_json::Value {
+fn provision_database(domain: &str, custom_db: Option<&str>, custom_user: Option<&str>, custom_pass: Option<&str>) -> serde_json::Value {
     let safe_slug: String = domain
         .chars()
         .filter(|c| c.is_ascii_alphanumeric())
         .take(14)
         .collect();
     let suffix = if safe_slug.is_empty() { "site".to_string() } else { safe_slug };
-    let db_name = format!("db_{}", suffix);
-    let db_user = format!("u_{}", suffix);
-    let db_pass = gen_random_secret(14);
+    let cdb = sanitize_ident(custom_db, 32);
+    let cu = sanitize_ident(custom_user, 24);
+    let db_name = if !cdb.is_empty() { cdb } else { format!("db_{}", suffix) };
+    let db_user = if !cu.is_empty() { cu } else { format!("u_{}", suffix) };
+    let cp_raw = custom_pass.unwrap_or("").trim();
+    let db_pass = if !cp_raw.is_empty() { cp_raw.to_string() } else { gen_random_secret(14) };
+    let db_pass_sql = db_pass.replace('\'', "");
     if !cfg!(unix) {
         return json!({ "created": false, "note": "Unix only" });
     }
     let sql = format!(
         "CREATE DATABASE IF NOT EXISTS `{}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS '{}'@'localhost' IDENTIFIED BY '{}'; GRANT ALL PRIVILEGES ON `{}`.* TO '{}'@'localhost'; FLUSH PRIVILEGES;",
-        db_name, db_user, db_pass, db_name, db_user
+        db_name, db_user, db_pass_sql, db_name, db_user
     );
     match Command::new("mysql").args(["-e", &sql]).output() {
         Ok(o) if o.status.success() => json!({
@@ -447,12 +476,12 @@ async fn handle_create_site(
     }
 
     let ftp_info = if req.create_ssh.unwrap_or(false) {
-        Some(provision_sftp_user(&domain, &root_path))
+        Some(provision_sftp_user(&domain, &root_path, req.ftp_user.as_deref(), req.ftp_pass.as_deref()))
     } else {
         None
     };
     let db_info = if req.create_db.unwrap_or(false) {
-        Some(provision_database(&domain))
+        Some(provision_database(&domain, req.db_name.as_deref(), req.db_user.as_deref(), req.db_pass.as_deref()))
     } else {
         None
     };
@@ -610,12 +639,12 @@ async fn handle_create_subdomain(
         }
     }
     let ftp_info = if req.create_ssh.unwrap_or(false) {
-        Some(provision_sftp_user(&full_domain, &root_path))
+        Some(provision_sftp_user(&full_domain, &root_path, req.ftp_user.as_deref(), req.ftp_pass.as_deref()))
     } else {
         None
     };
     let db_info = if req.create_db.unwrap_or(false) {
-        Some(provision_database(&full_domain))
+        Some(provision_database(&full_domain, req.db_name.as_deref(), req.db_user.as_deref(), req.db_pass.as_deref()))
     } else {
         None
     };
