@@ -491,6 +491,7 @@ async function loadLocale(lang) {
     const k = el.getAttribute('data-i18n-title');
     if (r.dict[k]) el.title = r.dict[k];
   });
+  applyRtLabels();
   if (!document.getElementById('app-view').classList.contains('hidden')) {
     loadRuntimes(false);
     loadSites();
@@ -722,6 +723,17 @@ function getNextFreeProxyPort(basePort = 8080) {
   while (used.has(p) && p < 65535) p++;
   return p;
 }
+function rtLabel(raw) {
+  return raw.replace('(최신 권장)', '(' + t('lbl_recommended', '최신 권장') + ')').replace('(구형 그누보드용)', '(' + t('lbl_legacy_gnuboard', '구형 그누보드용') + ')');
+}
+function applyRtLabels() {
+  const sel = document.getElementById('sub-php');
+  if (!sel) return;
+  [...sel.options].forEach(o => {
+    if (!o.dataset.raw) o.dataset.raw = o.textContent;
+    o.textContent = rtLabel(o.dataset.raw);
+  });
+}
 function onSubLangChange() {
   const lang = document.getElementById('sub-lang').value;
   const fwSel = document.getElementById('sub-fw');
@@ -733,7 +745,7 @@ function onSubLangChange() {
   if (opts.length === 0) {
     rtEl.classList.add('hidden');
   } else {
-    rtEl.innerHTML = opts.map(([v, label]) => `<option value="${v}">${label.replace('(최신 권장)', '(' + t('lbl_recommended', '최신 권장') + ')').replace('(구형 그누보드용)', '(' + t('lbl_legacy_gnuboard', '구형 그누보드용') + ')')}</option>`).join('');
+    rtEl.innerHTML = opts.map(([v, label]) => `<option value="${v}" data-raw="${label}">${rtLabel(label)}</option>`).join('');
     rtEl.classList.remove('hidden');
   }
   const needPort = ['rust', 'python', 'node', 'java'].includes(lang);
