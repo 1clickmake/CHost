@@ -454,13 +454,6 @@ async fn handle_create_site(
     }
     let root_path = format!("/www/wwwroot/{}", domain);
     let _ = fs::create_dir_all(&root_path);
-    let index_file = FsPath::new(&root_path).join("index.html");
-    if !index_file.exists() {
-        let _ = fs::write(
-            &index_file,
-            format!("<!doctype html><html><head><meta charset='utf-8'><title>{}</title></head><body><h1>{}</h1><p>Provisioned by CHost</p></body></html>", domain, domain),
-        );
-    }
 
     if let Some(ref fw) = req.framework {
         if !fw.trim().is_empty() && fw.trim() != "blank" {
@@ -468,9 +461,20 @@ async fn handle_create_site(
         }
     }
 
+    let index_file = FsPath::new(&root_path).join("index.html");
+    let index_php = FsPath::new(&root_path).join("index.php");
+    let pub_php = FsPath::new(&root_path).join("public").join("index.php");
+    if !index_file.exists() && !index_php.exists() && !pub_php.exists() {
+        let _ = fs::write(
+            &index_file,
+            format!("<!doctype html><html><head><meta charset='utf-8'><title>{}</title></head><body><h1>{}</h1><p>Provisioned by CHost</p></body></html>", domain, domain),
+        );
+    }
+
     let proxy_port = req.proxy_port.unwrap_or(0);
     let php_ver = req.php_version.unwrap_or_default();
-    let conf = write_nginx_site_conf(&domain, &req.site_type, &root_path, proxy_port, &php_ver);
+    let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
+    let conf = write_nginx_site_conf(&domain, &req.site_type, &web_root, proxy_port, &php_ver);
 
     if cfg!(unix) {
         let avail = format!("/etc/nginx/sites-available/{}.conf", domain);
@@ -576,7 +580,9 @@ fn provision_framework(root_path: &str, framework: &str, domain: &str) {
         _ => {}
     }
     let idx = FsPath::new(root_path).join("index.html");
-    if !idx.exists() {
+    let idx_php = FsPath::new(root_path).join("index.php");
+    let pub_php = FsPath::new(root_path).join("public").join("index.php");
+    if !idx.exists() && !idx_php.exists() && !pub_php.exists() {
         let _ = fs::write(
             &idx,
             format!(
@@ -614,8 +620,13 @@ async fn handle_create_subdomain(
     let full_domain = format!("{}.{}", prefix, parent);
     let root_path = format!("/www/wwwroot/{}", full_domain);
     let _ = fs::create_dir_all(&root_path);
+
+    provision_framework(&root_path, req.framework.trim(), &full_domain);
+
     let index_file = FsPath::new(&root_path).join("index.html");
-    if !index_file.exists() {
+    let index_php = FsPath::new(&root_path).join("index.php");
+    let pub_php = FsPath::new(&root_path).join("public").join("index.php");
+    if !index_file.exists() && !index_php.exists() && !pub_php.exists() {
         let _ = fs::write(
             &index_file,
             format!(
@@ -625,8 +636,6 @@ async fn handle_create_subdomain(
         );
     }
 
-    provision_framework(&root_path, req.framework.trim(), &full_domain);
-
     let site_type = match req.language.as_str() {
         "php" => "php",
         "rust" | "python" | "node" | "java" => "proxy",
@@ -634,7 +643,8 @@ async fn handle_create_subdomain(
     };
     let proxy_port = req.proxy_port.unwrap_or(8080);
     let php_ver = req.php_version.unwrap_or_else(|| "8.3".to_string());
-    let conf = write_nginx_site_conf(&full_domain, site_type, &root_path, proxy_port, &php_ver);
+    let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
+    let conf = write_nginx_site_conf(&full_domain, site_type, &web_root, proxy_port, &php_ver);
 
     if cfg!(unix) {
         let avail = format!("/etc/nginx/sites-available/{}.conf", full_domain);
