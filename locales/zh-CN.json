@@ -159,5 +159,7 @@
   "opt_reset_soft": "轻量重置 (仅重置列表与初始化向导)",
   "opt_reset_full": "完全重置 (删除所有站点、FTP、数据库和网页目录)",
   "btn_panel_reset": "执行重置",
-  "nav_forum_link": "访问社区论坛"
+  "nav_forum_link": "访问社区论坛",
+  "opt_fw_express": "Express (Node.js Web框架 - .js)",
+  "opt_fw_nextjs": "Next.js (React/TS 全栈 - .ts)"
 }

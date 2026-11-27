@@ -159,5 +159,7 @@
   "opt_reset_soft": "가벼운 리셋 (패널 목록 및 초기 세팅 마법사만 초기화)",
   "opt_reset_full": "완전 초기화 (모든 사이트·FTP·DB·웹 폴더까지 영구 삭제)",
   "btn_panel_reset": "패널 초기화 실행",
-  "nav_forum_link": "포럼 바로가기"
+  "nav_forum_link": "포럼 바로가기",
+  "opt_fw_express": "Express (Node.js 웹프레임워크 - .js)",
+  "opt_fw_nextjs": "Next.js (React/TS 풀스택 - .ts)"
 }

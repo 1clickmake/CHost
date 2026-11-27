@@ -159,5 +159,7 @@
   "opt_reset_soft": "ソフトリセット (一覧と初期設定ウィザードのみ)",
   "opt_reset_full": "完全初期化 (全サイト・FTP・DB・Webフォルダを削除)",
   "btn_panel_reset": "初期化を実行",
-  "nav_forum_link": "フォーラムへ"
+  "nav_forum_link": "フォーラムへ",
+  "opt_fw_express": "Express (Node.js Webフレームワーク - .js)",
+  "opt_fw_nextjs": "Next.js (React/TS フルスタック - .ts)"
 }

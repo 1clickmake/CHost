@@ -214,6 +214,8 @@
                 <option value="gnuboard5" data-i18n="opt_fw_gnu">Gnuboard5 (PHP 그누보드5 - .php)</option>
                 <option value="wordpress" data-i18n="opt_fw_wp">WordPress (PHP 워드프레스 - .php)</option>
                 <option value="django" data-i18n="opt_fw_django">Django (Python 웹프레임워크 - .py)</option>
+                <option value="express" data-i18n="opt_fw_express">Express (Node.js 웹프레임워크 - .js)</option>
+                <option value="nextjs" data-i18n="opt_fw_nextjs">Next.js (React/TS 풀스택 - .ts)</option>
                 <option value="springboot" data-i18n="opt_fw_spring">Spring Boot (Java 스프링부트 - .jar)</option>
               </select>
               <select id="sub-php" class="compact">
@@ -693,6 +695,8 @@ function onSubFwChange() {
     wordpress: { lang: 'php', rt: '8.3', port: '' },
     crust: { lang: 'rust', rt: 'stable', port: '8080' },
     django: { lang: 'python', rt: '3.12', port: '8000' },
+    express: { lang: 'node', rt: '22', port: '3000' },
+    nextjs: { lang: 'node', rt: '22', port: '3000' },
     springboot: { lang: 'java', rt: '21', port: '8080' }
   }[fw];
   if (preset) {

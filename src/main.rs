@@ -777,6 +777,60 @@ fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework:
             let _ = Command::new("sh").args(["-c", &format!("systemctl daemon-reload && systemctl enable --now {}", svc)]).output();
             return (Some(svc), false);
         }
+        ("node", "express") => {
+            let unit = format!(
+                "[Unit]\nDescription=CHost Express App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart=/usr/bin/node {root}/server.js\nEnvironment=PORT={port}\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain, root = root_path, port = proxy_port
+            );
+            let _ = fs::write(&unit_path, unit);
+            let server_js = FsPath::new(root_path).join("server.js");
+            if !server_js.exists() {
+                let code = format!(
+                    "const express = require('express');\nconst app = express();\nconst port = process.env.PORT || {port};\napp.get('/', (req, res) => {{\n  res.send('<h1>{domain}</h1><p>Express.js App running on CHost (Port ' + port + ')</p>');\n}});\napp.listen(port, '127.0.0.1', () => console.log('Listening on', port));\n",
+                    port = proxy_port, domain = domain
+                );
+                let _ = fs::write(&server_js, code);
+            }
+            let root_owned = root_path.to_string();
+            let svc_owned = svc.clone();
+            tokio::spawn(async move {
+                let cmd = format!(
+                    "cd '{r}' && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs)) && ([ -f package.json ] || npm init -y >/dev/null 2>&1) && ([ -d node_modules/express ] || npm install --silent express) && systemctl daemon-reload && systemctl enable --now '{s}'",
+                    r = root_owned, s = svc_owned
+                );
+                let _ = Command::new("sh").args(["-c", &cmd]).output();
+            });
+            return (Some(svc), true);
+        }
+        ("node", "nextjs") => {
+            let unit = format!(
+                "[Unit]\nDescription=CHost Next.js App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart=/usr/bin/npx next start -H 127.0.0.1 -p {port}\nEnvironment=NODE_ENV=production\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain, root = root_path, port = proxy_port
+            );
+            let _ = fs::write(&unit_path, unit);
+            let pkg_json = FsPath::new(root_path).join("package.json");
+            if !pkg_json.exists() {
+                let pkg = "{\n  \"name\": \"chost-nextjs\",\n  \"private\": true,\n  \"scripts\": { \"dev\": \"next dev\", \"build\": \"next build\", \"start\": \"next start\" },\n  \"dependencies\": { \"next\": \"^15.0.0\", \"react\": \"^19.0.0\", \"react-dom\": \"^19.0.0\" },\n  \"devDependencies\": { \"typescript\": \"^5.0.0\", \"@types/node\": \"^22.0.0\", \"@types/react\": \"^19.0.0\" }\n}\n";
+                let _ = fs::write(&pkg_json, pkg);
+                let app_dir = FsPath::new(root_path).join("app");
+                let _ = fs::create_dir_all(&app_dir);
+                let _ = fs::write(app_dir.join("layout.tsx"), "export default function RootLayout({ children }: { children: React.ReactNode }) {\n  return <html lang=\"en\"><body>{children}</body></html>;\n}\n");
+                let _ = fs::write(
+                    app_dir.join("page.tsx"),
+                    format!("export default function Page() {{\n  return <main style={{{{ padding: 40, fontFamily: 'sans-serif' }}}}><h1>{domain}</h1><p>Next.js (TypeScript) running on CHost</p></main>;\n}}\n", domain = domain),
+                );
+            }
+            let root_owned = root_path.to_string();
+            let svc_owned = svc.clone();
+            tokio::spawn(async move {
+                let cmd = format!(
+                    "cd '{r}' && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs)) && npm install --silent && npm run build && systemctl daemon-reload && systemctl enable --now '{s}'",
+                    r = root_owned, s = svc_owned
+                );
+                let _ = Command::new("sh").args(["-c", &cmd]).output();
+            });
+            return (Some(svc), true);
+        }
         ("node", _) => {
             let server_js = FsPath::new(root_path).join("server.js");
             if !server_js.exists() {
@@ -855,7 +909,7 @@ async fn handle_create_site(
     let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
     provision_webserver_site(&domain, &req.site_type, &web_root, proxy_port, &php_ver);
 
-    let app_lang = if fw_str == "crust" { "rust" } else if fw_str == "django" { "python" } else if fw_str == "springboot" { "java" } else { req.site_type.as_str() };
+    let app_lang = if fw_str == "crust" { "rust" } else if fw_str == "django" { "python" } else if fw_str == "express" || fw_str == "nextjs" { "node" } else if fw_str == "springboot" { "java" } else { req.site_type.as_str() };
     let (app_service, app_building) = if req.site_type == "proxy" {
         provision_proxy_app(&domain, &root_path, app_lang, &fw_str, proxy_port)
     } else {

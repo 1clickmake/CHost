@@ -159,5 +159,7 @@
   "opt_reset_soft": "Reinicio suave (Solo listas y asistente inicial)",
   "opt_reset_full": "Reinicio completo (Eliminar sitios, FTP, DB y carpetas)",
   "btn_panel_reset": "Ejecutar restablecimiento",
-  "nav_forum_link": "Foro de ayuda"
+  "nav_forum_link": "Foro de ayuda",
+  "opt_fw_express": "Express (Framework Node.js - .js)",
+  "opt_fw_nextjs": "Next.js (Fullstack React/TS - .ts)"
 }

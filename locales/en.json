@@ -159,5 +159,7 @@
   "opt_reset_soft": "Soft Reset (Reset panel lists & setup wizard only)",
   "opt_reset_full": "Full Reset (Permanently delete all sites, FTP, DBs & web folders)",
   "btn_panel_reset": "Run Panel Reset",
-  "nav_forum_link": "Community Forum"
+  "nav_forum_link": "Community Forum",
+  "opt_fw_express": "Express (Node.js Web Framework - .js)",
+  "opt_fw_nextjs": "Next.js (React/TS Fullstack - .ts)"
 }
