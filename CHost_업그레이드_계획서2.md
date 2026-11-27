@@ -126,3 +126,19 @@ flowchart LR
    - AI 에러 진단 엔진
    - 배포 이력 및 원클릭 롤백
    - 외부 클라우드 백업 연동
+
+---
+
+## 6. 진행 현황 (2026-11-28 갱신)
+
+**v0.1.17 – 테스트 서버(49.247.192.40:8800) 실서버 검증 완료**
+- [x] 라라벨 공용 vendor: 첫 사이트 35초(composer install + 저장소 승격), 두 번째부터 **2~3초 / 사이트당 약 3MB**, 첫 화면 HTTP 200 확인
+- [x] 그누보드7: Git 감지(`g7-setup.php`/`g7-install` 기준) + 생성 후 `/install` 설치 화면 정상 노출 (G7 소스 자체가 큼: `.git` 89MB 포함 약 460MB, vendor 는 공유)
+- [x] 파이썬 공용 환경: Django 사이트 16MB(사이트 venv) + 공용 75MB 1벌, gunicorn 기동 및 HTTP 200 확인
+- [x] 매직 감지기: `/api/detect` + 생성 창 `🔍 자동 감지` 버튼 + `git_url` 생성 연동
+- [x] 헬스체크 API: `GET /api/sites/{id}/health` (healthy / starting / error / down)
+- [x] PHP 확장 자동 설치(sqlite3·intl·bcmath·redis), python3-venv 자동 설치, 프레임워크 선택 언어별 필터링, PHP 8.4 추가
+- [ ] 헬스체크 결과를 사이트 목록에 상태 배지로 표시 (UI)
+- [ ] 배포 후 헬스체크 통과 시에만 웹서버 연결 / 실패 시 알림 (Phase 2 잔여)
+- [ ] Go / Java / Docker 자동 실행 지원
+- [ ] Phase 3 유료 Pro (AI 에러 닥터, 롤백, 클라우드 백업)
