@@ -508,6 +508,14 @@ async fn handle_create_site(
         .create_site(&domain, &req.site_type, &root_path, proxy_port, &php_ver)
     {
         Ok(id) => {
+            let fu = ftp_info.as_ref().and_then(|v| v.get("user")).and_then(|v| v.as_str()).unwrap_or("");
+            let fp = ftp_info.as_ref().and_then(|v| v.get("password")).and_then(|v| v.as_str()).unwrap_or("");
+            let dn = db_info.as_ref().and_then(|v| v.get("db_name")).and_then(|v| v.as_str()).unwrap_or("");
+            let du = db_info.as_ref().and_then(|v| v.get("db_user")).and_then(|v| v.as_str()).unwrap_or("");
+            let dp = db_info.as_ref().and_then(|v| v.get("db_pass")).and_then(|v| v.as_str()).unwrap_or("");
+            if !fu.is_empty() || !dn.is_empty() {
+                let _ = state.db.update_site_credentials(id, fu, fp, dn, du, dp);
+            }
             if req.issue_ssl.unwrap_or(false) && cfg!(unix) {
                 if let Ok(o) = Command::new("certbot")
                     .args([
@@ -677,6 +685,14 @@ async fn handle_create_subdomain(
         .create_site(&full_domain, site_type, &root_path, proxy_port, &php_ver)
     {
         Ok(id) => {
+            let fu = ftp_info.as_ref().and_then(|v| v.get("user")).and_then(|v| v.as_str()).unwrap_or("");
+            let fp = ftp_info.as_ref().and_then(|v| v.get("password")).and_then(|v| v.as_str()).unwrap_or("");
+            let dn = db_info.as_ref().and_then(|v| v.get("db_name")).and_then(|v| v.as_str()).unwrap_or("");
+            let du = db_info.as_ref().and_then(|v| v.get("db_user")).and_then(|v| v.as_str()).unwrap_or("");
+            let dp = db_info.as_ref().and_then(|v| v.get("db_pass")).and_then(|v| v.as_str()).unwrap_or("");
+            if !fu.is_empty() || !dn.is_empty() {
+                let _ = state.db.update_site_credentials(id, fu, fp, dn, du, dp);
+            }
             if req.issue_ssl.unwrap_or(false) && cfg!(unix) {
                 if let Ok(o) = Command::new("certbot")
                     .args([
@@ -1269,6 +1285,108 @@ async fn handle_audits(State(state): State<Arc<AppState>>, headers: HeaderMap) -
     Json(json!({ "success": true, "logs": logs })).into_response()
 }
 
+#[derive(Deserialize)]
+struct UpdateSiteCredsReq {
+    ftp_user: Option<String>,
+    ftp_pass: Option<String>,
+    db_name: Option<String>,
+    db_user: Option<String>,
+    db_pass: Option<String>,
+    create_ftp: Option<bool>,
+    create_db: Option<bool>,
+}
+
+async fn handle_update_site_credentials(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateSiteCredsReq>,
+) -> impl IntoResponse {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let site = match state.db.get_site(id) {
+        Ok(Some(s)) => s,
+        _ => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "error": "Site not found" })),
+            )
+                .into_response()
+        }
+    };
+
+    let mut ftp_user = site.ftp_user.clone();
+    let mut ftp_pass = site.ftp_pass.clone();
+    let mut db_name = site.db_name.clone();
+    let mut db_user = site.db_user.clone();
+    let mut db_pass = site.db_pass.clone();
+
+    let req_fu = sanitize_ident(req.ftp_user.as_deref(), 24);
+    let req_fp = req.ftp_pass.as_deref().unwrap_or("").trim().to_string();
+    if ftp_user.is_empty() && (req.create_ftp.unwrap_or(false) || !req_fu.is_empty()) {
+        let info = provision_sftp_user(
+            &site.domain,
+            &site.root_path,
+            if req_fu.is_empty() { None } else { Some(&req_fu) },
+            if req_fp.is_empty() { None } else { Some(&req_fp) },
+        );
+        ftp_user = info.get("user").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        ftp_pass = info.get("password").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    } else if !ftp_user.is_empty() && !req_fp.is_empty() && req_fp != ftp_pass {
+        if cfg!(unix) {
+            let cmd = format!("echo '{}:{}' | chpasswd", ftp_user, req_fp.replace('\'', ""));
+            let _ = Command::new("sh").args(["-c", &cmd]).output();
+        }
+        ftp_pass = req_fp;
+    }
+
+    let req_dn = sanitize_ident(req.db_name.as_deref(), 32);
+    let req_du = sanitize_ident(req.db_user.as_deref(), 24);
+    let req_dp = req.db_pass.as_deref().unwrap_or("").trim().to_string();
+    if (db_name.is_empty() || db_user.is_empty()) && (req.create_db.unwrap_or(false) || !req_dn.is_empty() || !req_du.is_empty()) {
+        let info = provision_database(
+            &site.domain,
+            if req_dn.is_empty() { None } else { Some(&req_dn) },
+            if req_du.is_empty() { None } else { Some(&req_du) },
+            if req_dp.is_empty() { None } else { Some(&req_dp) },
+        );
+        if info.get("created").and_then(|v| v.as_bool()).unwrap_or(false) {
+            db_name = info.get("db_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            db_user = info.get("db_user").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            db_pass = info.get("db_pass").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        } else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "error": info.get("note").and_then(|v| v.as_str()).unwrap_or("DB 생성 실패") })),
+            )
+                .into_response();
+        }
+    } else if !db_user.is_empty() && !req_dp.is_empty() && req_dp != db_pass {
+        if cfg!(unix) {
+            let sql = format!(
+                "ALTER USER '{}'@'localhost' IDENTIFIED BY '{}'; FLUSH PRIVILEGES;",
+                db_user,
+                req_dp.replace('\'', "")
+            );
+            let out = Command::new("mysql").args(["-e", &sql]).output();
+            if !out.map(|o| o.status.success()).unwrap_or(false) {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "success": false, "error": "MariaDB 비밀번호 변경 실패" })),
+                )
+                    .into_response();
+            }
+        }
+        db_pass = req_dp;
+    }
+
+    let _ = state.db.update_site_credentials(id, &ftp_user, &ftp_pass, &db_name, &db_user, &db_pass);
+    state.db.log_audit("admin", "UPDATE_SITE_CREDS", &site.domain, "Updated FTP/DB credentials");
+    let updated = state.db.get_site(id).ok().flatten();
+    Json(json!({ "success": true, "site": updated })).into_response()
+}
+
 #[tokio::main]
 async fn main() {
     let data_dir = PathBuf::from(
@@ -1327,6 +1445,7 @@ async fn main() {
         .route("/api/sites", get(handle_list_sites).post(handle_create_site))
         .route("/api/sites/subdomain", post(handle_create_subdomain))
         .route("/api/sites/{id}", delete(handle_delete_site))
+        .route("/api/sites/{id}/credentials", post(handle_update_site_credentials))
         .route("/api/sites/{id}/php", post(handle_switch_site_php))
         .route("/api/sites/{id}/ssl", post(handle_issue_ssl))
         .route("/api/php/versions", get(handle_php_versions))

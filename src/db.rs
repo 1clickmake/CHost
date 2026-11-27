@@ -21,6 +21,11 @@ pub struct SiteRecord {
     pub ssl_enabled: bool,
     pub status: String,
     pub created_at: String,
+    pub ftp_user: String,
+    pub ftp_pass: String,
+    pub db_name: String,
+    pub db_user: String,
+    pub db_pass: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -94,7 +99,12 @@ impl Database {
                 php_version TEXT NOT NULL DEFAULT '',
                 ssl_enabled INTEGER NOT NULL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'active',
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                ftp_user TEXT NOT NULL DEFAULT '',
+                ftp_pass TEXT NOT NULL DEFAULT '',
+                db_name TEXT NOT NULL DEFAULT '',
+                db_user TEXT NOT NULL DEFAULT '',
+                db_pass TEXT NOT NULL DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS apps (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,6 +148,12 @@ impl Database {
             );
             ",
         )?;
+        for col in ["ftp_user", "ftp_pass", "db_name", "db_user", "db_pass"] {
+            let _ = conn.execute(
+                &format!("ALTER TABLE sites ADD COLUMN {} TEXT NOT NULL DEFAULT ''", col),
+                [],
+            );
+        }
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -193,7 +209,8 @@ impl Database {
     pub fn list_sites(&self) -> Result<Vec<SiteRecord>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, domain, site_type, root_path, proxy_port, php_version, ssl_enabled, status, created_at
+            "SELECT id, domain, site_type, root_path, proxy_port, php_version, ssl_enabled, status, created_at,
+                    ftp_user, ftp_pass, db_name, db_user, db_pass
              FROM sites ORDER BY id DESC",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -207,9 +224,62 @@ impl Database {
                 ssl_enabled: r.get::<_, i64>(6)? != 0,
                 status: r.get(7)?,
                 created_at: r.get(8)?,
+                ftp_user: r.get(9)?,
+                ftp_pass: r.get(10)?,
+                db_name: r.get(11)?,
+                db_user: r.get(12)?,
+                db_pass: r.get(13)?,
             })
         })?;
         rows.collect()
+    }
+
+    pub fn get_site(&self, id: i64) -> Result<Option<SiteRecord>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, domain, site_type, root_path, proxy_port, php_version, ssl_enabled, status, created_at,
+                    ftp_user, ftp_pass, db_name, db_user, db_pass
+             FROM sites WHERE id = ?1",
+        )?;
+        let mut rows = stmt.query_map(params![id], |r| {
+            Ok(SiteRecord {
+                id: r.get(0)?,
+                domain: r.get(1)?,
+                site_type: r.get(2)?,
+                root_path: r.get(3)?,
+                proxy_port: r.get(4)?,
+                php_version: r.get(5)?,
+                ssl_enabled: r.get::<_, i64>(6)? != 0,
+                status: r.get(7)?,
+                created_at: r.get(8)?,
+                ftp_user: r.get(9)?,
+                ftp_pass: r.get(10)?,
+                db_name: r.get(11)?,
+                db_user: r.get(12)?,
+                db_pass: r.get(13)?,
+            })
+        })?;
+        match rows.next() {
+            Some(Ok(site)) => Ok(Some(site)),
+            Some(Err(e)) => Err(e),
+            None => Ok(None),
+        }
+    }
+
+    pub fn update_site_credentials(
+        &self,
+        id: i64,
+        ftp_user: &str,
+        ftp_pass: &str,
+        db_name: &str,
+        db_user: &str,
+        db_pass: &str,
+    ) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE sites SET ftp_user = ?1, ftp_pass = ?2, db_name = ?3, db_user = ?4, db_pass = ?5 WHERE id = ?6",
+            params![ftp_user, ftp_pass, db_name, db_user, db_pass, id],
+        )
     }
 
     pub fn create_site(

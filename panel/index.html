@@ -588,13 +588,79 @@ async function submitChangePw() {
 async function loadSites() {
   const r = await api('/api/sites');
   if (!r.success) return;
+  window.SITES_CACHE = r.sites || [];
   document.getElementById('sites-tbody').innerHTML = r.sites.map(s => `
     <tr>
       <td>${s.domain}</td><td>${s.site_type}</td><td>${s.site_type === 'proxy' ? ':' + s.proxy_port : s.root_path}</td>
       <td>${s.php_version || '-'}</td>
       <td>${s.ssl_enabled ? '<span class="badge badge-ok">HTTPS</span>' : `<button class="btn btn-sm" onclick="issueSsl(${s.id})">${t('btn_issue_ssl', 'Issue SSL')}</button>`}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="delSite(${s.id})">${t('btn_delete', 'Delete')}</button></td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="openSiteInfoModal(${s.id})">🔑 <span data-i18n="btn_site_info">${t('btn_site_info', '정보확인')}</span></button>
+        <button class="btn btn-sm btn-danger" onclick="delSite(${s.id})">${t('btn_delete', 'Delete')}</button>
+      </td>
     </tr>`).join('');
+}
+function openSiteInfoModal(id) {
+  const s = (window.SITES_CACHE || []).find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('si-id').value = s.id;
+  document.getElementById('si-domain').textContent = s.domain;
+  document.getElementById('si-meta').textContent = `${s.site_type} · ${s.root_path}${s.php_version ? ' · PHP ' + s.php_version : ''}`;
+  const slug = s.domain.trim().split('.')[0].toLowerCase().replace(/-/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 20) || 'site';
+  const fu = document.getElementById('si-ftp-user');
+  const fp = document.getElementById('si-ftp-pass');
+  const dn = document.getElementById('si-db-name');
+  const du = document.getElementById('si-db-user');
+  const dp = document.getElementById('si-db-pass');
+  fu.value = s.ftp_user || '';
+  fu.placeholder = `${slug}_ftp`;
+  fu.readOnly = !!s.ftp_user;
+  fp.value = s.ftp_pass || '';
+  dn.value = s.db_name || '';
+  dn.placeholder = `${slug}_db`;
+  dn.readOnly = !!s.db_name;
+  du.value = s.db_user || '';
+  du.placeholder = `${slug}_db`;
+  du.readOnly = !!s.db_user;
+  dp.value = s.db_pass || '';
+  document.getElementById('si-msg').textContent = '';
+  document.getElementById('site-info-modal').classList.remove('hidden');
+}
+function closeSiteInfoModal() {
+  document.getElementById('site-info-modal').classList.add('hidden');
+}
+function copyVal(elId) {
+  const el = document.getElementById(elId);
+  if (!el || !el.value) return;
+  navigator.clipboard.writeText(el.value);
+}
+async function saveSiteInfoCreds() {
+  const id = parseInt(document.getElementById('si-id').value, 10);
+  const ftp_user = document.getElementById('si-ftp-user').value.trim();
+  const ftp_pass = document.getElementById('si-ftp-pass').value.trim();
+  const db_name = document.getElementById('si-db-name').value.trim();
+  const db_user = document.getElementById('si-db-user').value.trim();
+  const db_pass = document.getElementById('si-db-pass').value.trim();
+  const msgEl = document.getElementById('si-msg');
+  msgEl.style.color = 'var(--muted)';
+  msgEl.textContent = '...';
+  const r = await api(`/api/sites/${id}/credentials`, {
+    method: 'POST',
+    body: JSON.stringify({
+      ftp_user, ftp_pass, db_name, db_user, db_pass,
+      create_ftp: !!(ftp_user || ftp_pass),
+      create_db: !!(db_name || db_user || db_pass)
+    })
+  });
+  if (r.success) {
+    await loadSites();
+    if (r.site) openSiteInfoModal(r.site.id);
+    msgEl.style.color = '#6ee7b7';
+    msgEl.textContent = t('msg_creds_saved', '✅ 계정 정보 및 비밀번호가 서버에 반영되었습니다!');
+  } else {
+    msgEl.style.color = '#fca5a5';
+    msgEl.textContent = r.error || 'Update failed';
+  }
 }
 async function createSite() {
   const domain = document.getElementById('site-domain').value;
@@ -841,6 +907,45 @@ checkAuth();
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-sm" id="btn-setup-skip" onclick="skipFirstSetup()" data-i18n="btn_setup_skip">나중에 설치 (닫기)</button>
       <button class="btn btn-sm btn-primary" id="btn-setup-start" onclick="startRuntimeInstall('setup')" data-i18n="btn_setup_start">선택 패키지 설치 시작</button>
+    </div>
+  </div>
+</div>
+<div id="site-info-modal" class="modal-backdrop hidden">
+  <div class="modal-box" style="max-width:540px">
+    <input type="hidden" id="si-id" />
+    <h3 style="margin-bottom:4px;font-size:17px">🔑 <span id="si-domain"></span> <span data-i18n="si_title_suffix">계정 정보 확인 / 수정</span></h3>
+    <p id="si-meta" style="font-size:12px;color:var(--muted);margin-bottom:14px"></p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
+        <div style="font-size:12px;font-weight:700;color:#93c5fd;margin-bottom:8px" data-i18n="si_ftp_section">📁 FTP / SFTP 접속 정보 (Port 22)</div>
+        <div class="row" style="margin-bottom:8px">
+          <input id="si-ftp-user" placeholder="FTP User ID" />
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-user')">📋</button>
+        </div>
+        <div class="row">
+          <input id="si-ftp-pass" placeholder="FTP Password" />
+          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)">🔄</button>
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-pass')">📋</button>
+        </div>
+      </div>
+      <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
+        <div style="font-size:12px;font-weight:700;color:#6ee7b7;margin-bottom:8px" data-i18n="si_db_section">🗄️ MariaDB / MySQL 접속 정보 (Host: localhost)</div>
+        <div class="row" style="margin-bottom:8px">
+          <input id="si-db-name" placeholder="DB Name" />
+          <input id="si-db-user" placeholder="DB User" />
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-user')">📋</button>
+        </div>
+        <div class="row">
+          <input id="si-db-pass" placeholder="DB Password" />
+          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)">🔄</button>
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-pass')">📋</button>
+        </div>
+      </div>
+    </div>
+    <div id="si-msg" style="font-size:12px;margin-top:10px;min-height:16px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-sm" onclick="closeSiteInfoModal()" data-i18n="btn_close">닫기</button>
+      <button class="btn btn-sm btn-primary" onclick="saveSiteInfoCreds()" data-i18n="btn_apply_save">확인 및 서버 반영</button>
     </div>
   </div>
 </div>
