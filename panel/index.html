@@ -674,6 +674,9 @@ function onSubFwChange() {
     const rtEl = document.getElementById('sub-php');
     if (preset.rt && !rtEl.classList.contains('hidden')) rtEl.value = preset.rt;
     if (preset.port) portEl.value = preset.port;
+  } else if (fw === 'blank') {
+    langEl.value = 'static';
+    onSubLangChange();
   }
 }
 function openPwModal() {

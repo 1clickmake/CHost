@@ -507,6 +507,39 @@ fn run_certbot_auto(domain: &str) -> Result<(), String> {
     }
 }
 
+fn render_default_welcome_html(domain: &str) -> String {
+    format!(
+        r#"<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Welcome to {domain} — CHost</title>
+  <style>
+    body {{ margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0b1220; color:#e2e8f0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:24px; }}
+    .card {{ max-width:540px; width:100%; background:#111b2e; border:1px solid #24324a; border-radius:16px; padding:34px 30px; box-shadow:0 20px 50px rgba(0,0,0,.35); }}
+    .badge {{ display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; background:rgba(56,189,248,.15); color:#7dd3fc; border:1px solid rgba(56,189,248,.35); margin-bottom:14px; }}
+    h1 {{ margin:0 0 10px; font-size:26px; color:#fff; word-break:break-all; }}
+    p {{ margin:0 0 12px; color:#94a3b8; line-height:1.65; font-size:15px; }}
+    code {{ background:#0b1220; border:1px solid #24324a; padding:2px 6px; border-radius:6px; color:#7dd3fc; font-size:13px; }}
+    .foot {{ margin-top:20px; padding-top:14px; border-top:1px solid #1e293b; font-size:12px; color:#64748b; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">CHost Ready</span>
+    <h1>Welcome to {domain}</h1>
+    <p>Your website has been successfully provisioned and is now live.</p>
+    <p>Upload your site files or replace <code>index.html</code> in your web root directory to get started.</p>
+    <div class="foot">Powered by CHost Web Server Panel</div>
+  </div>
+</body>
+</html>
+"#,
+        domain = domain
+    )
+}
+
 fn gen_random_secret(len: usize) -> String {
     rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -629,10 +662,7 @@ async fn handle_create_site(
     let index_php = FsPath::new(&root_path).join("index.php");
     let pub_php = FsPath::new(&root_path).join("public").join("index.php");
     if !index_file.exists() && !index_php.exists() && !pub_php.exists() {
-        let _ = fs::write(
-            &index_file,
-            format!("<!doctype html><html><head><meta charset='utf-8'><title>{}</title></head><body><h1>{}</h1><p>Provisioned by CHost</p></body></html>", domain, domain),
-        );
+        let _ = fs::write(&index_file, render_default_welcome_html(&domain));
     }
 
     let proxy_port = req.proxy_port.unwrap_or(0);
@@ -790,13 +820,7 @@ async fn handle_create_subdomain(
     let index_php = FsPath::new(&root_path).join("index.php");
     let pub_php = FsPath::new(&root_path).join("public").join("index.php");
     if !index_file.exists() && !index_php.exists() && !pub_php.exists() {
-        let _ = fs::write(
-            &index_file,
-            format!(
-                "<!doctype html><html><head><meta charset='utf-8'><title>{}</title></head><body><h1>{}</h1><p>Language: {} | Framework: {}</p></body></html>",
-                full_domain, full_domain, req.language, req.framework
-            ),
-        );
+        let _ = fs::write(&index_file, render_default_welcome_html(&full_domain));
     }
 
     let site_type = match req.language.as_str() {
