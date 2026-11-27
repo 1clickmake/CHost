@@ -161,5 +161,15 @@
   "btn_panel_reset": "패널 초기화 실행",
   "nav_forum_link": "포럼 바로가기",
   "opt_fw_express": "Express (Node.js 웹프레임워크 - .js)",
-  "opt_fw_nextjs": "Next.js (React/TS 풀스택 - .ts)"
+  "opt_fw_nextjs": "Next.js (React/TS 풀스택 - .ts)",
+  "opt_fw_laravel": "Laravel (PHP 라라벨 - 공용 vendor)",
+  "opt_fw_g7": "Gnuboard7 (그누보드7 / Laravel - 공용 vendor)",
+  "ph_git_url": "Git 주소로 자동 설치 (선택) 예: https://github.com/user/repo.git",
+  "btn_detect": "🔍 자동 감지",
+  "detect_running": "🔍 소스를 분석하는 중입니다... (몇 초 걸려요)",
+  "detect_found": "감지됨",
+  "detect_port": "추천 포트",
+  "detect_shared": " · 공용 vendor로 초경량 설치",
+  "detect_unsupported": "아직 자동 실행 미지원",
+  "detect_fail": "감지에 실패했습니다."
 }

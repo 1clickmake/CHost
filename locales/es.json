@@ -161,5 +161,15 @@
   "btn_panel_reset": "Ejecutar restablecimiento",
   "nav_forum_link": "Foro de ayuda",
   "opt_fw_express": "Express (Framework Node.js - .js)",
-  "opt_fw_nextjs": "Next.js (Fullstack React/TS - .ts)"
+  "opt_fw_nextjs": "Next.js (Fullstack React/TS - .ts)",
+  "opt_fw_laravel": "Laravel (PHP - vendor compartido)",
+  "opt_fw_g7": "Gnuboard7 (Laravel - vendor compartido)",
+  "ph_git_url": "Instalar automáticamente desde URL de Git (opcional) p. ej. https://github.com/user/repo.git",
+  "btn_detect": "🔍 Detección automática",
+  "detect_running": "🔍 Analizando el código... (tarda unos segundos)",
+  "detect_found": "Detectado",
+  "detect_port": "Puerto sugerido",
+  "detect_shared": " · instalación ultraligera con vendor compartido",
+  "detect_unsupported": "ejecución automática aún no compatible",
+  "detect_fail": "La detección falló."
 }

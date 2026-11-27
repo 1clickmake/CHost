@@ -161,5 +161,15 @@
   "btn_panel_reset": "初期化を実行",
   "nav_forum_link": "フォーラムへ",
   "opt_fw_express": "Express (Node.js Webフレームワーク - .js)",
-  "opt_fw_nextjs": "Next.js (React/TS フルスタック - .ts)"
+  "opt_fw_nextjs": "Next.js (React/TS フルスタック - .ts)",
+  "opt_fw_laravel": "Laravel (PHP - 共有vendor)",
+  "opt_fw_g7": "Gnuboard7 (Laravel - 共有vendor)",
+  "ph_git_url": "Git URLから自動インストール (任意) 例: https://github.com/user/repo.git",
+  "btn_detect": "🔍 自動検出",
+  "detect_running": "🔍 ソースを解析中です... (数秒かかります)",
+  "detect_found": "検出",
+  "detect_port": "推奨ポート",
+  "detect_shared": " · 共有vendorで超軽量インストール",
+  "detect_unsupported": "自動実行は未対応です",
+  "detect_fail": "検出に失敗しました。"
 }

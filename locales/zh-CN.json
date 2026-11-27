@@ -161,5 +161,15 @@
   "btn_panel_reset": "执行重置",
   "nav_forum_link": "访问社区论坛",
   "opt_fw_express": "Express (Node.js Web框架 - .js)",
-  "opt_fw_nextjs": "Next.js (React/TS 全栈 - .ts)"
+  "opt_fw_nextjs": "Next.js (React/TS 全栈 - .ts)",
+  "opt_fw_laravel": "Laravel (PHP - 共享 vendor)",
+  "opt_fw_g7": "Gnuboard7 (Laravel - 共享 vendor)",
+  "ph_git_url": "通过 Git 地址自动安装（可选）例如 https://github.com/user/repo.git",
+  "btn_detect": "🔍 自动检测",
+  "detect_running": "🔍 正在分析源码…（需要几秒钟）",
+  "detect_found": "已检测到",
+  "detect_port": "建议端口",
+  "detect_shared": " · 使用共享 vendor 超轻量安装",
+  "detect_unsupported": "暂不支持自动运行",
+  "detect_fail": "检测失败。"
 }

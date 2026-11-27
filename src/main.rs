@@ -1,4 +1,5 @@
 mod db;
+mod engine;
 
 use axum::{
     extract::{Path, Query, State},
@@ -72,6 +73,7 @@ struct CreateSiteReq {
     db_name: Option<String>,
     db_user: Option<String>,
     db_pass: Option<String>,
+    git_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,6 +92,7 @@ struct CreateSubdomainReq {
     db_name: Option<String>,
     db_user: Option<String>,
     db_pass: Option<String>,
+    git_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -729,29 +732,74 @@ fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework:
             });
             return (Some(svc), true);
         }
-        ("python", "django") => {
-            let venv_py = format!("{}/venv/bin/python", root_path);
-            let gunicorn = format!("{}/venv/bin/gunicorn", root_path);
+        ("rust", "rust_app") => {
+            let bin_name = engine::cargo_bin_name(root_path).unwrap_or_else(|| "app".to_string());
             let unit = format!(
-                "[Unit]\nDescription=CHost Django App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart={gunicorn} --bind 127.0.0.1:{port} --workers 2 mysite.wsgi:application\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
-                domain = domain,
-                root = root_path,
-                gunicorn = gunicorn,
-                port = proxy_port
+                "[Unit]\nDescription=CHost Rust App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart={root}/target/release/{bin}\nEnvironment=PORT={port}\nEnvironment=HOST=127.0.0.1\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain, root = root_path, bin = bin_name, port = proxy_port
             );
             let _ = fs::write(&unit_path, unit);
-            if FsPath::new(&gunicorn).exists() && FsPath::new(root_path).join("manage.py").exists() {
-                let _ = Command::new("sh").args(["-c", &format!("systemctl daemon-reload && systemctl enable --now {}", svc)]).output();
-                return (Some(svc), false);
-            }
             let root_owned = root_path.to_string();
             let svc_owned = svc.clone();
-            tokio::spawn(async move {
+            tokio::task::spawn_blocking(move || {
+                let cmd = format!(
+                    "export PATH=\"/root/.cargo/bin:$PATH\"; cd '{}' && cargo build --release && systemctl daemon-reload && systemctl enable --now '{}'",
+                    root_owned, svc_owned
+                );
+                let _ = Command::new("sh").args(["-c", &cmd]).output();
+            });
+            return (Some(svc), true);
+        }
+        ("python", "django") => {
+            let wsgi = engine::django_wsgi_module(root_path).unwrap_or_else(|| "mysite.wsgi:application".to_string());
+            let unit = format!(
+                "[Unit]\nDescription=CHost Django App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart={root}/venv/bin/python -m gunicorn --bind 127.0.0.1:{port} --workers 2 {wsgi}\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain, root = root_path, port = proxy_port, wsgi = wsgi
+            );
+            let _ = fs::write(&unit_path, unit);
+            let root_owned = root_path.to_string();
+            let svc_owned = svc.clone();
+            tokio::task::spawn_blocking(move || {
                 let setup_cmd = format!(
-                    "cd '{r}' && ([ -x '{vp}' ] || python3 -m venv '{r}/venv') && '{r}/venv/bin/pip' install -q django gunicorn && ([ -f '{r}/manage.py' ] || '{r}/venv/bin/django-admin' startproject mysite .) && sed -i \"s/ALLOWED_HOSTS = \\[\\]/ALLOWED_HOSTS = ['*']/\" '{r}/mysite/settings.py' 2>/dev/null || true; systemctl daemon-reload && systemctl enable --now '{s}'",
-                    r = root_owned, vp = venv_py, s = svc_owned
+                    "{base} && cd '{r}' && ([ -f '{r}/manage.py' ] || ('{r}/venv/bin/python' -m django startproject mysite . && sed -i \"s/ALLOWED_HOSTS = \\\\[\\\\]/ALLOWED_HOSTS = ['*']/\" '{r}/mysite/settings.py')); systemctl daemon-reload && systemctl enable --now '{s}'",
+                    base = engine::python_setup_cmd(&root_owned), r = root_owned, s = svc_owned
                 );
                 let _ = Command::new("sh").args(["-c", &setup_cmd]).output();
+            });
+            return (Some(svc), true);
+        }
+        ("python", "python_app") => {
+            let args = engine::python_exec_args(root_path, proxy_port);
+            let unit = format!(
+                "[Unit]\nDescription=CHost Python App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart={root}/venv/bin/python {args}\nEnvironment=PORT={port}\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain, root = root_path, args = args, port = proxy_port
+            );
+            let _ = fs::write(&unit_path, unit);
+            let root_owned = root_path.to_string();
+            let svc_owned = svc.clone();
+            tokio::task::spawn_blocking(move || {
+                let cmd = format!(
+                    "{base} && systemctl daemon-reload && systemctl enable --now '{s}'",
+                    base = engine::python_setup_cmd(&root_owned), s = svc_owned
+                );
+                let _ = Command::new("sh").args(["-c", &cmd]).output();
+            });
+            return (Some(svc), true);
+        }
+        ("node", "node_app") => {
+            let unit = format!(
+                "[Unit]\nDescription=CHost Node.js App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart=/usr/bin/env npm start\nEnvironment=PORT={port}\nEnvironment=HOST=127.0.0.1\nEnvironment=NODE_ENV=production\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain, root = root_path, port = proxy_port
+            );
+            let _ = fs::write(&unit_path, unit);
+            let root_owned = root_path.to_string();
+            let svc_owned = svc.clone();
+            tokio::task::spawn_blocking(move || {
+                let cmd = format!(
+                    "cd '{r}' && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs)) && npm install --silent && npm run build --if-present && systemctl daemon-reload && systemctl enable --now '{s}'",
+                    r = root_owned, s = svc_owned
+                );
+                let _ = Command::new("sh").args(["-c", &cmd]).output();
             });
             return (Some(svc), true);
         }
@@ -885,9 +933,31 @@ async fn handle_create_site(
     let root_path = format!("/www/wwwroot/{}", domain);
     let _ = fs::create_dir_all(&root_path);
 
-    let fw_str = req.framework.as_deref().unwrap_or("blank").trim().to_string();
-    if !fw_str.is_empty() && fw_str != "blank" {
-        provision_framework(&root_path, &fw_str, &domain);
+    let mut site_type = req.site_type.clone();
+    let mut fw_str = req.framework.as_deref().unwrap_or("blank").trim().to_string();
+    let mut git_lang: Option<String> = None;
+    let mut php_ver_override: Option<String> = None;
+    let mut detected: Option<Value> = None;
+    match try_git_import(&root_path, req.git_url.as_deref()).await {
+        Ok(Some(det)) => {
+            site_type = det["site_type"].as_str().unwrap_or("static").to_string();
+            fw_str = det["framework"].as_str().unwrap_or("blank").to_string();
+            git_lang = det["language"].as_str().map(|v| v.to_string());
+            php_ver_override = det["php_version"].as_str().filter(|v| !v.is_empty()).map(|v| v.to_string());
+            detected = Some(det);
+        }
+        Ok(None) => {
+            if !fw_str.is_empty() && fw_str != "blank" {
+                provision_framework(&root_path, &fw_str, &domain);
+            }
+        }
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "error": e })),
+            )
+                .into_response();
+        }
     }
 
     let index_file = FsPath::new(&root_path).join("index.html");
@@ -897,20 +967,20 @@ async fn handle_create_site(
         let _ = fs::write(&index_file, render_default_welcome_html(&domain));
     }
 
-    let proxy_port = if req.site_type == "proxy" {
+    let proxy_port = if site_type == "proxy" {
         allocate_proxy_port(&state.db, req.proxy_port)
     } else {
         req.proxy_port.unwrap_or(0)
     };
-    let php_ver = req.php_version.unwrap_or_default();
-    if req.site_type == "php" {
+    let php_ver = php_ver_override.or(req.php_version).unwrap_or_default();
+    if site_type == "php" {
         ensure_php_fpm_installed(&php_ver);
     }
     let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
-    provision_webserver_site(&domain, &req.site_type, &web_root, proxy_port, &php_ver);
+    provision_webserver_site(&domain, &site_type, &web_root, proxy_port, &php_ver);
 
-    let app_lang = if fw_str == "crust" { "rust" } else if fw_str == "django" { "python" } else if fw_str == "express" || fw_str == "nextjs" { "node" } else if fw_str == "springboot" { "java" } else { req.site_type.as_str() };
-    let (app_service, app_building) = if req.site_type == "proxy" {
+    let app_lang = if let Some(l) = git_lang.as_deref() { l } else if fw_str == "crust" { "rust" } else if fw_str == "django" { "python" } else if fw_str == "express" || fw_str == "nextjs" { "node" } else if fw_str == "springboot" { "java" } else { site_type.as_str() };
+    let (app_service, app_building) = if site_type == "proxy" {
         provision_proxy_app(&domain, &root_path, app_lang, &fw_str, proxy_port)
     } else {
         (None, false)
@@ -929,7 +999,7 @@ async fn handle_create_site(
 
     match state
         .db
-        .create_site(&domain, &req.site_type, &root_path, proxy_port, &php_ver)
+        .create_site(&domain, &site_type, &root_path, proxy_port, &php_ver)
     {
         Ok(id) => {
             let fu = ftp_info.as_ref().and_then(|v| v.get("user")).and_then(|v| v.as_str()).unwrap_or("");
@@ -955,7 +1025,7 @@ async fn handle_create_site(
             }
             state
                 .db
-                .log_audit("admin", "CREATE_SITE", &domain, &format!("type={}, port={}", req.site_type, proxy_port));
+                .log_audit("admin", "CREATE_SITE", &domain, &format!("type={}, port={}", site_type, proxy_port));
             Json(json!({
                 "success": true,
                 "id": id,
@@ -967,7 +1037,8 @@ async fn handle_create_site(
                 "ssl_enabled": ssl_enabled,
                 "ssl_error": ssl_error,
                 "ftp_info": ftp_info,
-                "db_info": db_info
+                "db_info": db_info,
+                "detected": detected
             }))
             .into_response()
         }
@@ -988,11 +1059,16 @@ fn provision_framework(root_path: &str, framework: &str, domain: &str) {
             let _ = Command::new("git")
                 .args(["clone", "--depth", "1", "https://github.com/1clickmake/CBoard.git", root_path])
                 .output();
-            let comp_cmd = format!(
-                "if ! command -v composer >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq composer unzip; fi; HOME=/root COMPOSER_HOME=/root/.composer COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction -d '{}'; chown -R www-data:www-data '{}'; chmod -R g+rwX '{}'",
-                root_path, root_path, root_path
-            );
-            let _ = Command::new("sh").args(["-c", &comp_cmd]).output();
+            let _ = engine::setup_php_project(root_path, "cmake_board");
+        }
+        "laravel" | "gnuboard7" => {
+            let repo = if framework == "laravel" {
+                "https://github.com/laravel/laravel.git"
+            } else {
+                "https://github.com/gnuboard/g7.git"
+            };
+            let _ = Command::new("git").args(["clone", "--depth", "1", repo, root_path]).output();
+            let _ = engine::setup_php_project(root_path, framework);
         }
         "crust" => {
             let _ = Command::new("git")
@@ -1013,10 +1089,7 @@ fn provision_framework(root_path: &str, framework: &str, domain: &str) {
             );
             let _ = Command::new("sh").args(["-c", &cmd]).output();
         }
-        "django" => {
-            let cmd = format!("python3 -m venv '{}/venv'", root_path);
-            let _ = Command::new("sh").args(["-c", &cmd]).output();
-        }
+        "django" => {}
         "springboot" => {
             let run_sh = FsPath::new(root_path).join("run.sh");
             let _ = fs::write(&run_sh, "#!/bin/bash\njava -jar app.jar\n");
@@ -1072,7 +1145,26 @@ async fn handle_create_subdomain(
     let root_path = format!("/www/wwwroot/{}", full_domain);
     let _ = fs::create_dir_all(&root_path);
 
-    provision_framework(&root_path, req.framework.trim(), &full_domain);
+    let mut language = req.language.trim().to_string();
+    let mut framework = req.framework.trim().to_string();
+    let mut php_ver_override: Option<String> = None;
+    let mut detected: Option<Value> = None;
+    match try_git_import(&root_path, req.git_url.as_deref()).await {
+        Ok(Some(det)) => {
+            language = det["language"].as_str().unwrap_or("static").to_string();
+            framework = det["framework"].as_str().unwrap_or("blank").to_string();
+            php_ver_override = det["php_version"].as_str().filter(|v| !v.is_empty()).map(|v| v.to_string());
+            detected = Some(det);
+        }
+        Ok(None) => provision_framework(&root_path, &framework, &full_domain),
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "error": e })),
+            )
+                .into_response();
+        }
+    }
 
     let index_file = FsPath::new(&root_path).join("index.html");
     let index_php = FsPath::new(&root_path).join("index.php");
@@ -1081,7 +1173,7 @@ async fn handle_create_subdomain(
         let _ = fs::write(&index_file, render_default_welcome_html(&full_domain));
     }
 
-    let site_type = match req.language.as_str() {
+    let site_type = match language.as_str() {
         "php" => "php",
         "rust" | "python" | "node" | "java" => "proxy",
         _ => "static",
@@ -1091,14 +1183,14 @@ async fn handle_create_subdomain(
     } else {
         req.proxy_port.unwrap_or(0)
     };
-    let php_ver = req.php_version.unwrap_or_else(|| "8.3".to_string());
+    let php_ver = php_ver_override.or(req.php_version).unwrap_or_else(|| "8.3".to_string());
     if site_type == "php" {
         ensure_php_fpm_installed(&php_ver);
     }
     let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
     provision_webserver_site(&full_domain, site_type, &web_root, proxy_port, &php_ver);
     let (app_service, app_building) = if site_type == "proxy" {
-        provision_proxy_app(&full_domain, &root_path, req.language.trim(), req.framework.trim(), proxy_port)
+        provision_proxy_app(&full_domain, &root_path, language.as_str(), framework.as_str(), proxy_port)
     } else {
         (None, false)
     };
@@ -1143,7 +1235,7 @@ async fn handle_create_subdomain(
                 "admin",
                 "CREATE_SUBDOMAIN",
                 &full_domain,
-                &format!("lang={}, fw={}, port={}", req.language, req.framework, proxy_port),
+                &format!("lang={}, fw={}, port={}", language, framework, proxy_port),
             );
             Json(json!({
                 "success": true,
@@ -1156,7 +1248,8 @@ async fn handle_create_subdomain(
                 "ssl_enabled": ssl_enabled,
                 "ssl_error": ssl_error,
                 "ftp_info": ftp_info,
-                "db_info": db_info
+                "db_info": db_info,
+                "detected": detected
             }))
                 .into_response()
         }
@@ -1166,6 +1259,93 @@ async fn handle_create_subdomain(
         )
             .into_response(),
     }
+}
+
+async fn try_git_import(root_path: &str, git_url: Option<&str>) -> Result<Option<Value>, String> {
+    let Some(url) = git_url.map(str::trim).filter(|u| !u.is_empty()) else {
+        return Ok(None);
+    };
+    let (u, rp) = (url.to_string(), root_path.to_string());
+    let det = tokio::task::spawn_blocking(move || engine::import_git(&rp, &u))
+        .await
+        .map_err(|e| e.to_string())??;
+    if det["site_type"] == "php" && cfg!(unix) {
+        let rp2 = root_path.to_string();
+        let tag = det["framework"].as_str().unwrap_or("php").to_string();
+        let _ = tokio::task::spawn_blocking(move || engine::setup_php_project(&rp2, &tag)).await;
+    }
+    Ok(Some(det))
+}
+
+#[derive(Deserialize)]
+struct DetectReq {
+    git_url: String,
+}
+
+async fn handle_detect(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<DetectReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let url = req.git_url.trim().to_string();
+    match tokio::task::spawn_blocking(move || engine::detect_remote(&url)).await {
+        Ok(Ok(det)) => Json(json!({ "success": true, "detected": det })).into_response(),
+        Ok(Err(e)) => (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": e }))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "success": false, "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn handle_site_health(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Ok(Some(site)) = state.db.get_site(id) else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response();
+    };
+    if site.site_type != "proxy" {
+        return Json(json!({ "success": true, "applicable": false })).into_response();
+    }
+    let svc = app_service_name(&site.domain);
+    let service = if cfg!(unix) {
+        Command::new("systemctl")
+            .args(["is-active", &svc])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    let (port, host) = (site.proxy_port, site.domain.clone());
+    let code = tokio::task::spawn_blocking(move || engine::probe_http(port, &host))
+        .await
+        .ok()
+        .flatten();
+    let status = match (code, service.as_str()) {
+        (Some(c), _) if c < 500 => "healthy",
+        (Some(_), _) => "error",
+        (None, "active") | (None, "activating") => "starting",
+        _ => "down",
+    };
+    Json(json!({
+        "success": true,
+        "applicable": true,
+        "status": status,
+        "http_status": code,
+        "service": service,
+        "port": port
+    }))
+    .into_response()
 }
 
 async fn handle_switch_site_php(
@@ -2687,6 +2867,8 @@ async fn main() {
         .route("/api/sites/{id}/logs", get(handle_get_site_logs))
         .route("/api/sites/{id}/logs/clear", post(handle_clear_site_logs))
         .route("/api/sites/{id}/php", post(handle_switch_site_php))
+    .route("/api/sites/{id}/health", get(handle_site_health))
+    .route("/api/detect", post(handle_detect))
         .route("/api/sites/{id}/ssl", post(handle_issue_ssl))
         .route("/api/php/versions", get(handle_php_versions))
         .route("/api/apps", get(handle_list_apps).post(handle_create_app))

@@ -213,6 +213,8 @@
                 <option value="crust" data-i18n="opt_fw_crust">CRust (Rust 게시판 - .rs)</option>
                 <option value="gnuboard5" data-i18n="opt_fw_gnu">Gnuboard5 (PHP 그누보드5 - .php)</option>
                 <option value="wordpress" data-i18n="opt_fw_wp">WordPress (PHP 워드프레스 - .php)</option>
+                <option value="laravel" data-i18n="opt_fw_laravel">Laravel (PHP 라라벨 - 공용 vendor)</option>
+                <option value="gnuboard7" data-i18n="opt_fw_g7">Gnuboard7 (그누보드7 / Laravel - 공용 vendor)</option>
                 <option value="django" data-i18n="opt_fw_django">Django (Python 웹프레임워크 - .py)</option>
                 <option value="express" data-i18n="opt_fw_express">Express (Node.js 웹프레임워크 - .js)</option>
                 <option value="nextjs" data-i18n="opt_fw_nextjs">Next.js (React/TS 풀스택 - .ts)</option>
@@ -225,6 +227,11 @@
               </select>
               <input id="sub-port" type="number" class="hidden" data-i18n-ph="ph_sub_port" placeholder="앱 포트 번호 (예: 8080)" />
             </div>
+            <div class="row" style="margin-bottom:10px">
+              <input id="site-git" data-i18n-ph="ph_git_url" placeholder="Git 주소로 자동 설치 (선택) 예: https://github.com/user/repo.git" />
+              <button type="button" class="btn" id="btn-detect" onclick="detectGit()" data-i18n="btn_detect">🔍 자동 감지</button>
+            </div>
+            <div id="detect-result" class="guide-sky hidden"></div>
             <div id="sub-port-help" class="guide-box hidden" data-i18n="port_help_proxy">💡 앱 포트(App Port)란? PHP와 달리 Rust·Python·Node.js·Java 앱은 서버 내부에서 고유 번호(포트)로 실행된 뒤 Nginx가 도메인과 연결해 줍니다. 앱이 사용하는 포트 번호를 입력하세요 (예: Node.js 3000, Python Django 8000, Rust/Spring Boot 8080).</div>
             <div class="row" style="margin-top:12px">
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto" data-i18n-title="tip_ssl" title="Let's Encrypt 무료 HTTPS SSL 인증서 자동 발급"><input type="checkbox" id="sub-ssl" style="width:auto" /> <span data-i18n="chk_ssl">Issue SSL (HTTPS 인증서 자동발급)</span></label>
@@ -641,6 +648,7 @@ async function createUnifiedSite() {
     const db_name = document.getElementById('sub-db-name').value.trim();
     const db_user = document.getElementById('sub-db-user').value.trim();
     const db_pass = document.getElementById('sub-db-pass').value.trim();
+    const git_url = (document.getElementById('site-git').value || '').trim();
     const site_type = language === 'php' ? 'php' : (['rust','python','node','java'].includes(language) ? 'proxy' : 'static');
 
     let r;
@@ -648,14 +656,14 @@ async function createUnifiedSite() {
       const domain = document.getElementById('site-domain').value.trim();
       r = await api('/api/sites', {
         method: 'POST',
-        body: JSON.stringify({ domain, site_type, proxy_port, php_version, framework, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
+        body: JSON.stringify({ domain, site_type, git_url, proxy_port, php_version, framework, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
       });
     } else {
       const prefix = document.getElementById('sub-prefix').value.trim();
       const parent_domain = document.getElementById('sub-parent').value.trim();
       r = await api('/api/sites/subdomain', {
         method: 'POST',
-        body: JSON.stringify({ prefix, parent_domain, language, framework, php_version, proxy_port, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
+        body: JSON.stringify({ prefix, parent_domain, language, framework, git_url, php_version, proxy_port, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
       });
     }
     const box = document.getElementById('site-provision-result');
@@ -667,6 +675,43 @@ async function createUnifiedSite() {
       btn.disabled = false;
       btn.innerHTML = origHtml;
     }
+  }
+}
+function escHtmlDetect(x) {
+  return String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function applyDetected(d) {
+  const langEl = document.getElementById('sub-lang');
+  if ([...langEl.options].some(o => o.value === d.language)) langEl.value = d.language;
+  onSubLangChange();
+  const fwEl = document.getElementById('sub-fw');
+  fwEl.value = [...fwEl.options].some(o => o.value === d.framework) ? d.framework : 'blank';
+  if (d.port_hint) document.getElementById('sub-port').value = String(getNextFreeProxyPort(d.port_hint));
+  const rt = document.getElementById('sub-php');
+  if (d.php_version && !rt.classList.contains('hidden') && [...rt.options].some(o => o.value === d.php_version)) rt.value = d.php_version;
+}
+async function detectGit() {
+  const url = (document.getElementById('site-git').value || '').trim();
+  const box = document.getElementById('detect-result');
+  const btn = document.getElementById('btn-detect');
+  if (!url) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  box.textContent = t('detect_running', '🔍 소스를 분석하는 중입니다... (몇 초 걸려요)');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api('/api/detect', { method: 'POST', body: JSON.stringify({ git_url: url }) });
+    if (!r || !r.success) {
+      box.textContent = '⚠️ ' + ((r && r.error) || t('detect_fail', '감지에 실패했습니다.'));
+      return;
+    }
+    const d = r.detected;
+    applyDetected(d);
+    const note = d.supported ? (d.shared_vendor ? t('detect_shared', ' · 공용 vendor로 초경량 설치') : '')
+                             : ' · ' + t('detect_unsupported', '아직 자동 실행 미지원');
+    const port = d.port_hint ? ' · ' + t('detect_port', '추천 포트') + ': ' + escHtmlDetect(document.getElementById('sub-port').value) : '';
+    box.innerHTML = '💡 ' + t('detect_found', '감지됨') + ': <strong>' + escHtmlDetect(d.label) + '</strong>' + port + escHtmlDetect(note);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 function getNextFreeProxyPort(basePort = 8080) {
@@ -708,6 +753,8 @@ function onSubFwChange() {
     cmake_board: { lang: 'php', rt: '8.3', port: '' },
     gnuboard5: { lang: 'php', rt: '7.4', port: '' },
     wordpress: { lang: 'php', rt: '8.3', port: '' },
+    laravel: { lang: 'php', rt: '8.3', port: '' },
+    gnuboard7: { lang: 'php', rt: '8.3', port: '' },
     crust: { lang: 'rust', rt: 'stable', port: '8080' },
     django: { lang: 'python', rt: '3.12', port: '8000' },
     express: { lang: 'node', rt: '22', port: '3000' },
