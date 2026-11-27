@@ -1006,7 +1006,13 @@ fn cmd_exists(bin: &str) -> bool {
         return false;
     }
     Command::new("sh")
-        .args(["-c", &format!("export PATH=\"$HOME/.cargo/bin:$PATH\"; command -v {} >/dev/null 2>&1", bin)])
+        .args([
+            "-c",
+            &format!(
+                "export PATH=\"/root/.cargo/bin:$HOME/.cargo/bin:/usr/local/cargo/bin:$PATH\"; command -v {} >/dev/null 2>&1",
+                bin
+            ),
+        ])
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
@@ -1029,7 +1035,7 @@ async fn handle_runtimes_status(State(state): State<Arc<AppState>>, headers: Hea
         { "id": "php7.4", "name": "PHP 7.4", "category": "lang", "desc": "레거시 그누보드5 / 구형 PHP 호환", "installed": FsPath::new("/usr/sbin/php-fpm7.4").exists() || cmd_exists("php7.4") },
         { "id": "python3", "name": "Python 3 (pip/venv)", "category": "lang", "desc": "FastAPI / Django / Flask 런타임", "installed": cmd_exists("python3") && cmd_exists("pip3") },
         { "id": "node", "name": "Node.js 22 LTS", "category": "lang", "desc": "Next.js / Express / React 런타임", "installed": cmd_exists("node") },
-        { "id": "rust", "name": "Rust (cargo)", "category": "lang", "desc": "CRust / 초고속 시스템 웹 런타임", "installed": cmd_exists("cargo") },
+        { "id": "rust", "name": "Rust (cargo)", "category": "lang", "desc": "CRust / 초고속 시스템 웹 런타임", "installed": FsPath::new("/root/.cargo/bin/cargo").exists() || cmd_exists("cargo") },
         { "id": "java", "name": "OpenJDK 21 LTS", "category": "lang", "desc": "Spring Boot / Java 런타임", "installed": cmd_exists("java") }
     ]);
     Json(json!({
