@@ -75,6 +75,10 @@
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .row > * { flex: 1; min-width: 140px; }
     .row > .btn, .row > select.compact { flex: 0 0 auto; width: auto; min-width: 0; }
+    .row > .domain-input { flex: 0 1 260px; width: 260px; min-width: 180px; }
+    .row > .sub-pair { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; min-width: 0; }
+    .sub-pair input.sub-prefix-input { width: 140px; min-width: 100px; flex: 0 0 140px; }
+    .sub-pair input.sub-parent-input { width: 200px; min-width: 140px; flex: 0 0 200px; }
     pre.console { background: #070b14; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12px; color: #cbd5e1; max-height: 280px; overflow: auto; white-space: pre-wrap; margin-top: 10px; }
     .usage-bar-bg { width: 100%; height: 7px; background: rgba(255,255,255,.07); border-radius: 999px; overflow: hidden; margin-top: 10px; }
     .usage-bar-fill { height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg, #6366f1, #22d3ee); transition: width .35s ease; }
@@ -183,12 +187,16 @@
             <h3 style="margin-bottom:12px;font-size:15px" data-i18n="add_site">새 사이트 / 서브도메인 생성</h3>
             <div class="row" style="margin-bottom:10px">
               <select id="site-mode" class="compact" onchange="onSiteModeChange()">
-                <option value="domain" data-i18n="opt_mode_domain">직접 도메인 입력 (예: aaa.com)</option>
-                <option value="subdomain" data-i18n="opt_mode_sub">서브도메인 생성 (예: api.chost.work)</option>
+                <option value="domain" data-i18n="opt_mode_domain">직접 도메인 입력 (예: example.com)</option>
+                <option value="subdomain" data-i18n="opt_mode_sub">서브도메인 생성 (예: api.example.com)</option>
               </select>
-              <input id="site-domain" oninput="syncAutoProvisionIds()" data-i18n-ph="ph_site_domain" placeholder="도메인 입력 (예: chost.work)" />
-              <input id="sub-prefix" class="hidden" oninput="syncAutoProvisionIds()" data-i18n-ph="ph_sub_prefix" placeholder="서브도메인 (예: api, blog)" />
-              <input id="sub-parent" class="hidden" data-i18n-ph="ph_sub_parent" placeholder="상위 도메인 (예: chost.work)" />
+              <input id="site-domain" class="domain-input" oninput="syncAutoProvisionIds()" data-i18n-ph="ph_site_domain" placeholder="도메인 입력 (예: example.com)" />
+              <div id="sub-pair" class="sub-pair hidden">
+                <input id="sub-prefix" class="sub-prefix-input" oninput="syncAutoProvisionIds(); updateSubPreview()" data-i18n-ph="ph_sub_prefix" placeholder="api" />
+                <span style="color:var(--muted);font-weight:700;font-size:15px">.</span>
+                <input id="sub-parent" class="sub-parent-input" oninput="updateSubPreview()" data-i18n-ph="ph_sub_parent" placeholder="example.com" />
+                <span id="sub-preview" class="hidden" style="color:#fcd34d;font-weight:700;font-size:13.5px;margin-left:6px;white-space:nowrap"></span>
+              </div>
             </div>
             <div class="row" style="margin-bottom:10px">
               <select id="sub-lang" class="compact" onchange="onSubLangChange()">
@@ -534,11 +542,30 @@ const LANG_RUNTIMES = {
   java: [ ['21','JDK 21 LTS (최신 권장)'], ['17','JDK 17 LTS'] ],
   static: []
 };
+function updateSubPreview() {
+  const mode = document.getElementById('site-mode').value;
+  const el = document.getElementById('sub-preview');
+  if (!el) return;
+  if (mode !== 'subdomain') {
+    el.classList.add('hidden');
+    el.textContent = '';
+    return;
+  }
+  const pfx = document.getElementById('sub-prefix').value.trim();
+  const par = document.getElementById('sub-parent').value.trim();
+  if (!pfx && !par) {
+    el.classList.add('hidden');
+    el.textContent = '';
+    return;
+  }
+  el.classList.remove('hidden');
+  el.textContent = (pfx ? pfx + '.' : '') + par;
+}
 function onSiteModeChange() {
   const mode = document.getElementById('site-mode').value;
   document.getElementById('site-domain').classList.toggle('hidden', mode !== 'domain');
-  document.getElementById('sub-prefix').classList.toggle('hidden', mode !== 'subdomain');
-  document.getElementById('sub-parent').classList.toggle('hidden', mode !== 'subdomain');
+  document.getElementById('sub-pair').classList.toggle('hidden', mode !== 'subdomain');
+  updateSubPreview();
 }
 function onSiteTypeChange() {}
 function getDomainPrefixSlug() {

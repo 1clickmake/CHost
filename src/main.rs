@@ -740,7 +740,7 @@ fn provision_framework(root_path: &str, framework: &str, domain: &str) {
                 .args(["clone", "--depth", "1", "https://github.com/1clickmake/CBoard.git", root_path])
                 .output();
             let comp_cmd = format!(
-                "if ! command -v composer >/dev/null 2>&1; then DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq composer unzip; fi; COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction -d '{}'; chown -R www-data:www-data '{}'; chmod -R g+rwX '{}'",
+                "if ! command -v composer >/dev/null 2>&1; then DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq composer unzip; fi; HOME=/root COMPOSER_HOME=/root/.composer COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction -d '{}'; chown -R www-data:www-data '{}'; chmod -R g+rwX '{}'",
                 root_path, root_path, root_path
             );
             let _ = Command::new("sh").args(["-c", &comp_cmd]).output();
@@ -794,8 +794,15 @@ async fn handle_create_subdomain(
     if !is_authed(&state, &headers) {
         return unauthorized();
     }
-    let prefix = req.prefix.trim().to_lowercase();
-    let parent = req.parent_domain.trim().to_lowercase();
+    let mut prefix = req.prefix.trim().to_lowercase();
+    let mut parent = req.parent_domain.trim().to_lowercase();
+    if parent.is_empty() {
+        if let Some((p, rest)) = prefix.split_once('.') {
+            let p_str = p.to_string();
+            parent = rest.to_string();
+            prefix = p_str;
+        }
+    }
     if prefix.is_empty()
         || parent.is_empty()
         || prefix.contains('/')
