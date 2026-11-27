@@ -100,7 +100,7 @@
   <div id="app-view" class="layout hidden">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-title" data-i18n="brand">CHost</div>
+        <div class="brand-title"><span data-i18n="brand">CHost</span> <span id="panel-ver-badge" class="badge" style="background:rgba(56,189,248,.16);color:#7dd3fc;font-size:10px;vertical-align:middle;margin-left:4px">v-</span></div>
         <div class="brand-sub" data-i18n="subtitle">Server Panel</div>
       </div>
       <button class="nav-btn active" onclick="showTab('dashboard', this)"><span class="nav-ico">📊</span><span data-i18n="nav_dashboard">대시보드</span></button>
@@ -117,6 +117,7 @@
       <header class="topbar">
         <div id="host-info" style="font-size:13px;color:var(--muted)">Loading...</div>
         <div class="topbar-right">
+          <button id="btn-panel-update" class="btn btn-sm" onclick="checkOrRunUpdate()" title="버전 확인 / 업데이트">🔄 <span id="topbar-ver-txt">v-</span></button>
           <select id="lang-select" class="compact" style="width:auto" onchange="loadLocale(this.value)">
             <option value="ko">한국어 (ko)</option>
             <option value="en">English (en)</option>
@@ -473,6 +474,7 @@ async function loadLocale(lang) {
   if (!document.getElementById('app-view').classList.contains('hidden')) {
     loadRuntimes(false);
     loadSites();
+    checkPanelVersion();
   }
 }
 function showTab(name, btn) {
@@ -732,6 +734,47 @@ function initPanelResetQuiz() {
   if (qEl) qEl.textContent = `${a} + ${b} = ?`;
   if (aEl) aEl.value = '';
   if (mEl) mEl.textContent = '';
+}
+window.PANEL_VER_INFO = null;
+async function checkPanelVersion() {
+  try {
+    const r = await api('/api/panel/version');
+    if (!r.success) return;
+    window.PANEL_VER_INFO = r;
+    const badge = document.getElementById('panel-ver-badge');
+    const txt = document.getElementById('topbar-ver-txt');
+    const btn = document.getElementById('btn-panel-update');
+    if (badge) badge.textContent = 'v' + r.current;
+    if (r.update_available) {
+      if (txt) txt.textContent = `🆕 v${r.latest} 업데이트`;
+      if (btn) {
+        btn.classList.add('btn-primary');
+        btn.title = `현재 v${r.current} → 최신 v${r.latest} 원클릭 업데이트`;
+      }
+    } else {
+      if (txt) txt.textContent = `v${r.current} (최신)`;
+      if (btn) btn.classList.remove('btn-primary');
+    }
+  } catch (e) {}
+}
+async function checkOrRunUpdate() {
+  await checkPanelVersion();
+  const info = window.PANEL_VER_INFO;
+  if (!info) return;
+  if (!info.update_available) {
+    alert(`✅ 현재 최신 버전(v${info.current})을 사용 중입니다!`);
+    return;
+  }
+  if (!confirm(`새 버전(v${info.latest})이 있습니다!\n지금 바로 자동 업데이트하고 CHost를 재시작할까요?`)) return;
+  const btn = document.getElementById('btn-panel-update');
+  if (btn) { btn.disabled = true; btn.textContent = '업데이트 중...'; }
+  const r = await api('/api/panel/update', { method: 'POST' });
+  if (r.success) {
+    setTimeout(() => { location.reload(); }, 4500);
+  } else {
+    alert('업데이트 실패: ' + (r.error || 'Unknown error'));
+    if (btn) btn.disabled = false;
+  }
 }
 async function confirmPanelReset() {
   const ans = parseInt(document.getElementById('sec-reset-ans').value.trim(), 10);

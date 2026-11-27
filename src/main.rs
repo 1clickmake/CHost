@@ -2207,6 +2207,93 @@ async fn handle_panel_reset(
     Json(json!({ "success": true, "mode": req.mode })).into_response()
 }
 
+fn parse_ver_tuple(v: &str) -> (u32, u32, u32) {
+    let clean = v.trim().trim_start_matches('v');
+    let mut parts = clean.split('.').map(|s| s.parse::<u32>().unwrap_or(0));
+    (
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+    )
+}
+
+async fn handle_panel_version(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let current = env!("CARGO_PKG_VERSION").to_string();
+    let mut latest = current.clone();
+    let mut release_url = "https://github.com/1clickmake/CHost/releases".to_string();
+    if let Ok(o) = Command::new("curl")
+        .args([
+            "-sSL",
+            "--max-time",
+            "5",
+            "-H",
+            "User-Agent: CHost-Panel",
+            "https://api.github.com/repos/1clickmake/CHost/releases/latest",
+        ])
+        .output()
+    {
+        if o.status.success() {
+            if let Ok(v) = serde_json::from_slice::<Value>(&o.stdout) {
+                if let Some(tag) = v.get("tag_name").and_then(|x| x.as_str()) {
+                    latest = tag.trim_start_matches('v').to_string();
+                }
+                if let Some(u) = v.get("html_url").and_then(|x| x.as_str()) {
+                    release_url = u.to_string();
+                }
+            }
+        }
+    }
+    let update_available = parse_ver_tuple(&latest) > parse_ver_tuple(&current);
+    Json(json!({
+        "success": true,
+        "current": current,
+        "latest": latest,
+        "update_available": update_available,
+        "release_url": release_url
+    }))
+    .into_response()
+}
+
+async fn handle_panel_update(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !cfg!(unix) {
+        return Json(json!({ "success": false, "error": "Linux server only" })).into_response();
+    }
+    state.db.log_audit("admin", "PANEL_UPDATE", "panel", "Triggered self-update from GitHub Releases");
+    let script = r#"
+sleep 1
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64)  TAG="linux-x64" ;;
+  aarch64) TAG="linux-arm64" ;;
+  *) exit 1 ;;
+esac
+URL=$(curl -sSL "https://api.github.com/repos/1clickmake/CHost/releases/latest" | grep "browser_download_url" | grep "$TAG" | head -n 1 | cut -d '"' -f 4)
+[ -z "$URL" ] && exit 1
+rm -rf /tmp/chost_upd && mkdir -p /tmp/chost_upd
+curl -sSL "$URL" -o /tmp/chost_upd/chost.tar.gz || exit 1
+tar -xzf /tmp/chost_upd/chost.tar.gz -C /tmp/chost_upd || exit 1
+[ -f /opt/chost/chost ] && cp -f /opt/chost/chost /opt/chost/chost.bak
+cp -rf /tmp/chost_upd/* /opt/chost/
+rm -f /opt/chost/chost.tar.gz
+chmod +x /opt/chost/chost
+chown -R chost_ftp:chost_ftp /opt/chost 2>/dev/null || true
+systemctl restart chost
+"#;
+    let _ = Command::new("nohup")
+        .args(["sh", "-c", script])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    Json(json!({ "success": true })).into_response()
+}
+
 #[tokio::main]
 async fn main() {
     let data_dir = PathBuf::from(
@@ -2290,6 +2377,8 @@ async fn main() {
         .route("/api/terminal", post(handle_terminal_exec))
         .route("/api/audits", get(handle_audits))
         .route("/api/panel/reset", post(handle_panel_reset))
+        .route("/api/panel/version", get(handle_panel_version))
+        .route("/api/panel/update", post(handle_panel_update))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
