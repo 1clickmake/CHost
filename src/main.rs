@@ -633,6 +633,185 @@ fn provision_database(domain: &str, custom_db: Option<&str>, custom_user: Option
     }
 }
 
+fn app_service_name(domain: &str) -> String {
+    let slug = sanitize_ident(Some(domain), 40);
+    let s = if slug.is_empty() { "site".to_string() } else { slug };
+    format!("chost-app-{}.service", s)
+}
+
+fn allocate_proxy_port(db: &Database, requested: Option<i64>) -> i64 {
+    let used: std::collections::HashSet<i64> = db
+        .list_sites()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|s| s.site_type == "proxy" && s.proxy_port > 0)
+        .map(|s| s.proxy_port)
+        .collect();
+
+    let is_port_free = |p: i64| -> bool {
+        if p <= 0 || p > 65535 || p == 8800 || used.contains(&p) {
+            return false;
+        }
+        std::net::TcpListener::bind(("127.0.0.1", p as u16)).is_ok()
+    };
+
+    if let Some(p) = requested {
+        if is_port_free(p) {
+            return p;
+        }
+    }
+    for p in 8080..=8999 {
+        if is_port_free(p) {
+            return p;
+        }
+    }
+    8080
+}
+
+fn ensure_php_fpm_installed(php_ver: &str) {
+    if !cfg!(unix) || php_ver.is_empty() {
+        return;
+    }
+    let bin = format!("/usr/sbin/php-fpm{}", php_ver);
+    let sock = format!("/run/php/php{}-fpm.sock", php_ver);
+    if FsPath::new(&bin).exists() || FsPath::new(&sock).exists() {
+        let _ = Command::new("systemctl").args(["start", &format!("php{}-fpm", php_ver)]).output();
+        return;
+    }
+    let cmd = format!(
+        "DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq php{v}-fpm php{v}-mysql php{v}-mbstring php{v}-xml php{v}-curl php{v}-gd php{v}-zip && systemctl enable --now php{v}-fpm",
+        v = php_ver
+    );
+    let _ = Command::new("sh").args(["-c", &cmd]).output();
+}
+
+fn provision_proxy_app(domain: &str, root_path: &str, language: &str, framework: &str, proxy_port: i64) -> (Option<String>, bool) {
+    if !cfg!(unix) || proxy_port <= 0 {
+        return (None, false);
+    }
+    let svc = app_service_name(domain);
+    let unit_path = format!("/etc/systemd/system/{}", svc);
+
+    match (language, framework) {
+        ("rust", "crust") => {
+            let cfg_path = FsPath::new(root_path).join("config.toml");
+            if !cfg_path.exists() {
+                let ex_path = FsPath::new(root_path).join("config.example.toml");
+                let cfg_body = if let Ok(raw) = fs::read_to_string(&ex_path) {
+                    raw.replace("port = 3000", &format!("port = {}", proxy_port))
+                } else {
+                    format!(
+                        "[server]\nhost = \"127.0.0.1\"\nport = {}\ndev_mode = false\n\n[database]\nurl = \"sqlite://rust_board.db?mode=rwc\"\nmax_connections = 10\n",
+                        proxy_port
+                    )
+                };
+                let _ = fs::write(&cfg_path, cfg_body);
+            }
+            let unit = format!(
+                "[Unit]\nDescription=CHost Rust App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart={root}/target/release/rust_board\nRestart=always\nRestartSec=3\nEnvironment=RUST_LOG=info\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain,
+                root = root_path
+            );
+            let _ = fs::write(&unit_path, unit);
+            let bin_exists = FsPath::new(root_path).join("target/release/rust_board").exists();
+            if bin_exists {
+                let _ = Command::new("sh").args(["-c", &format!("systemctl daemon-reload && systemctl enable --now {}", svc)]).output();
+                return (Some(svc), false);
+            }
+            let root_owned = root_path.to_string();
+            let svc_owned = svc.clone();
+            tokio::spawn(async move {
+                let build_cmd = format!(
+                    "export PATH=\"/root/.cargo/bin:$PATH\"; cd '{}' && cargo build --release && systemctl daemon-reload && systemctl enable --now '{}'",
+                    root_owned, svc_owned
+                );
+                let _ = Command::new("sh").args(["-c", &build_cmd]).output();
+            });
+            return (Some(svc), true);
+        }
+        ("python", "django") => {
+            let venv_py = format!("{}/venv/bin/python", root_path);
+            let gunicorn = format!("{}/venv/bin/gunicorn", root_path);
+            let unit = format!(
+                "[Unit]\nDescription=CHost Django App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart={gunicorn} --bind 127.0.0.1:{port} --workers 2 mysite.wsgi:application\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain,
+                root = root_path,
+                gunicorn = gunicorn,
+                port = proxy_port
+            );
+            let _ = fs::write(&unit_path, unit);
+            if FsPath::new(&gunicorn).exists() && FsPath::new(root_path).join("manage.py").exists() {
+                let _ = Command::new("sh").args(["-c", &format!("systemctl daemon-reload && systemctl enable --now {}", svc)]).output();
+                return (Some(svc), false);
+            }
+            let root_owned = root_path.to_string();
+            let svc_owned = svc.clone();
+            tokio::spawn(async move {
+                let setup_cmd = format!(
+                    "cd '{r}' && ([ -x '{vp}' ] || python3 -m venv '{r}/venv') && '{r}/venv/bin/pip' install -q django gunicorn && ([ -f '{r}/manage.py' ] || '{r}/venv/bin/django-admin' startproject mysite .) && sed -i \"s/ALLOWED_HOSTS = \\[\\]/ALLOWED_HOSTS = ['*']/\" '{r}/mysite/settings.py' 2>/dev/null || true; systemctl daemon-reload && systemctl enable --now '{s}'",
+                    r = root_owned, vp = venv_py, s = svc_owned
+                );
+                let _ = Command::new("sh").args(["-c", &setup_cmd]).output();
+            });
+            return (Some(svc), true);
+        }
+        ("python", _) => {
+            let app_py = FsPath::new(root_path).join("app.py");
+            if !app_py.exists() {
+                let code = format!(
+                    "import os, http.server, socketserver\nPORT = int(os.environ.get('PORT', {port}))\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.send_header('Content-type', 'text/html; charset=utf-8')\n        self.end_headers()\n        self.wfile.write(b'<h1>{domain}</h1><p>Python App running on CHost (Port {port})</p>')\n    def log_message(self, *a): pass\nwith socketserver.TCPServer(('127.0.0.1', PORT), H) as httpd:\n    httpd.serve_forever()\n",
+                    port = proxy_port, domain = domain
+                );
+                let _ = fs::write(&app_py, code);
+            }
+            let py_bin = if FsPath::new(&format!("{}/venv/bin/python", root_path)).exists() {
+                format!("{}/venv/bin/python", root_path)
+            } else {
+                "/usr/bin/python3".to_string()
+            };
+            let unit = format!(
+                "[Unit]\nDescription=CHost Python App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart={py} {root}/app.py\nEnvironment=PORT={port}\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain, root = root_path, py = py_bin, port = proxy_port
+            );
+            let _ = fs::write(&unit_path, unit);
+            let _ = Command::new("sh").args(["-c", &format!("systemctl daemon-reload && systemctl enable --now {}", svc)]).output();
+            return (Some(svc), false);
+        }
+        ("node", _) => {
+            let server_js = FsPath::new(root_path).join("server.js");
+            if !server_js.exists() {
+                let code = format!(
+                    "const http = require('http');\nconst port = process.env.PORT || {port};\nhttp.createServer((req, res) => {{\n  res.writeHead(200, {{ 'Content-Type': 'text/html; charset=utf-8' }});\n  res.end('<h1>{domain}</h1><p>Node.js App running on CHost (Port ' + port + ')</p>');\n}}).listen(port, '127.0.0.1');\n",
+                    port = proxy_port, domain = domain
+                );
+                let _ = fs::write(&server_js, code);
+            }
+            let node_bin = if FsPath::new("/usr/bin/node").exists() { "/usr/bin/node" } else { "/usr/local/bin/node" };
+            let unit = format!(
+                "[Unit]\nDescription=CHost Node.js App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart={node} {root}/server.js\nEnvironment=PORT={port}\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                domain = domain, root = root_path, node = node_bin, port = proxy_port
+            );
+            let _ = fs::write(&unit_path, unit);
+            let _ = Command::new("sh").args(["-c", &format!("systemctl daemon-reload && systemctl enable --now {}", svc)]).output();
+            return (Some(svc), false);
+        }
+        ("java", _) => {
+            let jar = FsPath::new(root_path).join("app.jar");
+            if jar.exists() {
+                let unit = format!(
+                    "[Unit]\nDescription=CHost Java App ({domain})\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={root}\nExecStart=/usr/bin/java -jar {root}/app.jar --server.port={port}\nRestart=always\nRestartSec=3\n\n[Install]\nWantedBy=multi-user.target\n",
+                    domain = domain, root = root_path, port = proxy_port
+                );
+                let _ = fs::write(&unit_path, unit);
+                let _ = Command::new("sh").args(["-c", &format!("systemctl daemon-reload && systemctl enable --now {}", svc)]).output();
+                return (Some(svc), false);
+            }
+        }
+        _ => {}
+    }
+    (None, false)
+}
+
 async fn handle_create_site(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -652,10 +831,9 @@ async fn handle_create_site(
     let root_path = format!("/www/wwwroot/{}", domain);
     let _ = fs::create_dir_all(&root_path);
 
-    if let Some(ref fw) = req.framework {
-        if !fw.trim().is_empty() && fw.trim() != "blank" {
-            provision_framework(&root_path, fw.trim(), &domain);
-        }
+    let fw_str = req.framework.as_deref().unwrap_or("blank").trim().to_string();
+    if !fw_str.is_empty() && fw_str != "blank" {
+        provision_framework(&root_path, &fw_str, &domain);
     }
 
     let index_file = FsPath::new(&root_path).join("index.html");
@@ -665,10 +843,24 @@ async fn handle_create_site(
         let _ = fs::write(&index_file, render_default_welcome_html(&domain));
     }
 
-    let proxy_port = req.proxy_port.unwrap_or(0);
+    let proxy_port = if req.site_type == "proxy" {
+        allocate_proxy_port(&state.db, req.proxy_port)
+    } else {
+        req.proxy_port.unwrap_or(0)
+    };
     let php_ver = req.php_version.unwrap_or_default();
+    if req.site_type == "php" {
+        ensure_php_fpm_installed(&php_ver);
+    }
     let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
     provision_webserver_site(&domain, &req.site_type, &web_root, proxy_port, &php_ver);
+
+    let app_lang = if fw_str == "crust" { "rust" } else if fw_str == "django" { "python" } else if fw_str == "springboot" { "java" } else { req.site_type.as_str() };
+    let (app_service, app_building) = if req.site_type == "proxy" {
+        provision_proxy_app(&domain, &root_path, app_lang, &fw_str, proxy_port)
+    } else {
+        (None, false)
+    };
 
     let ftp_info = if req.create_ssh.unwrap_or(false) {
         Some(provision_sftp_user(&domain, &root_path, req.ftp_user.as_deref(), req.ftp_pass.as_deref()))
@@ -709,12 +901,15 @@ async fn handle_create_site(
             }
             state
                 .db
-                .log_audit("admin", "CREATE_SITE", &domain, &format!("type={}", req.site_type));
+                .log_audit("admin", "CREATE_SITE", &domain, &format!("type={}, port={}", req.site_type, proxy_port));
             Json(json!({
                 "success": true,
                 "id": id,
                 "domain": domain,
                 "root_path": root_path,
+                "proxy_port": proxy_port,
+                "app_service": app_service,
+                "app_building": app_building,
                 "ssl_enabled": ssl_enabled,
                 "ssl_error": ssl_error,
                 "ftp_info": ftp_info,
@@ -740,7 +935,7 @@ fn provision_framework(root_path: &str, framework: &str, domain: &str) {
                 .args(["clone", "--depth", "1", "https://github.com/1clickmake/CBoard.git", root_path])
                 .output();
             let comp_cmd = format!(
-                "if ! command -v composer >/dev/null 2>&1; then DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq composer unzip; fi; HOME=/root COMPOSER_HOME=/root/.composer COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction -d '{}'; chown -R www-data:www-data '{}'; chmod -R g+rwX '{}'",
+                "if ! command -v composer >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq composer unzip; fi; HOME=/root COMPOSER_HOME=/root/.composer COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction -d '{}'; chown -R www-data:www-data '{}'; chmod -R g+rwX '{}'",
                 root_path, root_path, root_path
             );
             let _ = Command::new("sh").args(["-c", &comp_cmd]).output();
@@ -754,11 +949,13 @@ fn provision_framework(root_path: &str, framework: &str, domain: &str) {
             let _ = Command::new("git")
                 .args(["clone", "--depth", "1", "https://github.com/gnuboard/gnuboard5.git", root_path])
                 .output();
+            let cmd = format!("mkdir -p '{r}/data' && chown -R www-data:www-data '{r}' && chmod -R g+rwX '{r}' && chmod -R 775 '{r}/data'", r = root_path);
+            let _ = Command::new("sh").args(["-c", &cmd]).output();
         }
         "wordpress" => {
             let cmd = format!(
-                "curl -sSL https://wordpress.org/latest.tar.gz | tar -xz --strip-components=1 -C '{}'",
-                root_path
+                "curl -sSL https://wordpress.org/latest.tar.gz | tar -xz --strip-components=1 -C '{r}' && chown -R www-data:www-data '{r}' && chmod -R g+rwX '{r}'",
+                r = root_path
             );
             let _ = Command::new("sh").args(["-c", &cmd]).output();
         }
@@ -835,10 +1032,22 @@ async fn handle_create_subdomain(
         "rust" | "python" | "node" | "java" => "proxy",
         _ => "static",
     };
-    let proxy_port = req.proxy_port.unwrap_or(8080);
+    let proxy_port = if site_type == "proxy" {
+        allocate_proxy_port(&state.db, req.proxy_port)
+    } else {
+        req.proxy_port.unwrap_or(0)
+    };
     let php_ver = req.php_version.unwrap_or_else(|| "8.3".to_string());
+    if site_type == "php" {
+        ensure_php_fpm_installed(&php_ver);
+    }
     let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
     provision_webserver_site(&full_domain, site_type, &web_root, proxy_port, &php_ver);
+    let (app_service, app_building) = if site_type == "proxy" {
+        provision_proxy_app(&full_domain, &root_path, req.language.trim(), req.framework.trim(), proxy_port)
+    } else {
+        (None, false)
+    };
     let ftp_info = if req.create_ssh.unwrap_or(false) {
         Some(provision_sftp_user(&full_domain, &root_path, req.ftp_user.as_deref(), req.ftp_pass.as_deref()))
     } else {
@@ -880,13 +1089,16 @@ async fn handle_create_subdomain(
                 "admin",
                 "CREATE_SUBDOMAIN",
                 &full_domain,
-                &format!("lang={}, fw={}", req.language, req.framework),
+                &format!("lang={}, fw={}, port={}", req.language, req.framework, proxy_port),
             );
             Json(json!({
                 "success": true,
                 "id": id,
                 "domain": full_domain,
                 "root_path": root_path,
+                "proxy_port": proxy_port,
+                "app_service": app_service,
+                "app_building": app_building,
                 "ssl_enabled": ssl_enabled,
                 "ssl_error": ssl_error,
                 "ftp_info": ftp_info,
@@ -990,6 +1202,14 @@ async fn handle_delete_site(
             let _ = Command::new("a2dissite").arg(format!("{}.conf", s.domain)).output();
             let _ = fs::remove_file(format!("/etc/apache2/sites-available/{}.conf", s.domain));
             let _ = reload_active_webserver(detect_active_webserver());
+
+            let app_svc = app_service_name(&s.domain);
+            let app_unit = format!("/etc/systemd/system/{}", app_svc);
+            if FsPath::new(&app_unit).exists() {
+                let _ = Command::new("systemctl").args(["disable", "--now", &app_svc]).output();
+                let _ = fs::remove_file(&app_unit);
+                let _ = Command::new("systemctl").arg("daemon-reload").output();
+            }
 
             if q.del_ftp.unwrap_or(false) {
                 let safe_fu = sanitize_ident(Some(&s.ftp_user), 24);
