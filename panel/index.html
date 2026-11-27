@@ -122,7 +122,7 @@
       <header class="topbar">
         <div id="host-info" style="font-size:13px;color:var(--muted)">Loading...</div>
         <div class="topbar-right">
-          <button id="btn-panel-update" class="btn btn-sm" onclick="checkOrRunUpdate()" title="버전 확인 / 업데이트">🔄 <span id="topbar-ver-txt">v-</span></button>
+          <button id="btn-panel-update" class="btn btn-sm" onclick="checkOrRunUpdate()" data-i18n-title="ver_check_title" title="버전 확인 / 업데이트">🔄 <span id="topbar-ver-txt">v-</span></button>
           <select id="lang-select" class="compact" style="width:auto" onchange="loadLocale(this.value)">
             <option value="ko">한국어 (ko)</option>
             <option value="en">English (en)</option>
@@ -733,7 +733,7 @@ function onSubLangChange() {
   if (opts.length === 0) {
     rtEl.classList.add('hidden');
   } else {
-    rtEl.innerHTML = opts.map(([v, label]) => `<option value="${v}">${label}</option>`).join('');
+    rtEl.innerHTML = opts.map(([v, label]) => `<option value="${v}">${label.replace('(최신 권장)', '(' + t('lbl_recommended', '최신 권장') + ')').replace('(구형 그누보드용)', '(' + t('lbl_legacy_gnuboard', '구형 그누보드용') + ')')}</option>`).join('');
     rtEl.classList.remove('hidden');
   }
   const needPort = ['rust', 'python', 'node', 'java'].includes(lang);
@@ -791,17 +791,17 @@ async function submitChangePw() {
   const new_password = document.getElementById('pw-new').value;
   const new_password2 = document.getElementById('pw-new2').value;
   const errEl = document.getElementById('pw-err');
-  if (new_password.length < 4) { errEl.textContent = '새 비밀번호는 4자 이상 입력해 주세요.'; return; }
-  if (new_password !== new_password2) { errEl.textContent = '새 비밀번호가 서로 일치하지 않습니다.'; return; }
+  if (new_password.length < 4) { errEl.textContent = t('pw_min4', '새 비밀번호는 4자 이상 입력해 주세요.'); return; }
+  if (new_password !== new_password2) { errEl.textContent = t('pw_mismatch', '새 비밀번호가 서로 일치하지 않습니다.'); return; }
   const r = await api('/api/auth/change-password', {
     method: 'POST',
     body: JSON.stringify({ current_password, new_password })
   });
   if (r.success) {
     closePwModal();
-    alert('관리자 비밀번호가 변경되었습니다.');
+    alert(t('pw_changed_alert', '관리자 비밀번호가 변경되었습니다.'));
   } else {
-    errEl.textContent = r.error || '변경 실패';
+    errEl.textContent = r.error || t('pw_change_fail', '변경 실패');
   }
 }
 async function submitSecurityPw() {
@@ -809,8 +809,8 @@ async function submitSecurityPw() {
   const new_password = document.getElementById('sec-pw-new').value;
   const new_password2 = document.getElementById('sec-pw-new2').value;
   const msgEl = document.getElementById('sec-pw-msg');
-  if (new_password.length < 4) { msgEl.style.color = '#fca5a5'; msgEl.textContent = '새 비밀번호는 4자 이상 입력해 주세요.'; return; }
-  if (new_password !== new_password2) { msgEl.style.color = '#fca5a5'; msgEl.textContent = '새 비밀번호가 서로 일치하지 않습니다.'; return; }
+  if (new_password.length < 4) { msgEl.style.color = '#fca5a5'; msgEl.textContent = t('pw_min4', '새 비밀번호는 4자 이상 입력해 주세요.'); return; }
+  if (new_password !== new_password2) { msgEl.style.color = '#fca5a5'; msgEl.textContent = t('pw_mismatch', '새 비밀번호가 서로 일치하지 않습니다.'); return; }
   const r = await api('/api/auth/change-password', {
     method: 'POST',
     body: JSON.stringify({ current_password, new_password })
@@ -820,10 +820,10 @@ async function submitSecurityPw() {
     document.getElementById('sec-pw-new').value = '';
     document.getElementById('sec-pw-new2').value = '';
     msgEl.style.color = '#6ee7b7';
-    msgEl.textContent = '✅ 관리자 비밀번호가 성공적으로 변경되었습니다!';
+    msgEl.textContent = t('pw_changed_ok', '✅ 관리자 비밀번호가 성공적으로 변경되었습니다!');
   } else {
     msgEl.style.color = '#fca5a5';
-    msgEl.textContent = r.error || '변경 실패';
+    msgEl.textContent = r.error || t('pw_change_fail', '변경 실패');
   }
 }
 function initPanelResetQuiz() {
@@ -848,13 +848,13 @@ async function checkPanelVersion() {
     const btn = document.getElementById('btn-panel-update');
     if (badge) badge.textContent = 'v' + r.current;
     if (r.update_available) {
-      if (txt) txt.textContent = `🆕 v${r.latest} 업데이트`;
+      if (txt) txt.textContent = t('ver_update_btn', '🆕 v{latest} 업데이트').replace('{latest}', r.latest);
       if (btn) {
         btn.classList.add('btn-primary');
-        btn.title = `현재 v${r.current} → 최신 v${r.latest} 원클릭 업데이트`;
+        btn.title = t('ver_tip', '현재 v{cur} → 최신 v{latest} 원클릭 업데이트').replace('{cur}', r.current).replace('{latest}', r.latest);
       }
     } else {
-      if (txt) txt.textContent = `v${r.current} (최신)`;
+      if (txt) txt.textContent = t('ver_latest', 'v{cur} (최신)').replace('{cur}', r.current);
       if (btn) btn.classList.remove('btn-primary');
     }
   } catch (e) {}
@@ -864,17 +864,17 @@ async function checkOrRunUpdate() {
   const info = window.PANEL_VER_INFO;
   if (!info) return;
   if (!info.update_available) {
-    alert(`✅ 현재 최신 버전(v${info.current})을 사용 중입니다!`);
+    alert(t('ver_uptodate_alert', '✅ 현재 최신 버전(v{cur})을 사용 중입니다!').replace('{cur}', info.current));
     return;
   }
-  if (!confirm(`새 버전(v${info.latest})이 있습니다!\n지금 바로 자동 업데이트하고 CHost를 재시작할까요?`)) return;
+  if (!confirm(t('ver_confirm', '새 버전(v{latest})이 있습니다!\n지금 바로 자동 업데이트하고 CHost를 재시작할까요?').replace('{latest}', info.latest))) return;
   const btn = document.getElementById('btn-panel-update');
-  if (btn) { btn.disabled = true; btn.textContent = '업데이트 중...'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('ver_updating', '업데이트 중...'); }
   const r = await api('/api/panel/update', { method: 'POST' });
   if (r.success) {
     setTimeout(() => { location.reload(); }, 4500);
   } else {
-    alert('업데이트 실패: ' + (r.error || 'Unknown error'));
+    alert(t('ver_update_fail', '업데이트 실패: ') + (r.error || 'Unknown error'));
     if (btn) btn.disabled = false;
   }
 }
@@ -889,13 +889,13 @@ async function confirmPanelReset() {
   const modeEl = document.querySelector('input[name="reset-mode"]:checked');
   const mode = modeEl ? modeEl.value : 'soft';
   msgEl.style.color = 'var(--muted)';
-  msgEl.textContent = '초기화 진행 중...';
+  msgEl.textContent = t('reset_running', '초기화 진행 중...');
   const r = await api('/api/panel/reset', {
     method: 'POST',
     body: JSON.stringify({ mode })
   });
   if (r.success) {
-    alert(mode === 'full' ? '✅ 완전 초기화가 완료되었습니다! 초기 설정 마법사를 다시 시작합니다.' : '✅ 패널 초기화가 완료되었습니다!');
+    alert(mode === 'full' ? t('reset_done_full', '✅ 완전 초기화가 완료되었습니다! 초기 설정 마법사를 다시 시작합니다.') : t('reset_done_soft', '✅ 패널 초기화가 완료되었습니다!'));
     initPanelResetQuiz();
     loadSites();
     loadApps();
@@ -1381,7 +1381,7 @@ async function loadMariaDatabases() {
   const sel = document.getElementById('maria-db-select');
   if (!sel) return;
   if (!r.success || !(r.databases || []).length) {
-    sel.innerHTML = '<option value="">(생성된 MariaDB 없음)</option>';
+    sel.innerHTML = '<option value="">' + t('db_none', '(생성된 MariaDB 없음)') + '</option>';
     return;
   }
   sel.innerHTML = r.databases.map(d => `<option value="${escAttr(d)}">${escAttr(d)}</option>`).join('');
@@ -1442,7 +1442,7 @@ async function browseDir(dir) {
     const ico = it.is_dir ? '📁' : '📄';
     const meta = it.is_dir ? 'DIR' : fmtBytes(it.size);
     return `<div class="file-item" onclick="${click}"><span>${ico} ${escAttr(it.name)}</span><span style="color:var(--muted);font-size:11px">${meta}</span></div>`;
-  }).join('') || '<div class="file-item" style="color:var(--muted)">(비어 있음)</div>';
+  }).join('') || '<div class="file-item" style="color:var(--muted)">' + t('dir_empty', '(비어 있음)') + '</div>';
 }
 function browseUpDir() {
   const cur = window.CUR_BROWSE_DIR || '/www/wwwroot';
@@ -1560,14 +1560,14 @@ function setInstallLocked(mode, locked) {
     if (skipBtn) skipBtn.disabled = locked;
     if (startBtn) {
       startBtn.disabled = locked;
-      startBtn.textContent = locked ? '설치 진행 중...' : '선택 패키지 설치 시작';
+      startBtn.textContent = locked ? t('rt_installing', '설치 진행 중...') : t('rt_start_btn', '선택 패키지 설치 시작');
     }
     document.querySelectorAll('.setup-chk').forEach(el => { el.disabled = locked || el.dataset.installed === '1'; });
   } else {
     const rtBtn = document.getElementById('btn-rt-install');
     if (rtBtn) {
       rtBtn.disabled = locked;
-      rtBtn.textContent = locked ? '설치 진행 중...' : '선택 패키지 설치';
+      rtBtn.textContent = locked ? t('rt_installing', '설치 진행 중...') : t('rt_install_btn', '선택 패키지 설치');
     }
     document.querySelectorAll('.rt-chk').forEach(el => { el.disabled = locked || el.dataset.installed === '1'; });
   }
@@ -1576,7 +1576,7 @@ async function startRuntimeInstall(mode) {
   const cls = mode === 'setup' ? '.setup-chk:checked' : '.rt-chk:checked';
   const items = Array.from(document.querySelectorAll(cls)).map(el => el.value);
   if (items.length === 0) {
-    alert('설치할 패키지를 하나 이상 선택해 주세요.');
+    alert(t('rt_select_one', '설치할 패키지를 하나 이상 선택해 주세요.'));
     return;
   }
   setInstallLocked(mode, true);
@@ -1586,7 +1586,7 @@ async function startRuntimeInstall(mode) {
   });
   if (!r.success) {
     setInstallLocked(mode, false);
-    alert(r.error || '설치 시작 실패');
+    alert(r.error || t('rt_start_fail', '설치 시작 실패'));
     return;
   }
   pollInstallLog(mode);
@@ -1596,13 +1596,13 @@ function pollInstallLog(mode) {
   const logEl = document.getElementById(mode === 'setup' ? 'setup-install-log' : 'rt-install-log');
   if (logEl) {
     logEl.classList.remove('hidden');
-    logEl.textContent = '설치를 준비하고 있습니다...';
+    logEl.textContent = t('rt_preparing', '설치를 준비하고 있습니다...');
   }
   if (_installPollTimer) clearInterval(_installPollTimer);
   const tick = async () => {
     const r = await api('/api/runtimes/log');
     if (r.success && logEl) {
-      logEl.textContent = r.log || '진행 중...';
+      logEl.textContent = r.log || t('rt_in_progress', '진행 중...');
       logEl.scrollTop = logEl.scrollHeight;
     }
     if (r.success && !r.running) {
@@ -1612,7 +1612,7 @@ function pollInstallLog(mode) {
       await refreshAll();
       await loadRuntimes(false);
       if (mode === 'setup') {
-        alert('모든 선택 패키지 설치 작업이 종료되었습니다.');
+        alert(t('rt_all_done', '모든 선택 패키지 설치 작업이 종료되었습니다.'));
         document.getElementById('setup-modal').classList.add('hidden');
       }
     }
