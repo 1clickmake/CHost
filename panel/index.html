@@ -66,7 +66,7 @@
     th { color: var(--muted); font-weight: 600; font-size: 12px; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .row > * { flex: 1; min-width: 140px; }
-    .row > .btn, .row > select.compact { flex: 0 0 auto; width: auto; }
+    .row > .btn, .row > select.compact { flex: 0 0 auto; width: auto; min-width: 0; }
     pre.console { background: #070b14; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12px; color: #cbd5e1; max-height: 280px; overflow: auto; white-space: pre-wrap; margin-top: 10px; }
     .usage-bar-bg { width: 100%; height: 7px; background: rgba(255,255,255,.07); border-radius: 999px; overflow: hidden; margin-top: 10px; }
     .usage-bar-fill { height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg, #6366f1, #22d3ee); transition: width .35s ease; }
@@ -1028,10 +1028,10 @@ checkAuth();
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_ftp_pass">FTP 비밀번호</div>
         <div class="row" style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
-          <input id="si-ftp-pass" type="password" style="flex:1;min-width:0" data-i18n-ph="si_ph_ftp_pass" placeholder="새 FTP 비밀번호 입력" />
-          <button class="btn btn-sm pw-eye-btn" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="togglePwEye('si-ftp-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
-          <button class="btn btn-sm" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
-          <button class="btn btn-sm" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="copyVal('si-ftp-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
+          <input id="si-ftp-pass" type="password" style="flex:1 1 auto;min-width:0" data-i18n-ph="si_ph_ftp_pass" placeholder="새 FTP 비밀번호 입력" />
+          <button class="btn btn-sm pw-eye-btn" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 9px" onclick="togglePwEye('si-ftp-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
+          <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="copyVal('si-ftp-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
       <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
@@ -1048,10 +1048,10 @@ checkAuth();
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_pass">DB 비밀번호</div>
         <div class="row" style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
-          <input id="si-db-pass" type="password" style="flex:1;min-width:0" data-i18n-ph="si_ph_db_pass" placeholder="새 DB 비밀번호 입력" />
-          <button class="btn btn-sm pw-eye-btn" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="togglePwEye('si-db-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
-          <button class="btn btn-sm" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
-          <button class="btn btn-sm" type="button" style="width:auto;flex-shrink:0;white-space:nowrap;padding:7px 10px" onclick="copyVal('si-db-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
+          <input id="si-db-pass" type="password" style="flex:1 1 auto;min-width:0" data-i18n-ph="si_ph_db_pass" placeholder="새 DB 비밀번호 입력" />
+          <button class="btn btn-sm pw-eye-btn" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 9px" onclick="togglePwEye('si-db-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
+          <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" style="flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;padding:7px 10px" onclick="copyVal('si-db-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
     </div>
