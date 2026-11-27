@@ -612,22 +612,29 @@ function openSiteInfoModal(id) {
   const dn = document.getElementById('si-db-name');
   const du = document.getElementById('si-db-user');
   const dp = document.getElementById('si-db-pass');
-  fu.value = s.ftp_user || '';
-  fu.placeholder = `${slug}_ftp`;
+  fu.value = s.ftp_user || `${slug}_ftp`;
   fu.readOnly = true;
   fp.value = s.ftp_pass || '';
-  dn.value = s.db_name || '';
-  dn.placeholder = `${slug}_db`;
+  fp.type = 'password';
+  dn.value = s.db_name || `${slug}_db`;
   dn.readOnly = true;
-  du.value = s.db_user || '';
-  du.placeholder = `${slug}_db`;
+  du.value = s.db_user || `${slug}_db`;
   du.readOnly = true;
   dp.value = s.db_pass || '';
+  dp.type = 'password';
+  document.querySelectorAll('#site-info-modal .pw-eye-btn').forEach(b => { b.textContent = '👁️'; });
   document.getElementById('si-msg').textContent = '';
   document.getElementById('site-info-modal').classList.remove('hidden');
 }
 function closeSiteInfoModal() {
   document.getElementById('site-info-modal').classList.add('hidden');
+}
+function togglePwEye(elId, btn) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const show = el.type === 'password';
+  el.type = show ? 'text' : 'password';
+  if (btn) btn.textContent = show ? '🙈' : '👁️';
 }
 function copyVal(elId, btn) {
   const el = document.getElementById(elId);
@@ -930,8 +937,10 @@ checkAuth();
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_ftp_pass">FTP 비밀번호</div>
         <div class="row">
-          <input id="si-ftp-pass" data-i18n-ph="si_ph_ftp_pass" placeholder="새 FTP 비밀번호 입력" />
+          <input id="si-ftp-pass" type="password" data-i18n-ph="si_ph_ftp_pass" placeholder="새 FTP 비밀번호 입력" />
+          <button class="btn btn-sm pw-eye-btn" type="button" onclick="togglePwEye('si-ftp-pass', this)" title="Show/Hide">👁️</button>
           <button class="btn btn-sm" type="button" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)">🔄 <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-pass', this)">📋 <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
       <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
@@ -948,8 +957,10 @@ checkAuth();
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_pass">DB 비밀번호</div>
         <div class="row">
-          <input id="si-db-pass" data-i18n-ph="si_ph_db_pass" placeholder="새 DB 비밀번호 입력" />
+          <input id="si-db-pass" type="password" data-i18n-ph="si_ph_db_pass" placeholder="새 DB 비밀번호 입력" />
+          <button class="btn btn-sm pw-eye-btn" type="button" onclick="togglePwEye('si-db-pass', this)" title="Show/Hide">👁️</button>
           <button class="btn btn-sm" type="button" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)">🔄 <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-pass', this)">📋 <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
     </div>
