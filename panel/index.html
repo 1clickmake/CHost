@@ -228,7 +228,7 @@
           </div>
           <div class="card">
             <table>
-              <thead><tr><th data-i18n="domain">Domain</th><th data-i18n="site_type">Type</th><th>Root / Port</th><th data-i18n="php_version">PHP</th><th data-i18n="ssl_status">SSL</th><th data-i18n="actions">Actions</th></tr></thead>
+              <thead><tr><th data-i18n="domain">Domain</th><th data-i18n="site_type">Type</th><th>Root / Port</th><th data-i18n="php_version">PHP</th><th data-i18n="th_ftp">FTP / 비번</th><th data-i18n="th_db">DB / 비번</th><th data-i18n="ssl_status">SSL</th><th data-i18n="actions">Actions</th></tr></thead>
               <tbody id="sites-tbody"></tbody>
             </table>
           </div>
@@ -585,14 +585,46 @@ async function submitChangePw() {
     errEl.textContent = r.error || '변경 실패';
   }
 }
+function escAttr(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function renderCredCell(user, pass) {
+  if (!user && !pass) return '<span style="color:var(--muted)">-</span>';
+  const uHtml = user ? `<div style="font-size:12px;font-weight:600">${escAttr(user)}</div>` : '';
+  const pHtml = pass
+    ? `<div class="pw-cell" data-pw="${escAttr(pass)}" data-shown="0" style="display:inline-flex;align-items:center;gap:4px;margin-top:2px">
+        <code class="pw-txt" style="font-size:12px;color:#cbd5e1">••••••••••</code>
+        <button type="button" onclick="toggleInlinePw(this)" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:13px" title="Show/Hide">👁️</button>
+        <button type="button" onclick="copyInlinePw(this)" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:13px" title="Copy">📋</button>
+      </div>`
+    : '<div style="font-size:11px;color:var(--muted)">-</div>';
+  return uHtml + pHtml;
+}
+function toggleInlinePw(btn) {
+  const wrap = btn.closest('.pw-cell');
+  const code = wrap.querySelector('.pw-txt');
+  const show = wrap.dataset.shown !== '1';
+  wrap.dataset.shown = show ? '1' : '0';
+  code.textContent = show ? wrap.dataset.pw : '••••••••••';
+  btn.textContent = show ? '🙈' : '👁️';
+}
+function copyInlinePw(btn) {
+  const wrap = btn.closest('.pw-cell');
+  if (!wrap || !wrap.dataset.pw) return;
+  navigator.clipboard.writeText(wrap.dataset.pw);
+  btn.textContent = '✅';
+  setTimeout(() => { btn.textContent = '📋'; }, 1200);
+}
 async function loadSites() {
   const r = await api('/api/sites');
   if (!r.success) return;
   window.SITES_CACHE = r.sites || [];
   document.getElementById('sites-tbody').innerHTML = r.sites.map(s => `
     <tr>
-      <td>${s.domain}</td><td>${s.site_type}</td><td>${s.site_type === 'proxy' ? ':' + s.proxy_port : s.root_path}</td>
-      <td>${s.php_version || '-'}</td>
+      <td>${escAttr(s.domain)}</td><td>${escAttr(s.site_type)}</td><td>${s.site_type === 'proxy' ? ':' + s.proxy_port : escAttr(s.root_path)}</td>
+      <td>${escAttr(s.php_version || '-')}</td>
+      <td>${renderCredCell(s.ftp_user, s.ftp_pass)}</td>
+      <td>${renderCredCell(s.db_name ? (s.db_name + (s.db_user && s.db_user !== s.db_name ? ' / ' + s.db_user : '')) : s.db_user, s.db_pass)}</td>
       <td>${s.ssl_enabled ? '<span class="badge badge-ok">HTTPS</span>' : `<button class="btn btn-sm" onclick="issueSsl(${s.id})">${t('btn_issue_ssl', 'Issue SSL')}</button>`}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm" onclick="openSiteInfoModal(${s.id})">🔑 <span data-i18n="btn_site_info">${t('btn_site_info', '정보확인')}</span></button>

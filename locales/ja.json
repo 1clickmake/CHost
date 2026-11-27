@@ -54,6 +54,8 @@
   "domain": "ドメイン",
   "site_type": "タイプ",
   "php_version": "PHPバージョン",
+  "th_ftp": "FTP / パスワード",
+  "th_db": "DB / パスワード",
   "ssl_status": "SSL証明書",
   "actions": "操作",
   "btn_issue_ssl": "SSL発行",

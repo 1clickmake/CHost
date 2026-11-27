@@ -54,6 +54,8 @@
   "domain": "域名",
   "site_type": "类型",
   "php_version": "PHP 版本",
+  "th_ftp": "FTP 账号 / 密码",
+  "th_db": "DB 账号 / 密码",
   "ssl_status": "SSL 证书",
   "actions": "操作",
   "btn_issue_ssl": "签发 SSL",

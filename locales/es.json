@@ -54,6 +54,8 @@
   "domain": "Dominio",
   "site_type": "Tipo",
   "php_version": "Versión PHP",
+  "th_ftp": "FTP / Contraseña",
+  "th_db": "DB / Contraseña",
   "ssl_status": "Certificado SSL",
   "actions": "Acciones",
   "btn_issue_ssl": "Emitir SSL",

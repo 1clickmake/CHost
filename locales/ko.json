@@ -54,6 +54,8 @@
   "domain": "도메인",
   "site_type": "유형",
   "php_version": "PHP 버전",
+  "th_ftp": "FTP 계정 / 비번",
+  "th_db": "DB 계정 / 비번",
   "ssl_status": "SSL 인증서",
   "actions": "관리",
   "btn_issue_ssl": "SSL 발급",
