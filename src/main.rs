@@ -975,6 +975,7 @@ async fn handle_create_site(
     let php_ver = php_ver_override.or(req.php_version).unwrap_or_default();
     if site_type == "php" {
         ensure_php_fpm_installed(&php_ver);
+        engine::ensure_php_extensions(&php_ver);
     }
     let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
     provision_webserver_site(&domain, &site_type, &web_root, proxy_port, &php_ver);
@@ -1186,6 +1187,7 @@ async fn handle_create_subdomain(
     let php_ver = php_ver_override.or(req.php_version).unwrap_or_else(|| "8.3".to_string());
     if site_type == "php" {
         ensure_php_fpm_installed(&php_ver);
+        engine::ensure_php_extensions(&php_ver);
     }
     let web_root = if pub_php.exists() { format!("{}/public", root_path) } else { root_path.clone() };
     provision_webserver_site(&full_domain, site_type, &web_root, proxy_port, &php_ver);

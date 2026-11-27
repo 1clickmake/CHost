@@ -343,6 +343,19 @@ fn share_composer_vendor(root: &str, tag: &str) -> Result<String, String> {
     Ok(format!("shared vendor store created ({} / {}); next sites link instantly", tag, key))
 }
 
+/// 라라벨 계열이 요구하는 PHP 확장(sqlite3/intl/bcmath/redis)이 없으면 설치하고 FPM 을 재시작한다.
+pub fn ensure_php_extensions(ver: &str) {
+    if !cfg!(unix) || ver.is_empty() {
+        return;
+    }
+    let cmd = format!(
+        "MISS=''; for e in sqlite3 intl bcmath redis; do dpkg -s php{v}-$e >/dev/null 2>&1 || MISS=\"$MISS php{v}-$e\"; done; \
+         if [ -n \"$MISS\" ]; then DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $MISS >/dev/null 2>&1; systemctl restart php{v}-fpm 2>/dev/null; fi; true",
+        v = ver
+    );
+    let _ = run_sh(&cmd);
+}
+
 /// PHP 프로젝트 후처리: 공용 vendor 연결 + (라라벨 계열) .env/APP_KEY/권한 세팅
 pub fn setup_php_project(root: &str, tag: &str) -> Vec<String> {
     let mut log: Vec<String> = Vec::new();
@@ -350,6 +363,9 @@ pub fn setup_php_project(root: &str, tag: &str) -> Vec<String> {
         return log;
     }
     let p = Path::new(root);
+    if let Ok(v) = run_sh("php -r 'echo PHP_MAJOR_VERSION.\".\".PHP_MINOR_VERSION;'") {
+        ensure_php_extensions(v.trim());
+    }
     if p.join("composer.json").exists() {
         match share_composer_vendor(root, tag) {
             Ok(m) => log.push(m),
