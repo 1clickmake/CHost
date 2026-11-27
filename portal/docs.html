@@ -78,6 +78,10 @@ curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | s
 docker run -d --name chost -p 8800:8800 -v $(pwd):/app -w /app ubuntu:24.04 bash -c "apt update && apt install -y curl ca-certificates && ./install.sh && tail -f /dev/null"</pre>
       <p style="margin-top:10px" data-i18n="s1_d2">설치 완료 후 초기 관리자 비밀번호는 아래 경로에서 확인할 수 있습니다.</p>
       <pre>cat /var/lib/chost/init_password.txt</pre>
+      <p style="margin-top:14px;color:#fca5a5;"><strong>CHost 패널 완전 삭제 (Uninstall)</strong> — 서비스와 패널 파일만 깔끔하게 제거합니다.</p>
+      <pre>sudo systemctl disable --now chost && sudo rm -rf /etc/systemd/system/chost.service /opt/chost /var/lib/chost && sudo systemctl daemon-reload</pre>
+      <p style="margin-top:10px;color:#fca5a5;"><strong>웹 루트·로그까지 모두 포함한 완전 초기화</strong> (테스트 서버를 처음 상태로 되돌릴 때 사용)</p>
+      <pre>sudo systemctl disable --now chost && sudo rm -rf /etc/systemd/system/chost.service /opt/chost /var/lib/chost /www/wwwroot /www/wwwlogs && sudo systemctl daemon-reload</pre>
     </div>
 
     <div class="doc-card">
