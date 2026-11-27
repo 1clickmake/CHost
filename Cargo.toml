@@ -1,6 +1,6 @@
 [package]
 name = "chost"
-version = "0.1.19"
+version = "0.1.20"
 edition = "2021"
 description = "CHost - Lightweight Korean Modern Web Server Management Panel in Rust"
 
