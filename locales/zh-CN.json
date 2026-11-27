@@ -51,6 +51,7 @@
   "site_uncheck_warn": "⚠️ 未勾选的项目(FTP/SFTP、DB)将不会创建。若要安装论坛或博客系统，请务必勾选 'Auto Create DB'！",
   "site_wizard_hint": "💡 独立域名与子域名均可一次性配置语言、框架、SSL、FTP/SFTP 与数据库。",
   "btn_create_site": "🚀 Create Site (创建站点)",
+  "btn_creating_site": "正在创建站点... (请稍候)",
   "domain": "域名",
   "site_type": "类型",
   "php_version": "PHP 版本",

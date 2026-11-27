@@ -51,6 +51,7 @@
   "site_uncheck_warn": "⚠️ Las opciones sin marcar (FTP/SFTP, DB) NO se crearán. Para instalar foros o CMS, marca 'Auto Create DB'.",
   "site_wizard_hint": "💡 Tanto dominios propios como subdominios configuran lenguaje, framework, SSL, FTP/SFTP y DB a la vez.",
   "btn_create_site": "🚀 Create Site (Crear Sitio)",
+  "btn_creating_site": "Creando sitio... (espere por favor)",
   "domain": "Dominio",
   "site_type": "Tipo",
   "php_version": "Versión PHP",

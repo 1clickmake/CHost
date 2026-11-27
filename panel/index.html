@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CHost - Lightweight Server Panel</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <style>
     :root {
       --bg: #0b1120;
@@ -222,11 +223,11 @@
             <div class="warn-box" data-i18n="site_uncheck_warn">⚠️ 위에서 체크하지 않은 항목(FTP/SFTP, DB)은 사이트 생성 시 세팅되지 않습니다. 게시판(CBoard, 그누보드, 워드프레스 등)을 설치하려면 'Auto Create DB'를 꼭 체크해 주세요! (아이디/비번 입력칸을 비워두면 '도메인명_ftp', '도메인명_db' 이름과 랜덤 비밀번호가 자동 생성됩니다.)</div>
             <div class="field-hint" id="sub-wizard-hint" data-i18n="site_wizard_hint">💡 고객 도메인(aaa.com) 또는 서브도메인(sub.chost.work) 모두 동일하게 언어·프레임워크·SSL·FTP/SFTP·DB를 한 번에 생성할 수 있습니다.</div>
             <div style="margin-top:14px">
-              <button class="btn btn-primary" style="min-width:200px" onclick="createUnifiedSite()" data-i18n="btn_create_site">🚀 Create Site (사이트 생성)</button>
+              <button id="btn-create-site" class="btn btn-primary" style="min-width:200px" onclick="createUnifiedSite()" data-i18n="btn_create_site">🚀 Create Site (사이트 생성)</button>
             </div>
             <pre id="site-provision-result" class="console hidden"></pre>
           </div>
-          <div class="card">
+          <div class="card" style="overflow-x:auto">
             <table>
               <thead><tr><th data-i18n="domain">Domain</th><th data-i18n="site_type">Type</th><th>Root / Port</th><th data-i18n="php_version">PHP</th><th data-i18n="th_ftp">FTP / 비번</th><th data-i18n="th_db">DB / 비번</th><th data-i18n="ssl_status">SSL</th><th data-i18n="actions">Actions</th></tr></thead>
               <tbody id="sites-tbody"></tbody>
@@ -486,40 +487,53 @@ function toggleProvisionInputs() {
   }
 }
 async function createUnifiedSite() {
-  const mode = document.getElementById('site-mode').value;
-  const language = document.getElementById('sub-lang').value;
-  const framework = document.getElementById('sub-fw').value;
-  const php_version = document.getElementById('sub-php').value;
-  const proxy_port = parseInt(document.getElementById('sub-port').value || '8080', 10);
-  const issue_ssl = document.getElementById('sub-ssl').checked;
-  const create_ssh = document.getElementById('sub-ssh').checked;
-  const create_db = document.getElementById('sub-db').checked;
-  const ftp_user = document.getElementById('sub-ftp-user').value.trim();
-  const ftp_pass = document.getElementById('sub-ftp-pass').value.trim();
-  const db_name = document.getElementById('sub-db-name').value.trim();
-  const db_user = document.getElementById('sub-db-user').value.trim();
-  const db_pass = document.getElementById('sub-db-pass').value.trim();
-  const site_type = language === 'php' ? 'php' : (['rust','python','node','java'].includes(language) ? 'proxy' : 'static');
-
-  let r;
-  if (mode === 'domain') {
-    const domain = document.getElementById('site-domain').value.trim();
-    r = await api('/api/sites', {
-      method: 'POST',
-      body: JSON.stringify({ domain, site_type, proxy_port, php_version, framework, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
-    });
-  } else {
-    const prefix = document.getElementById('sub-prefix').value.trim();
-    const parent_domain = document.getElementById('sub-parent').value.trim();
-    r = await api('/api/sites/subdomain', {
-      method: 'POST',
-      body: JSON.stringify({ prefix, parent_domain, language, framework, php_version, proxy_port, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
-    });
+  const btn = document.getElementById('btn-create-site');
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="bi bi-hourglass-split"></i> ${t('btn_creating_site', '사이트 생성 중... (잠시만 기다려주세요)')}`;
   }
-  const box = document.getElementById('site-provision-result');
-  box.classList.remove('hidden');
-  box.textContent = JSON.stringify(r, null, 2);
-  loadSites();
+  try {
+    const mode = document.getElementById('site-mode').value;
+    const language = document.getElementById('sub-lang').value;
+    const framework = document.getElementById('sub-fw').value;
+    const php_version = document.getElementById('sub-php').value;
+    const proxy_port = parseInt(document.getElementById('sub-port').value || '8080', 10);
+    const issue_ssl = document.getElementById('sub-ssl').checked;
+    const create_ssh = document.getElementById('sub-ssh').checked;
+    const create_db = document.getElementById('sub-db').checked;
+    const ftp_user = document.getElementById('sub-ftp-user').value.trim();
+    const ftp_pass = document.getElementById('sub-ftp-pass').value.trim();
+    const db_name = document.getElementById('sub-db-name').value.trim();
+    const db_user = document.getElementById('sub-db-user').value.trim();
+    const db_pass = document.getElementById('sub-db-pass').value.trim();
+    const site_type = language === 'php' ? 'php' : (['rust','python','node','java'].includes(language) ? 'proxy' : 'static');
+
+    let r;
+    if (mode === 'domain') {
+      const domain = document.getElementById('site-domain').value.trim();
+      r = await api('/api/sites', {
+        method: 'POST',
+        body: JSON.stringify({ domain, site_type, proxy_port, php_version, framework, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
+      });
+    } else {
+      const prefix = document.getElementById('sub-prefix').value.trim();
+      const parent_domain = document.getElementById('sub-parent').value.trim();
+      r = await api('/api/sites/subdomain', {
+        method: 'POST',
+        body: JSON.stringify({ prefix, parent_domain, language, framework, php_version, proxy_port, issue_ssl, create_ssh, create_db, ftp_user, ftp_pass, db_name, db_user, db_pass })
+      });
+    }
+    const box = document.getElementById('site-provision-result');
+    box.classList.remove('hidden');
+    box.textContent = JSON.stringify(r, null, 2);
+    await loadSites();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
 }
 function onSubLangChange() {
   const lang = document.getElementById('sub-lang').value;
@@ -592,10 +606,10 @@ function renderCredCell(user, pass) {
   if (!user && !pass) return '<span style="color:var(--muted)">-</span>';
   const uHtml = user ? `<div style="font-size:12px;font-weight:600">${escAttr(user)}</div>` : '';
   const pHtml = pass
-    ? `<div class="pw-cell" data-pw="${escAttr(pass)}" data-shown="0" style="display:inline-flex;align-items:center;gap:4px;margin-top:2px">
+    ? `<div class="pw-cell" data-pw="${escAttr(pass)}" data-shown="0" style="display:inline-flex;align-items:center;gap:6px;margin-top:2px">
         <code class="pw-txt" style="font-size:12px;color:#cbd5e1">••••••••••</code>
-        <button type="button" onclick="toggleInlinePw(this)" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:13px" title="Show/Hide">👁️</button>
-        <button type="button" onclick="copyInlinePw(this)" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:13px" title="Copy">📋</button>
+        <button type="button" onclick="toggleInlinePw(this)" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:13px" title="Show/Hide"><i class="bi bi-eye"></i></button>
+        <button type="button" onclick="copyInlinePw(this)" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:13px" title="Copy"><i class="bi bi-clipboard"></i></button>
       </div>`
     : '<div style="font-size:11px;color:var(--muted)">-</div>';
   return uHtml + pHtml;
@@ -606,14 +620,14 @@ function toggleInlinePw(btn) {
   const show = wrap.dataset.shown !== '1';
   wrap.dataset.shown = show ? '1' : '0';
   code.textContent = show ? wrap.dataset.pw : '••••••••••';
-  btn.textContent = show ? '🙈' : '👁️';
+  btn.innerHTML = show ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
 }
 function copyInlinePw(btn) {
   const wrap = btn.closest('.pw-cell');
   if (!wrap || !wrap.dataset.pw) return;
   navigator.clipboard.writeText(wrap.dataset.pw);
-  btn.textContent = '✅';
-  setTimeout(() => { btn.textContent = '📋'; }, 1200);
+  btn.innerHTML = '<i class="bi bi-check2" style="color:#6ee7b7"></i>';
+  setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1200);
 }
 async function loadSites() {
   const r = await api('/api/sites');
@@ -621,14 +635,18 @@ async function loadSites() {
   window.SITES_CACHE = r.sites || [];
   document.getElementById('sites-tbody').innerHTML = r.sites.map(s => `
     <tr>
-      <td>${escAttr(s.domain)}</td><td>${escAttr(s.site_type)}</td><td>${s.site_type === 'proxy' ? ':' + s.proxy_port : escAttr(s.root_path)}</td>
+      <td><a href="${s.ssl_enabled ? 'https' : 'http'}://${escAttr(s.domain)}" target="_blank" rel="noopener noreferrer" style="color:#93c5fd;text-decoration:none;font-weight:600">${escAttr(s.domain)} <i class="bi bi-box-arrow-up-right" style="font-size:11px"></i></a></td>
+      <td>${escAttr(s.site_type)}</td>
+      <td>${s.site_type === 'proxy' ? ':' + s.proxy_port : escAttr(s.root_path)}</td>
       <td>${escAttr(s.php_version || '-')}</td>
       <td>${renderCredCell(s.ftp_user, s.ftp_pass)}</td>
       <td>${renderCredCell(s.db_name ? (s.db_name + (s.db_user && s.db_user !== s.db_name ? ' / ' + s.db_user : '')) : s.db_user, s.db_pass)}</td>
       <td>${s.ssl_enabled ? '<span class="badge badge-ok">HTTPS</span>' : `<button class="btn btn-sm" onclick="issueSsl(${s.id})">${t('btn_issue_ssl', 'Issue SSL')}</button>`}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="openSiteInfoModal(${s.id})">🔑 <span data-i18n="btn_site_info">${t('btn_site_info', '정보확인')}</span></button>
-        <button class="btn btn-sm btn-danger" onclick="delSite(${s.id})">${t('btn_delete', 'Delete')}</button>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:nowrap;align-items:center">
+          <button class="btn btn-sm" onclick="openSiteInfoModal(${s.id})"><i class="bi bi-key"></i> <span data-i18n="btn_site_info">${t('btn_site_info', '정보확인')}</span></button>
+          <button class="btn btn-sm btn-danger" onclick="delSite(${s.id})">${t('btn_delete', 'Delete')}</button>
+        </div>
       </td>
     </tr>`).join('');
 }
@@ -654,7 +672,7 @@ function openSiteInfoModal(id) {
   du.readOnly = true;
   dp.value = s.db_pass || '';
   dp.type = 'password';
-  document.querySelectorAll('#site-info-modal .pw-eye-btn').forEach(b => { b.textContent = '👁️'; });
+  document.querySelectorAll('#site-info-modal .pw-eye-btn').forEach(b => { b.innerHTML = '<i class="bi bi-eye"></i>'; });
   document.getElementById('si-msg').textContent = '';
   document.getElementById('site-info-modal').classList.remove('hidden');
 }
@@ -666,7 +684,7 @@ function togglePwEye(elId, btn) {
   if (!el) return;
   const show = el.type === 'password';
   el.type = show ? 'text' : 'password';
-  if (btn) btn.textContent = show ? '🙈' : '👁️';
+  if (btn) btn.innerHTML = show ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
 }
 function copyVal(elId, btn) {
   const el = document.getElementById(elId);
@@ -970,9 +988,9 @@ checkAuth();
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_ftp_pass">FTP 비밀번호</div>
         <div class="row">
           <input id="si-ftp-pass" type="password" data-i18n-ph="si_ph_ftp_pass" placeholder="새 FTP 비밀번호 입력" />
-          <button class="btn btn-sm pw-eye-btn" type="button" onclick="togglePwEye('si-ftp-pass', this)" title="Show/Hide">👁️</button>
-          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)">🔄 <span data-i18n="btn_gen_pw">난수생성</span></button>
-          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-pass', this)">📋 <span data-i18n="btn_copy">복사</span></button>
+          <button class="btn btn-sm pw-eye-btn" type="button" onclick="togglePwEye('si-ftp-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
+          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
       <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
@@ -990,9 +1008,9 @@ checkAuth();
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_pass">DB 비밀번호</div>
         <div class="row">
           <input id="si-db-pass" type="password" data-i18n-ph="si_ph_db_pass" placeholder="새 DB 비밀번호 입력" />
-          <button class="btn btn-sm pw-eye-btn" type="button" onclick="togglePwEye('si-db-pass', this)" title="Show/Hide">👁️</button>
-          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)">🔄 <span data-i18n="btn_gen_pw">난수생성</span></button>
-          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-pass', this)">📋 <span data-i18n="btn_copy">복사</span></button>
+          <button class="btn btn-sm pw-eye-btn" type="button" onclick="togglePwEye('si-db-pass', this)" title="Show/Hide"><i class="bi bi-eye"></i></button>
+          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)"><i class="bi bi-arrow-repeat"></i> <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-pass', this)"><i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
     </div>

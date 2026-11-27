@@ -51,6 +51,7 @@
   "site_uncheck_warn": "⚠️ Unchecked options (FTP/SFTP, DB) will NOT be created. To install boards/CMS (CBoard, Gnuboard, WordPress, etc.), make sure to check 'Auto Create DB'! (Leaving ID/PW blank auto-generates 'domain_ftp' / 'domain_db' with random passwords.)",
   "site_wizard_hint": "💡 Both custom domains (aaa.com) and subdomains (sub.chost.work) can be provisioned with Language, Framework, SSL, FTP/SFTP, and DB at once.",
   "btn_create_site": "🚀 Create Site",
+  "btn_creating_site": "Creating site... (please wait)",
   "domain": "Domain",
   "site_type": "Type",
   "php_version": "PHP Version",

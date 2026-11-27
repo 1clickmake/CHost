@@ -563,6 +563,11 @@ fn provision_framework(root_path: &str, framework: &str, domain: &str) {
             let _ = Command::new("git")
                 .args(["clone", "--depth", "1", "https://github.com/1clickmake/CBoard.git", root_path])
                 .output();
+            let comp_cmd = format!(
+                "if ! command -v composer >/dev/null 2>&1; then DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq composer unzip; fi; COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction -d '{}'; chown -R www-data:www-data '{}'; chmod -R g+rwX '{}'",
+                root_path, root_path, root_path
+            );
+            let _ = Command::new("sh").args(["-c", &comp_cmd]).output();
         }
         "crust" => {
             let _ = Command::new("git")

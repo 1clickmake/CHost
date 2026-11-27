@@ -51,6 +51,7 @@
   "site_uncheck_warn": "⚠️ チェックしていない項目(FTP/SFTP, DB)は作成されません。掲示板やCMSを使う場合は「Auto Create DB」を必ずチェックしてください。",
   "site_wizard_hint": "💡 独自ドメインもサブドメインも、言語・フレームワーク・SSL・FTP・DBを一度に作成できます。",
   "btn_create_site": "🚀 Create Site (サイト作成)",
+  "btn_creating_site": "サイト作成中... (少々お待ちください)",
   "domain": "ドメイン",
   "site_type": "タイプ",
   "php_version": "PHPバージョン",
