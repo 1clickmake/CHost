@@ -142,3 +142,10 @@ flowchart LR
 - [ ] 배포 후 헬스체크 통과 시에만 웹서버 연결 / 실패 시 알림 (Phase 2 잔여)
 - [ ] Go / Java / Docker 자동 실행 지원
 - [ ] Phase 3 유료 Pro (AI 에러 닥터, 롤백, 클라우드 백업)
+
+**v0.1.18 – 안전 기동 & Git 업데이트 (테스트 서버 실검증 완료)**
+- [x] 안전 기동: 앱이 아직 응답하지 않을 때(502/503/504) 방문자에게 '사이트를 준비하고 있어요' 자동 새로고침 안내 페이지 표시 (Apache 실검증 / Nginx 설정은 동일 방식으로 생성, 미실행 검증)
+- [x] 백그라운드 헬스체크 감시: 생성·업데이트 직후 최대 20분 감시, 성공 시 `HEALTHCHECK_OK`, 서비스 failed·타임아웃 시 `HEALTHCHECK_FAIL`(+서비스 로그 요약)을 감사 로그에 기록
+- [x] Git 업데이트: `GET /api/sites/{id}/git`, `POST /api/sites/{id}/git/update` + Conf 모달 `Git 업데이트` 탭 (git pull --ff-only → 재빌드/재시작, Node 앱 실검증)
+- [ ] 배포 이력 보관·원클릭 롤백(Phase 3 Pro): 현재는 커밋 로그 확인까지, 얕은 clone(depth 1)이라 롤백 시 이력 확보(`--deepen`) 필요
+- [ ] 기존 Conf 모달 탭 라벨은 아직 한글 하드코딩 → i18n 정리 필요
