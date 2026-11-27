@@ -1694,8 +1694,21 @@ async fn handle_delete_site(
             let _ = fs::remove_file(format!("/etc/nginx/sites-enabled/{}.conf", s.domain));
             let _ = fs::remove_file(format!("/etc/nginx/sites-available/{}.conf", s.domain));
             let _ = Command::new("a2dissite").arg(format!("{}.conf", s.domain)).output();
+            let _ = Command::new("a2dissite").arg(format!("{}-le-ssl.conf", s.domain)).output();
             let _ = fs::remove_file(format!("/etc/apache2/sites-available/{}.conf", s.domain));
+            let _ = fs::remove_file(format!("/etc/apache2/sites-available/{}-le-ssl.conf", s.domain));
             let _ = reload_active_webserver(detect_active_webserver());
+
+            // 이 사이트 전용 Let's Encrypt 인증서도 정리 (남겨두면 갱신 실패 알림의 원인이 됨)
+            if s.ssl_enabled
+                && !s.domain.contains('/')
+                && !s.domain.contains("..")
+                && FsPath::new(&format!("/etc/letsencrypt/live/{}", s.domain)).exists()
+            {
+                let _ = Command::new("certbot")
+                    .args(["delete", "--cert-name", &s.domain, "--non-interactive"])
+                    .output();
+            }
 
             let app_svc = app_service_name(&s.domain);
             let app_unit = format!("/etc/systemd/system/{}", app_svc);
@@ -2924,7 +2937,9 @@ async fn handle_panel_reset(
             let _ = fs::remove_file(format!("/etc/nginx/sites-enabled/{}.conf", s.domain));
             let _ = fs::remove_file(format!("/etc/nginx/sites-available/{}.conf", s.domain));
             let _ = Command::new("a2dissite").arg(format!("{}.conf", s.domain)).output();
+            let _ = Command::new("a2dissite").arg(format!("{}-le-ssl.conf", s.domain)).output();
             let _ = fs::remove_file(format!("/etc/apache2/sites-available/{}.conf", s.domain));
+            let _ = fs::remove_file(format!("/etc/apache2/sites-available/{}-le-ssl.conf", s.domain));
             let safe_fu = sanitize_ident(Some(&s.ftp_user), 24);
             if !safe_fu.is_empty() {
                 let _ = Command::new("userdel").arg(&safe_fu).output();
