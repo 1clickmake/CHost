@@ -629,10 +629,16 @@ function openSiteInfoModal(id) {
 function closeSiteInfoModal() {
   document.getElementById('site-info-modal').classList.add('hidden');
 }
-function copyVal(elId) {
+function copyVal(elId, btn) {
   const el = document.getElementById(elId);
   if (!el || !el.value) return;
   navigator.clipboard.writeText(el.value);
+  if (btn) {
+    const span = btn.querySelector('span');
+    const orig = span ? span.textContent : '';
+    if (span) span.textContent = t('btn_copied', '복사됨!');
+    setTimeout(() => { if (span) span.textContent = orig; }, 1200);
+  }
 }
 async function saveSiteInfoCreds() {
   const id = parseInt(document.getElementById('si-id').value, 10);
@@ -918,27 +924,36 @@ checkAuth();
     <div style="display:flex;flex-direction:column;gap:12px">
       <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
         <div style="font-size:12px;font-weight:700;color:#93c5fd;margin-bottom:8px" data-i18n="si_ftp_section">📁 FTP / SFTP 접속 정보 (Port 22)</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_ftp_user">FTP 아이디</div>
         <div class="row" style="margin-bottom:8px">
-          <input id="si-ftp-user" placeholder="FTP User ID" />
-          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-user')">📋</button>
+          <input id="si-ftp-user" data-i18n-ph="si_ph_ftp_user" placeholder="FTP 아이디" />
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-user', this)">📋 <span data-i18n="btn_copy">복사</span></button>
         </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_ftp_pass">FTP 비밀번호</div>
         <div class="row">
-          <input id="si-ftp-pass" placeholder="FTP Password" />
-          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)">🔄</button>
-          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-pass')">📋</button>
+          <input id="si-ftp-pass" data-i18n-ph="si_ph_ftp_pass" placeholder="새 FTP 비밀번호 입력" />
+          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-ftp-pass').value=genRandomPw(14)">🔄 <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-ftp-pass', this)">📋 <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
       <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
         <div style="font-size:12px;font-weight:700;color:#6ee7b7;margin-bottom:8px" data-i18n="si_db_section">🗄️ MariaDB / MySQL 접속 정보 (Host: localhost)</div>
-        <div class="row" style="margin-bottom:8px">
-          <input id="si-db-name" placeholder="DB Name" />
-          <input id="si-db-user" placeholder="DB User" />
-          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-user')">📋</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px">
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_name">DB 이름</div>
+            <input id="si-db-name" data-i18n-ph="si_ph_db_name" placeholder="DB 이름" />
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_user">DB 유저 아이디</div>
+            <input id="si-db-user" data-i18n-ph="si_ph_db_user" placeholder="DB 유저 아이디" />
+          </div>
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-user', this)">📋 <span data-i18n="btn_copy">복사</span></button>
         </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="si_lbl_db_pass">DB 비밀번호</div>
         <div class="row">
-          <input id="si-db-pass" placeholder="DB Password" />
-          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)">🔄</button>
-          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-pass')">📋</button>
+          <input id="si-db-pass" data-i18n-ph="si_ph_db_pass" placeholder="새 DB 비밀번호 입력" />
+          <button class="btn btn-sm" type="button" onclick="document.getElementById('si-db-pass').value=genRandomPw(14)">🔄 <span data-i18n="btn_gen_pw">난수생성</span></button>
+          <button class="btn btn-sm" type="button" onclick="copyVal('si-db-pass', this)">📋 <span data-i18n="btn_copy">복사</span></button>
         </div>
       </div>
     </div>
