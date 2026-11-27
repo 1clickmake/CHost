@@ -347,6 +347,74 @@ fn write_nginx_site_conf(
     )
 }
 
+/// Ensure Nginx owns ports 80/443 (stopping Apache2 if it grabbed them) and reload/start Nginx.
+fn ensure_nginx_active_and_reload() -> Result<(), String> {
+    if !cfg!(unix) {
+        return Ok(());
+    }
+    let _ = Command::new("sh")
+        .args(["-c", "systemctl disable --now apache2 2>/dev/null || true"])
+        .output();
+    match Command::new("nginx").arg("-t").output() {
+        Ok(out) if out.status.success() => {}
+        Ok(out) => {
+            return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+        }
+        Err(e) => {
+            return Err(format!("nginx -t failed: {}", e));
+        }
+    }
+    let active = Command::new("systemctl")
+        .args(["is-active", "--quiet", "nginx"])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    let act_out = if active {
+        Command::new("systemctl").args(["reload", "nginx"]).output()
+    } else {
+        Command::new("systemctl").args(["enable", "--now", "nginx"]).output()
+    };
+    match act_out {
+        Ok(o) if o.status.success() => Ok(()),
+        Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
+        Err(e) => Err(format!("systemctl nginx failed: {}", e)),
+    }
+}
+
+/// Issue a Let's Encrypt certificate via certbot --nginx after ensuring Nginx is active.
+fn run_certbot_nginx(domain: &str) -> Result<(), String> {
+    if !cfg!(unix) {
+        return Ok(());
+    }
+    ensure_nginx_active_and_reload()?;
+    let out = Command::new("certbot")
+        .args([
+            "--nginx",
+            "-d",
+            domain,
+            "--non-interactive",
+            "--agree-tos",
+            "--register-unsafely-without-email",
+        ])
+        .output()
+        .map_err(|e| format!("certbot execution failed: {}", e))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let msg = if err.is_empty() {
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        } else {
+            err
+        };
+        Err(if msg.is_empty() {
+            format!("certbot exited with {:?}", out.status.code())
+        } else {
+            msg
+        })
+    }
+}
+
 fn gen_random_secret(len: usize) -> String {
     rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -485,11 +553,7 @@ async fn handle_create_site(
         let enabled = format!("/etc/nginx/sites-enabled/{}.conf", domain);
         let _ = fs::write(&avail, &conf);
         let _ = Command::new("ln").args(["-sf", &avail, &enabled]).output();
-        if let Ok(out) = Command::new("nginx").arg("-t").output() {
-            if out.status.success() {
-                let _ = Command::new("systemctl").args(["reload", "nginx"]).output();
-            }
-        }
+        let _ = ensure_nginx_active_and_reload();
     }
 
     let ftp_info = if req.create_ssh.unwrap_or(false) {
@@ -516,20 +580,16 @@ async fn handle_create_site(
             if !fu.is_empty() || !dn.is_empty() {
                 let _ = state.db.update_site_credentials(id, fu, fp, dn, du, dp);
             }
+            let mut ssl_enabled = false;
+            let mut ssl_error: Option<String> = None;
             if req.issue_ssl.unwrap_or(false) && cfg!(unix) {
-                if let Ok(o) = Command::new("certbot")
-                    .args([
-                        "--nginx",
-                        "-d",
-                        &domain,
-                        "--non-interactive",
-                        "--agree-tos",
-                        "--register-unsafely-without-email",
-                    ])
-                    .output()
-                {
-                    if o.status.success() {
+                match run_certbot_nginx(&domain) {
+                    Ok(()) => {
                         let _ = state.db.update_site_ssl(id, true);
+                        ssl_enabled = true;
+                    }
+                    Err(e) => {
+                        ssl_error = Some(e);
                     }
                 }
             }
@@ -541,6 +601,8 @@ async fn handle_create_site(
                 "id": id,
                 "domain": domain,
                 "root_path": root_path,
+                "ssl_enabled": ssl_enabled,
+                "ssl_error": ssl_error,
                 "ftp_info": ftp_info,
                 "db_info": db_info
             }))
@@ -668,11 +730,7 @@ async fn handle_create_subdomain(
         let enabled = format!("/etc/nginx/sites-enabled/{}.conf", full_domain);
         let _ = fs::write(&avail, &conf);
         let _ = Command::new("ln").args(["-sf", &avail, &enabled]).output();
-        if let Ok(out) = Command::new("nginx").arg("-t").output() {
-            if out.status.success() {
-                let _ = Command::new("systemctl").args(["reload", "nginx"]).output();
-            }
-        }
+        let _ = ensure_nginx_active_and_reload();
     }
     let ftp_info = if req.create_ssh.unwrap_or(false) {
         Some(provision_sftp_user(&full_domain, &root_path, req.ftp_user.as_deref(), req.ftp_pass.as_deref()))
@@ -698,20 +756,16 @@ async fn handle_create_subdomain(
             if !fu.is_empty() || !dn.is_empty() {
                 let _ = state.db.update_site_credentials(id, fu, fp, dn, du, dp);
             }
+            let mut ssl_enabled = false;
+            let mut ssl_error: Option<String> = None;
             if req.issue_ssl.unwrap_or(false) && cfg!(unix) {
-                if let Ok(o) = Command::new("certbot")
-                    .args([
-                        "--nginx",
-                        "-d",
-                        &full_domain,
-                        "--non-interactive",
-                        "--agree-tos",
-                        "--register-unsafely-without-email",
-                    ])
-                    .output()
-                {
-                    if o.status.success() {
+                match run_certbot_nginx(&full_domain) {
+                    Ok(()) => {
                         let _ = state.db.update_site_ssl(id, true);
+                        ssl_enabled = true;
+                    }
+                    Err(e) => {
+                        ssl_error = Some(e);
                     }
                 }
             }
@@ -726,6 +780,8 @@ async fn handle_create_subdomain(
                 "id": id,
                 "domain": full_domain,
                 "root_path": root_path,
+                "ssl_enabled": ssl_enabled,
+                "ssl_error": ssl_error,
                 "ftp_info": ftp_info,
                 "db_info": db_info
             }))
@@ -771,21 +827,12 @@ async fn handle_issue_ssl(
         return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response();
     };
     if cfg!(unix) {
-        let out = Command::new("certbot")
-            .args([
-                "--nginx",
-                "-d",
-                &site.domain,
-                "--non-interactive",
-                "--agree-tos",
-                "--register-unsafely-without-email",
-            ])
-            .output();
-        if let Ok(o) = out {
-            if !o.status.success() {
-                let err = String::from_utf8_lossy(&o.stderr).to_string();
-                return Json(json!({ "success": false, "error": err })).into_response();
-            }
+        if let Err(err) = run_certbot_nginx(&site.domain) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "error": err })),
+            )
+                .into_response();
         }
     }
     let _ = state.db.update_site_ssl(id, true);
@@ -943,10 +990,10 @@ async fn handle_runtimes_install(
                     "nginx" => run_step("Nginx (80/443)", "systemctl disable --now apache2 2>/dev/null || true; DEBIAN_FRONTEND=noninteractive apt-get install -y nginx && systemctl enable --now nginx"),
                     "apache2" => run_step("Apache2 (80/443)", "systemctl disable --now nginx 2>/dev/null || true; DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 && a2enmod rewrite proxy proxy_http proxy_fcgi setenvif ssl && systemctl enable --now apache2"),
                     "mariadb" => run_step("MariaDB", "DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server && systemctl enable --now mariadb"),
-                    "certbot" => run_step("Certbot", "DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx python3-certbot-apache"),
-                    "php8.3" => run_step("PHP 8.3", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-gd && systemctl enable --now php8.3-fpm"),
-                    "php8.2" => run_step("PHP 8.2", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.2-fpm php8.2-mysql php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip php8.2-gd && systemctl enable --now php8.2-fpm"),
-                    "php7.4" => run_step("PHP 7.4", "DEBIAN_FRONTEND=noninteractive apt-get install -y php7.4-fpm php7.4-mysql php7.4-mbstring php7.4-xml php7.4-curl php7.4-zip php7.4-gd && systemctl enable --now php7.4-fpm"),
+                    "certbot" => run_step("Certbot", "DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
+                    "php8.3" => run_step("PHP 8.3", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-gd && systemctl enable --now php8.3-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
+                    "php8.2" => run_step("PHP 8.2", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.2-fpm php8.2-mysql php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip php8.2-gd && systemctl enable --now php8.2-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
+                    "php7.4" => run_step("PHP 7.4", "DEBIAN_FRONTEND=noninteractive apt-get install -y php7.4-fpm php7.4-mysql php7.4-mbstring php7.4-xml php7.4-curl php7.4-zip php7.4-gd && systemctl enable --now php7.4-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
                     "python3" => run_step("Python 3", "DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip python3-venv"),
                     "node" => run_step("Node.js 22 LTS", "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs"),
                     "rust" => run_step("Rust", "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"),

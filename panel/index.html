@@ -641,7 +641,7 @@ async function loadSites() {
       <td>${escAttr(s.php_version || '-')}</td>
       <td>${renderCredCell(s.ftp_user, s.ftp_pass)}</td>
       <td>${renderCredCell(s.db_name ? (s.db_name + (s.db_user && s.db_user !== s.db_name ? ' / ' + s.db_user : '')) : s.db_user, s.db_pass)}</td>
-      <td>${s.ssl_enabled ? '<span class="badge badge-ok">HTTPS</span>' : `<button class="btn btn-sm" onclick="issueSsl(${s.id})">${t('btn_issue_ssl', 'Issue SSL')}</button>`}</td>
+      <td>${s.ssl_enabled ? '<span class="badge badge-ok">HTTPS</span>' : `<button class="btn btn-sm" onclick="issueSsl(${s.id}, this)">${t('btn_issue_ssl', 'Issue SSL')}</button>`}</td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:nowrap;align-items:center">
           <button class="btn btn-sm" onclick="openSiteInfoModal(${s.id})"><i class="bi bi-key"></i> <span data-i18n="btn_site_info">${t('btn_site_info', '정보확인')}</span></button>
@@ -748,7 +748,26 @@ async function createSubdomain() {
   });
   loadSites();
 }
-async function issueSsl(id) { await api(`/api/sites/${id}/ssl`, { method: 'POST' }); loadSites(); }
+async function issueSsl(id, btn) {
+  const origText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = t('msg_issuing_ssl', '발급 중...');
+  }
+  try {
+    const r = await api(`/api/sites/${id}/ssl`, { method: 'POST' });
+    if (r.success) {
+      alert(t('msg_ssl_success', '✅ SSL(HTTPS) 인증서가 발급되었습니다!'));
+      await loadSites();
+    } else {
+      alert(t('msg_ssl_fail', '❌ SSL 발급 실패: ') + (r.error || 'Unknown error'));
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
+  } catch (e) {
+    alert(t('msg_ssl_fail', '❌ SSL 발급 실패: ') + (e.message || e));
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
+}
 async function delSite(id) { await api(`/api/sites/${id}`, { method: 'DELETE' }); loadSites(); }
 async function loadApps() {
   const r = await api('/api/apps');
