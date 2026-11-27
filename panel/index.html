@@ -157,6 +157,10 @@
             <div class="card"><div class="metric-label" data-i18n="uptime">Uptime</div><div class="metric-val" id="m-uptime">-</div></div>
           </div>
           <div class="card">
+            <h3 style="margin-bottom:12px;font-size:15px" data-i18n="dash_sites_title">🌐 실행 중인 사이트 / 앱 상태</h3>
+            <div id="dash-sites-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px"></div>
+          </div>
+          <div class="card">
             <h3 style="margin-bottom:12px;font-size:15px" data-i18n="dash_packages_title">설치된 서버 패키지 &amp; 런타임</h3>
             <div id="dash-packages-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px"></div>
           </div>
@@ -465,7 +469,12 @@ async function doLogin() {
   const password = document.getElementById('login-pw').value;
   const r = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) });
   if (r.success) location.reload();
-  else document.getElementById('login-err').textContent = r.error || 'Login failed';
+  else {
+    const el = document.getElementById('login-err');
+    if (r.code === 'login_locked') el.textContent = t('login_locked', '로그인 실패가 너무 많아 잠겼습니다. {min}분 후 다시 시도하세요.').replace('{min}', Math.max(1, Math.ceil((r.retry_after || 900) / 60)));
+    else if (typeof r.attempts_left === 'number') el.textContent = (r.error || 'Login failed') + ' ' + t('login_attempts_left', '(남은 시도: {n}회)').replace('{n}', r.attempts_left);
+    else el.textContent = r.error || 'Login failed';
+  }
 }
 async function doLogout() {
   await api('/api/auth/logout', { method: 'POST' });
@@ -519,7 +528,46 @@ function setUsageBar(id, pct) {
   if (v >= 90) el.classList.add('danger');
   else if (v >= 75) el.classList.add('warn');
 }
+let _dashSitesTs = 0;
+async function loadDashSites(force) {
+  const now = Date.now();
+  if (!force && now - _dashSitesTs < 10000) return;
+  _dashSitesTs = now;
+  const box = document.getElementById('dash-sites-grid');
+  if (!box) return;
+  const r = await api('/api/dashboard/sites');
+  if (!r || !r.success) return;
+  const MAP = {
+    healthy: ['#4ade80', 'health_healthy', '🟢 Running'],
+    starting: ['#fcd34d', 'health_starting', '🟡 Starting...'],
+    error: ['#f87171', 'health_error', '🔴 Error'],
+    down: ['#f87171', 'health_down', '⚫ Stopped']
+  };
+  const items = [];
+  (r.sites || []).forEach(s => {
+    const m = MAP[s.status] || MAP.down;
+    items.push(`<div style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <a href="${s.ssl ? 'https' : 'http'}://${escAttr(s.domain)}" target="_blank" rel="noopener noreferrer" style="color:#93c5fd;text-decoration:none;font-weight:700;font-size:13px;word-break:break-all">${escAttr(s.domain)}</a>
+        <span style="color:${m[0]};font-size:12px;font-weight:700;white-space:nowrap">${t(m[1], m[2])}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">${escAttr(s.type)}${s.port ? ' · :' + s.port : ''}${s.ssl ? ' · HTTPS' : ''}</div>
+    </div>`);
+  });
+  (r.apps || []).forEach(a => {
+    const on = a.status === 'running';
+    items.push(`<div style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <span style="font-weight:700;font-size:13px">⚙️ ${escAttr(a.name)}</span>
+        <span style="color:${on ? '#4ade80' : '#f87171'};font-size:12px;font-weight:700">${on ? t('health_healthy', '🟢 Running') : t('health_down', '⚫ Stopped')}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">${escAttr(a.language)}${a.port ? ' · :' + a.port : ''}</div>
+    </div>`);
+  });
+  box.innerHTML = items.join('') || `<div style="font-size:13px;color:var(--muted)">${t('dash_sites_empty', '등록된 사이트가 없습니다.')}</div>`;
+}
 async function refreshAll() {
+  loadDashSites(false);
   const s = await api('/api/system/stats');
   if (s.success) {
     const cpuPct = Number(s.cpu_percent || 0).toFixed(1);

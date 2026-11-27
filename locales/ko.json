@@ -273,5 +273,9 @@
   "qc_apache": "✅ Apache 검사",
   "ph_maria_sql": "SHOW TABLES; 또는 SELECT * FROM 테이블명 LIMIT 20;",
   "sec_reset_quiz": "⚠️ 확인 퀴즈:",
-  "msg_create_fail": "생성 실패: "
+  "msg_create_fail": "생성 실패: ",
+  "dash_sites_title": "🌐 실행 중인 사이트 / 앱 상태",
+  "dash_sites_empty": "등록된 사이트가 없습니다.",
+  "login_locked": "로그인 실패가 너무 많아 잠겼습니다. {min}분 후 다시 시도하세요.",
+  "login_attempts_left": "(남은 시도: {n}회)"
 }

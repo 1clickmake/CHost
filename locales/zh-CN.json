@@ -273,5 +273,9 @@
   "qc_apache": "✅ 检查 Apache",
   "ph_maria_sql": "SHOW TABLES; 或 SELECT * FROM 表名 LIMIT 20;",
   "sec_reset_quiz": "⚠️ 确认问题：",
-  "msg_create_fail": "创建失败："
+  "msg_create_fail": "创建失败：",
+  "dash_sites_title": "🌐 运行中的站点 / 应用",
+  "dash_sites_empty": "尚未注册站点。",
+  "login_locked": "登录失败次数过多，已被锁定。请在 {min} 分钟后重试。",
+  "login_attempts_left": "（剩余尝试次数：{n}）"
 }

@@ -80,6 +80,34 @@ pub fn hash_secret(raw: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
+/// 관리자 비밀번호를 Argon2id(솔트 포함) 해시로 만든다.
+pub fn hash_password(raw: &str) -> String {
+    use argon2::{
+        password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+        Argon2,
+    };
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(raw.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .unwrap_or_else(|_| hash_secret(raw))
+}
+
+/// Argon2 해시 또는 (구버전) SHA-256 해시를 모두 검증한다.
+pub fn verify_password(stored: &str, raw: &str) -> bool {
+    use argon2::{
+        password_hash::{PasswordHash, PasswordVerifier},
+        Argon2,
+    };
+    if stored.starts_with("$argon2") {
+        PasswordHash::new(stored)
+            .map(|p| Argon2::default().verify_password(raw.as_bytes(), &p).is_ok())
+            .unwrap_or(false)
+    } else {
+        hash_secret(raw) == stored
+    }
+}
+
 impl Database {
     pub fn open(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;

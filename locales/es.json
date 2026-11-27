@@ -273,5 +273,9 @@
   "qc_apache": "✅ Comprobar Apache",
   "ph_maria_sql": "SHOW TABLES; o SELECT * FROM nombre_tabla LIMIT 20;",
   "sec_reset_quiz": "⚠️ Pregunta de confirmación:",
-  "msg_create_fail": "error al crear: "
+  "msg_create_fail": "error al crear: ",
+  "dash_sites_title": "🌐 Sitios / apps en ejecución",
+  "dash_sites_empty": "No hay sitios registrados.",
+  "login_locked": "Demasiados intentos fallidos. Inténtalo de nuevo en {min} min.",
+  "login_attempts_left": "(intentos restantes: {n})"
 }

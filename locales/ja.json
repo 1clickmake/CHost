@@ -273,5 +273,9 @@
   "qc_apache": "✅ Apacheチェック",
   "ph_maria_sql": "SHOW TABLES; または SELECT * FROM テーブル名 LIMIT 20;",
   "sec_reset_quiz": "⚠️ 確認クイズ:",
-  "msg_create_fail": "作成に失敗: "
+  "msg_create_fail": "作成に失敗: ",
+  "dash_sites_title": "🌐 稼働中のサイト / アプリ",
+  "dash_sites_empty": "登録されたサイトはありません。",
+  "login_locked": "ログイン失敗が多すぎるためロックされました。{min}分後に再試行してください。",
+  "login_attempts_left": "（残り試行: {n}回）"
 }

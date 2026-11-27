@@ -2,14 +2,14 @@ mod db;
 mod engine;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{ConnectInfo, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{delete, get, post},
     Json, Router,
 };
 use chrono::{Duration, Utc};
-use db::{hash_secret, Database};
+use db::{hash_password, verify_password, Database};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use rand::{distributions::Alphanumeric, Rng};
 use rusqlite::Connection;
@@ -34,6 +34,33 @@ struct AppState {
     jwt_secret: String,
     data_dir: PathBuf,
     install_running: AtomicBool,
+    login_guard: std::sync::Mutex<std::collections::HashMap<String, LoginGuard>>,
+}
+
+#[derive(Default, Clone)]
+struct LoginGuard {
+    fails: u32,
+    window_start: i64,
+    locked_until: i64,
+}
+
+const LOGIN_MAX_FAILS: u32 = 5;
+const LOGIN_WINDOW_SECS: i64 = 900;
+const LOGIN_LOCK_SECS: i64 = 900;
+
+fn client_ip(addr: &std::net::SocketAddr, headers: &HeaderMap) -> String {
+    let peer = addr.ip();
+    if peer.is_loopback() {
+        if let Some(v) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+            if let Some(first) = v.split(',').next() {
+                let f = first.trim();
+                if !f.is_empty() && f.len() < 64 {
+                    return f.to_string();
+                }
+            }
+        }
+    }
+    peer.to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -190,15 +217,75 @@ async fn handle_auth_me(State(state): State<Arc<AppState>>, headers: HeaderMap) 
     .into_response()
 }
 
-async fn handle_login(State(state): State<Arc<AppState>>, Json(req): Json<LoginReq>) -> Response {
+async fn handle_login(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
+    Json(req): Json<LoginReq>,
+) -> Response {
+    let ip = client_ip(&addr, &headers);
+    let now = Utc::now().timestamp();
+    {
+        let g = state.login_guard.lock().unwrap();
+        if let Some(e) = g.get(&ip) {
+            if e.locked_until > now {
+                let wait = e.locked_until - now;
+                return (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Json(json!({
+                        "success": false,
+                        "code": "login_locked",
+                        "retry_after": wait,
+                        "error": format!("Too many failed attempts. Try again in {} min.", (wait + 59) / 60)
+                    })),
+                )
+                    .into_response();
+            }
+        }
+    }
     let stored = state.db.get_setting("admin_pw_hash", "");
-    if hash_secret(req.password.trim()) != stored {
-        state.db.log_audit("anonymous", "LOGIN_FAILED", "panel", "Invalid password attempt");
+    if !verify_password(&stored, req.password.trim()) {
+        let (locked, left) = {
+            let mut g = state.login_guard.lock().unwrap();
+            let e = g.entry(ip.clone()).or_default();
+            if now - e.window_start > LOGIN_WINDOW_SECS {
+                e.fails = 0;
+                e.window_start = now;
+            }
+            e.fails += 1;
+            let left = LOGIN_MAX_FAILS.saturating_sub(e.fails);
+            if e.fails >= LOGIN_MAX_FAILS {
+                e.locked_until = now + LOGIN_LOCK_SECS;
+                e.fails = 0;
+                (true, 0)
+            } else {
+                (false, left)
+            }
+        };
+        state.db.log_audit("anonymous", "LOGIN_FAILED", "panel", &format!("Invalid password attempt from {}", ip));
+        if locked {
+            state.db.log_audit("system", "LOGIN_LOCKED", "panel", &format!("{} locked for {} min", ip, LOGIN_LOCK_SECS / 60));
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(json!({
+                    "success": false,
+                    "code": "login_locked",
+                    "retry_after": LOGIN_LOCK_SECS,
+                    "error": format!("Too many failed attempts. Try again in {} min.", LOGIN_LOCK_SECS / 60)
+                })),
+            )
+                .into_response();
+        }
         return (
             StatusCode::UNAUTHORIZED,
-            Json(json!({ "success": false, "error": "Invalid password." })),
+            Json(json!({ "success": false, "error": "Invalid password.", "attempts_left": left })),
         )
             .into_response();
+    }
+    state.login_guard.lock().unwrap().remove(&ip);
+    if !stored.starts_with("$argon2") {
+        // 구버전 SHA-256 해시 → Argon2id 로 자동 업그레이드
+        let _ = state.db.set_setting("admin_pw_hash", &hash_password(req.password.trim()));
     }
     let exp = (Utc::now() + Duration::days(7)).timestamp() as usize;
     let token = encode(
@@ -225,7 +312,7 @@ async fn handle_change_password(
         return unauthorized();
     }
     let stored = state.db.get_setting("admin_pw_hash", "");
-    if hash_secret(req.current_password.trim()) != stored {
+    if !verify_password(&stored, req.current_password.trim()) {
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({ "success": false, "error": "현재 비밀번호가 일치하지 않습니다." })),
@@ -240,7 +327,7 @@ async fn handle_change_password(
         )
             .into_response();
     }
-    if let Err(e) = state.db.set_setting("admin_pw_hash", &hash_secret(new_pw)) {
+    if let Err(e) = state.db.set_setting("admin_pw_hash", &hash_password(new_pw)) {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "success": false, "error": e.to_string() })),
@@ -1560,6 +1647,58 @@ async fn handle_site_git_update(
         &format!("{} -> {} (changed={})", upd["old"].as_str().unwrap_or(""), upd["new"].as_str().unwrap_or(""), upd["changed"]),
     );
     Json(json!({ "success": true, "update": upd, "deployed": deployed })).into_response()
+}
+
+async fn handle_dashboard_sites(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let sites = state.db.list_sites().unwrap_or_default();
+    let apps = state.db.list_apps().unwrap_or_default();
+    let handles: Vec<_> = sites
+        .into_iter()
+        .map(|s| {
+            std::thread::spawn(move || {
+                let (code, service) = if s.site_type == "proxy" {
+                    let svc = app_service_name(&s.domain);
+                    let st = if cfg!(unix) {
+                        Command::new("systemctl")
+                            .args(["is-active", &svc])
+                            .output()
+                            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                            .unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
+                    (engine::probe_http(s.proxy_port, &s.domain), st)
+                } else {
+                    (engine::probe_http(80, &s.domain), String::new())
+                };
+                let status = match (code, service.as_str()) {
+                    (Some(c), _) if c < 500 => "healthy",
+                    (Some(_), _) => "error",
+                    (None, "active") | (None, "activating") => "starting",
+                    _ => "down",
+                };
+                json!({
+                    "id": s.id, "domain": s.domain, "type": s.site_type,
+                    "port": if s.site_type == "proxy" { s.proxy_port } else { 0 },
+                    "ssl": s.ssl_enabled, "status": status, "http": code
+                })
+            })
+        })
+        .collect();
+    let mut out: Vec<Value> = Vec::new();
+    for h in handles {
+        if let Ok(v) = h.join() {
+            out.push(v);
+        }
+    }
+    let app_list: Vec<Value> = apps
+        .into_iter()
+        .map(|a| json!({ "id": a.id, "name": a.name, "language": a.language, "port": a.port, "status": a.status }))
+        .collect();
+    Json(json!({ "success": true, "sites": out, "apps": app_list })).into_response()
 }
 
 async fn handle_site_health(
@@ -3097,7 +3236,7 @@ async fn main() {
             .take(14)
             .map(char::from)
             .collect();
-        let _ = db.set_setting("admin_pw_hash", &hash_secret(&init_pw));
+        let _ = db.set_setting("admin_pw_hash", &hash_password(&init_pw));
         let pw_file = data_dir.join("init_password.txt");
         let _ = fs::write(&pw_file, format!("{}\n", init_pw));
         println!("Initial CHost password saved to {}", pw_file.display());
@@ -3123,6 +3262,7 @@ async fn main() {
         jwt_secret,
         data_dir,
         install_running: AtomicBool::new(false),
+        login_guard: Default::default(),
     });
 
     let app = Router::new()
@@ -3148,6 +3288,7 @@ async fn main() {
         .route("/api/sites/{id}/logs/clear", post(handle_clear_site_logs))
         .route("/api/sites/{id}/php", post(handle_switch_site_php))
     .route("/api/sites/{id}/health", get(handle_site_health))
+    .route("/api/dashboard/sites", get(handle_dashboard_sites))
     .route("/api/webserver/migrate", post(handle_webserver_migrate))
     .route("/api/sites/{id}/git", get(handle_site_git_info))
     .route("/api/sites/{id}/git/update", post(handle_site_git_update))
@@ -3179,5 +3320,7 @@ async fn main() {
     let addr = format!("0.0.0.0:{}", port);
     println!("CHost panel listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
+        .await
+        .unwrap();
 }

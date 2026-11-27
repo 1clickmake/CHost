@@ -23,6 +23,7 @@ chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = "9"
 sha2 = "0.10"
 hex = "0.4"
+argon2 = "0.5"
 rand = "0.8"
 sysinfo = "0.32"
 walkdir = "2"
