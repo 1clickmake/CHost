@@ -151,5 +151,12 @@
   "guide_db_studio": "💡 <strong>使用指南:</strong> 无需 phpMyAdmin 即可安全查询和备份数据库。<br/>• <strong>MariaDB</strong>: 选择数据库查看表或下载 <code>.sql</code> 备份。<br/>• <strong>SQLite</strong>: 输入 <code>.db</code> 文件路径即可查询。",
   "guide_storage": "💡 <strong>使用指南:</strong> 1) 先点击<strong>[预览扫描]</strong>查看旧日志，2) 再点击<strong>[安全清理]</strong>压缩或清理。(数据库与上传目录受严格保护)",
   "guide_file_editor": "💡 <strong>使用指南:</strong> 点击下方目录或文件即可直接打开编辑，无需手动输入路径。",
-  "guide_web_term": "💡 <strong>使用指南:</strong> 可直接使用下方快捷按钮快速检查服务器状态。"
+  "guide_web_term": "💡 <strong>使用指南:</strong> 可直接使用下方快捷按钮快速检查服务器状态。",
+  "sec_pw_title": "🔐 修改管理员密码",
+  "guide_sec_pw": "💡 <strong>提示:</strong> 修改 CHost 面板登录密码。",
+  "sec_reset_title": "⚠️ 面板初始化 (Factory Reset)",
+  "guide_sec_reset": "💡 <strong>提示:</strong> 测试后将面板恢复到初始状态。",
+  "opt_reset_soft": "轻量重置 (仅重置列表与初始化向导)",
+  "opt_reset_full": "完全重置 (删除所有站点、FTP、数据库和网页目录)",
+  "btn_panel_reset": "执行重置"
 }

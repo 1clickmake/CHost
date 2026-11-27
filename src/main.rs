@@ -2148,6 +2148,65 @@ async fn handle_delete_site_credential(
     Json(json!({ "success": true, "site": updated })).into_response()
 }
 
+#[derive(Deserialize)]
+struct PanelResetReq {
+    mode: String,
+}
+
+async fn handle_panel_reset(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<PanelResetReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let full = req.mode == "full";
+    let sites = state.db.list_sites().unwrap_or_default();
+    if full && cfg!(unix) {
+        for s in &sites {
+            let _ = fs::remove_file(format!("/etc/nginx/sites-enabled/{}.conf", s.domain));
+            let _ = fs::remove_file(format!("/etc/nginx/sites-available/{}.conf", s.domain));
+            let _ = Command::new("a2dissite").arg(format!("{}.conf", s.domain)).output();
+            let _ = fs::remove_file(format!("/etc/apache2/sites-available/{}.conf", s.domain));
+            let safe_fu = sanitize_ident(Some(&s.ftp_user), 24);
+            if !safe_fu.is_empty() {
+                let _ = Command::new("userdel").arg(&safe_fu).output();
+            }
+            let safe_dn = sanitize_ident(Some(&s.db_name), 32);
+            let safe_du = sanitize_ident(Some(&s.db_user), 24);
+            if !safe_dn.is_empty() || !safe_du.is_empty() {
+                let mut sql = String::new();
+                if !safe_dn.is_empty() {
+                    sql.push_str(&format!("DROP DATABASE IF EXISTS `{}`; ", safe_dn));
+                }
+                if !safe_du.is_empty() {
+                    sql.push_str(&format!("DROP USER IF EXISTS '{}'@'localhost'; ", safe_du));
+                }
+                sql.push_str("FLUSH PRIVILEGES;");
+                let _ = Command::new("mysql").args(["-e", &sql]).output();
+            }
+            if s.root_path.starts_with("/www/wwwroot/") && s.root_path.len() > 14 {
+                let _ = fs::remove_dir_all(&s.root_path);
+            }
+            let _ = fs::remove_file(format!("/www/wwwlogs/{}.access.log", s.domain));
+            let _ = fs::remove_file(format!("/www/wwwlogs/{}.error.log", s.domain));
+        }
+        let _ = reload_active_webserver(detect_active_webserver());
+    }
+    for s in &sites {
+        let _ = state.db.delete_site(s.id);
+    }
+    if let Ok(apps) = state.db.list_apps() {
+        for a in apps {
+            let _ = state.db.delete_app(a.id);
+        }
+    }
+    let _ = state.db.set_setting("setup_completed", "0");
+    state.db.log_audit("admin", "PANEL_RESET", "panel", &format!("mode={}", req.mode));
+    Json(json!({ "success": true, "mode": req.mode })).into_response()
+}
+
 #[tokio::main]
 async fn main() {
     let data_dir = PathBuf::from(
@@ -2230,6 +2289,7 @@ async fn main() {
         .route("/api/files", get(handle_file_read).post(handle_file_save))
         .route("/api/terminal", post(handle_terminal_exec))
         .route("/api/audits", get(handle_audits))
+        .route("/api/panel/reset", post(handle_panel_reset))
         .layer(CorsLayer::permissive())
         .with_state(state);
 

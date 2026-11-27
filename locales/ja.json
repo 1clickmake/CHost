@@ -151,5 +151,12 @@
   "guide_db_studio": "💡 <strong>使い方:</strong> phpMyAdminなしで安全にDBを参照・バックアップできます。<br/>• <strong>MariaDB</strong>: DBを選択してテーブル参照や<code>.sql</code>ダウンロードができます。<br/>• <strong>SQLite</strong>: <code>.db</code>パスを入力してすぐ参照できます。",
   "guide_storage": "💡 <strong>使い方:</strong> 1) <strong>[プレビュースキャン]</strong>で対象を確認し、2) <strong>[安全クリーン実行]</strong>で古いログを整理します。(DB・アップロードは保護されます)",
   "guide_file_editor": "💡 <strong>使い方:</strong> 下のファイル一覧からフォルダやファイルをクリックするとすぐに編集できます。",
-  "guide_web_term": "💡 <strong>使い方:</strong> クイックボタンやコマンドでサーバー状態をすぐ確認できます。"
+  "guide_web_term": "💡 <strong>使い方:</strong> クイックボタンやコマンドでサーバー状態をすぐ確認できます。",
+  "sec_pw_title": "🔐 管理者パスワード変更",
+  "guide_sec_pw": "💡 <strong>案内:</strong> CHostパネルのログインパスワードを変更します。",
+  "sec_reset_title": "⚠️ パネル初期化 (Factory Reset)",
+  "guide_sec_reset": "💡 <strong>案内:</strong> テスト後にパネルを初期状態へ戻します。",
+  "opt_reset_soft": "ソフトリセット (一覧と初期設定ウィザードのみ)",
+  "opt_reset_full": "完全初期化 (全サイト・FTP・DB・Webフォルダを削除)",
+  "btn_panel_reset": "初期化を実行"
 }

@@ -151,5 +151,12 @@
   "guide_db_studio": "💡 <strong>Quick Guide:</strong> Inspect and back up databases safely without phpMyAdmin.<br/>• <strong>MariaDB</strong>: Select a site database to view tables, run SQL, or download a <code>.sql</code> dump.<br/>• <strong>SQLite</strong>: Enter a <code>.db</code> path on the server (e.g. <code>/var/lib/chost/chost.db</code>).",
   "guide_storage": "💡 <strong>Quick Guide:</strong> Keep disk usage clean without risking important data.<br/>1) Click <strong>[Preview Scan]</strong> first to inspect old log files.<br/>2) Click <strong>[Safe Clean]</strong> to compress old <code>.log</code> files and remove <code>.gz</code>/<code>.tmp</code>. (Databases and uploads are strictly protected)",
   "guide_file_editor": "💡 <strong>Quick Guide:</strong> Click any folder or file in the browser below to open and edit it without typing long paths.",
-  "guide_web_term": "💡 <strong>Quick Guide:</strong> Run single server check commands directly from your browser or use the quick buttons below."
+  "guide_web_term": "💡 <strong>Quick Guide:</strong> Run single server check commands directly from your browser or use the quick buttons below.",
+  "sec_pw_title": "🔐 Change Admin Password",
+  "guide_sec_pw": "💡 <strong>Note:</strong> Change your CHost panel login password here.",
+  "sec_reset_title": "⚠️ Factory Reset Panel",
+  "guide_sec_reset": "💡 <strong>Note:</strong> Reset the panel for clean testing. <strong>Soft Reset</strong> only resets panel lists and setup wizard; <strong>Full Reset</strong> removes all created sites, FTP, DBs, and web files.",
+  "opt_reset_soft": "Soft Reset (Reset panel lists & setup wizard only)",
+  "opt_reset_full": "Full Reset (Permanently delete all sites, FTP, DBs & web folders)",
+  "btn_panel_reset": "Run Panel Reset"
 }
