@@ -356,5 +356,21 @@
   "bk_saved": "✅ 备份设置已保存。",
   "bk_started": "⏳ 已开始备份，完成后会显示在下方列表中。",
   "bk_delete_confirm": "要删除此备份吗？",
-  "bk_deleted": "✅ 已删除。"
+  "bk_deleted": "✅ 已删除。",
+  "btn_upload": "⬆️ 上传文件",
+  "btn_download": "下载",
+  "btn_extract": "📦 解压",
+  "upload_progress": "⏳ 上传中...",
+  "upload_done": "✅ 上传完成",
+  "extract_confirm": "解压到同一文件夹吗？（同名文件将被覆盖）",
+  "extract_running": "⏳ 正在解压...",
+  "extract_done": "✅ 解压完成。",
+  "live_term_title": "🖥️ 实时终端（替代 SSH）",
+  "guide_live_term": "💡 直接在浏览器中使用的<strong>真正终端</strong>，<code>top</code>、<code>nano</code>、<code>htop</code> 等全屏程序也能运行。以 root 权限运行，请谨慎输入命令。",
+  "term_connect": "连接",
+  "term_disconnect": "断开",
+  "term_connecting": "连接中...",
+  "term_connected": "🟢 已连接",
+  "term_closed": "⚫ 已断开",
+  "term_cdn_fail": "无法加载终端界面库（请检查网络），请使用下方的单条命令执行器。"
 }

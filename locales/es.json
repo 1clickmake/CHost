@@ -356,5 +356,21 @@
   "bk_saved": "✅ Configuración de copias guardada.",
   "bk_started": "⏳ Copia iniciada. Aparecerá en la lista al terminar.",
   "bk_delete_confirm": "¿Eliminar esta copia?",
-  "bk_deleted": "✅ Eliminado."
+  "bk_deleted": "✅ Eliminado.",
+  "btn_upload": "⬆️ Subir archivos",
+  "btn_download": "Descargar",
+  "btn_extract": "📦 Extraer",
+  "upload_progress": "⏳ Subiendo...",
+  "upload_done": "✅ Subido",
+  "extract_confirm": "¿Extraer en la misma carpeta? (Se sobrescribirán los archivos con el mismo nombre)",
+  "extract_running": "⏳ Extrayendo...",
+  "extract_done": "✅ Extraído.",
+  "live_term_title": "🖥️ Terminal en vivo (sustituye a SSH)",
+  "guide_live_term": "💡 Una <strong>terminal real</strong> en el navegador. También funcionan programas a pantalla completa como <code>top</code>, <code>nano</code> y <code>htop</code>. Se ejecuta como root, así que escribe con cuidado.",
+  "term_connect": "Conectar",
+  "term_disconnect": "Desconectar",
+  "term_connecting": "Conectando...",
+  "term_connected": "🟢 Conectado",
+  "term_closed": "⚫ Desconectado",
+  "term_cdn_fail": "No se pudo cargar la librería de la terminal (revisa la conexión). Usa el ejecutor de comandos de abajo."
 }

@@ -2457,7 +2457,21 @@ async fn handle_pg_query(State(state): State<Arc<AppState>>, headers: HeaderMap,
     }
     let (db, sql) = (req.db.clone(), req.sql.trim().to_string());
     state.db.log_audit("admin", "PG_QUERY", &req.db, req.sql.trim());
-    match tokio::task::spawn_blocking(move || dbtools::psql(Some(&db), &sql, &[])).await {
+    match tokio::task::spawn_blocking(move || {
+        // DB 소유자 권한으로 실행해, 만든 테이블을 앱 계정이 바로 쓸 수 있게 한다
+        let owner = dbtools::psql(None, &format!("SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '{}'", db), &["-At"])
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if dbtools::valid_ident(&owner) && owner != "postgres" {
+            let set_role = format!("SET ROLE \"{}\"", owner);
+            dbtools::psql(Some(&db), &sql, &["-q", "-c", &set_role])
+        } else {
+            dbtools::psql(Some(&db), &sql, &[])
+        }
+    })
+    .await
+    {
         Ok(Ok(o)) => Json(json!({ "success": true, "output": o })).into_response(),
         Ok(Err(e)) => Json(json!({ "success": false, "output": e })).into_response(),
         Err(e) => bad_req(&e.to_string()),
@@ -2720,6 +2734,297 @@ async fn handle_backup_delete(State(state): State<Arc<AppState>>, headers: Heade
         }
         Err(e) => bad_req(&e.to_string()),
     }
+}
+
+// ───────────── 파일 업로드 / 다운로드 / 압축 풀기 ─────────────
+
+#[derive(Deserialize)]
+struct UploadQuery {
+    dir: String,
+}
+
+fn safe_upload_name(n: &str) -> Option<String> {
+    let base = n.rsplit(|c| c == '/' || c == '\\').next()?.trim().to_string();
+    if base.is_empty() || base == "." || base == ".." || base.len() > 200 || base.contains('\0') {
+        return None;
+    }
+    Some(base)
+}
+
+async fn handle_file_upload(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(q): Query<UploadQuery>,
+    mut mp: axum::extract::Multipart,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let dir = q.dir.trim().to_string();
+    if !dir.starts_with('/') && !cfg!(windows) || !FsPath::new(&dir).is_dir() {
+        return bad_req("Target folder does not exist.");
+    }
+    let mut saved: Vec<Value> = Vec::new();
+    loop {
+        let field = match mp.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(e) => return bad_req(&format!("Upload failed: {}", e)),
+        };
+        let Some(name) = field.file_name().and_then(safe_upload_name) else {
+            continue;
+        };
+        let path = FsPath::new(&dir).join(&name);
+        let mut file = match tokio::fs::File::create(&path).await {
+            Ok(f) => f,
+            Err(e) => return bad_req(&format!("{}: {}", name, e)),
+        };
+        let mut field = field;
+        let mut size: u64 = 0;
+        loop {
+            match field.chunk().await {
+                Ok(Some(chunk)) => {
+                    size += chunk.len() as u64;
+                    if let Err(e) = tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await {
+                        return bad_req(&format!("{}: {}", name, e));
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    let _ = tokio::fs::remove_file(&path).await;
+                    return bad_req(&format!("{}: {}", name, e));
+                }
+            }
+        }
+        let _ = tokio::io::AsyncWriteExt::flush(&mut file).await;
+        state.db.log_audit("admin", "FILE_UPLOAD", &path.to_string_lossy(), &format!("{} bytes", size));
+        saved.push(json!({ "name": name, "size": size }));
+    }
+    if saved.is_empty() {
+        return bad_req("No file received.");
+    }
+    Json(json!({ "success": true, "files": saved })).into_response()
+}
+
+async fn handle_file_download(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<QueryPath>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let p = q.path.unwrap_or_default();
+    let path = FsPath::new(p.trim());
+    if !path.is_file() {
+        return (StatusCode::NOT_FOUND, "Not found").into_response();
+    }
+    let Ok(file) = tokio::fs::File::open(path).await else {
+        return (StatusCode::NOT_FOUND, "Not found").into_response();
+    };
+    let len = file.metadata().await.map(|m| m.len()).unwrap_or(0);
+    let fname: String = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "download".into())
+        .chars()
+        .map(|c| if c == '"' || c.is_control() { '_' } else { c })
+        .collect();
+    state.db.log_audit("admin", "FILE_DOWNLOAD", p.trim(), &format!("{} bytes", len));
+    let body = axum::body::Body::from_stream(tokio_util::io::ReaderStream::new(file));
+    (
+        [
+            (header::CONTENT_TYPE, "application/octet-stream".to_string()),
+            (header::CONTENT_LENGTH, len.to_string()),
+            (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", fname)),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+#[derive(Deserialize)]
+struct ExtractReq {
+    path: String,
+}
+
+async fn handle_file_extract(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<ExtractReq>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let p = req.path.trim().to_string();
+    let path = FsPath::new(&p);
+    if !path.is_file() || p.contains('\'') {
+        return bad_req("File not found.");
+    }
+    let dir = path.parent().map(|d| d.to_string_lossy().to_string()).unwrap_or_else(|| "/".into());
+    let lower = p.to_lowercase();
+    let cmd = if lower.ends_with(".zip") {
+        format!("command -v unzip >/dev/null 2>&1 || (DEBIAN_FRONTEND=noninteractive apt-get install -y -qq unzip >/dev/null 2>&1); unzip -o -q '{}' -d '{}'", p, dir)
+    } else if lower.ends_with(".tar.gz") || lower.ends_with(".tgz") {
+        format!("tar xzf '{}' -C '{}'", p, dir)
+    } else if lower.ends_with(".tar") {
+        format!("tar xf '{}' -C '{}'", p, dir)
+    } else {
+        return bad_req("Only .zip, .tar.gz, .tgz and .tar are supported.");
+    };
+    let out = tokio::task::spawn_blocking(move || Command::new("sh").args(["-c", &cmd]).output()).await;
+    match out {
+        Ok(Ok(o)) if o.status.success() => {
+            state.db.log_audit("admin", "FILE_EXTRACT", &p, &dir);
+            Json(json!({ "success": true, "dir": dir })).into_response()
+        }
+        Ok(Ok(o)) => bad_req(String::from_utf8_lossy(&o.stderr).trim()),
+        Ok(Err(e)) => bad_req(&e.to_string()),
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
+// ───────────── 실시간 웹 터미널 (WebSocket + PTY) ─────────────
+
+static TERM_SESSIONS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+const TERM_MAX_SESSIONS: usize = 5;
+
+fn same_origin(headers: &HeaderMap) -> bool {
+    let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else {
+        return true;
+    };
+    let host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
+    let o = origin.trim_start_matches("https://").trim_start_matches("http://");
+    !host.is_empty() && o == host
+}
+
+async fn handle_terminal_ws(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    ws: axum::extract::ws::WebSocketUpgrade,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !same_origin(&headers) {
+        return (StatusCode::FORBIDDEN, "Cross-origin terminal connection refused.").into_response();
+    }
+    if TERM_SESSIONS.load(std::sync::atomic::Ordering::SeqCst) >= TERM_MAX_SESSIONS {
+        return (StatusCode::TOO_MANY_REQUESTS, "Too many terminal sessions.").into_response();
+    }
+    ws.on_upgrade(move |socket| terminal_session(socket, state))
+}
+
+async fn terminal_session(socket: axum::extract::ws::WebSocket, state: Arc<AppState>) {
+    use axum::extract::ws::Message;
+    use futures_util::{SinkExt, StreamExt};
+    use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+    use std::io::{Read, Write};
+
+    TERM_SESSIONS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let (mut ws_tx, mut ws_rx) = socket.split();
+    let pair = match native_pty_system().openpty(PtySize { rows: 30, cols: 120, pixel_width: 0, pixel_height: 0 }) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = ws_tx.send(Message::Text(format!("PTY error: {}\r\n", e).into())).await;
+            TERM_SESSIONS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+            return;
+        }
+    };
+    let mut cmd = if cfg!(windows) {
+        CommandBuilder::new("cmd.exe")
+    } else {
+        let mut c = CommandBuilder::new(if FsPath::new("/bin/bash").exists() { "/bin/bash" } else { "/bin/sh" });
+        c.arg("-l");
+        c
+    };
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("LANG", "C.UTF-8");
+    if cfg!(unix) {
+        cmd.env("HOME", "/root");
+        cmd.cwd("/root");
+    }
+    let mut child = match pair.slave.spawn_command(cmd) {
+        Ok(c) => c,
+        Err(e) => {
+            let _ = ws_tx.send(Message::Text(format!("Shell error: {}\r\n", e).into())).await;
+            TERM_SESSIONS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+            return;
+        }
+    };
+    drop(pair.slave);
+    let master = pair.master;
+    let mut reader = match master.try_clone_reader() {
+        Ok(r) => r,
+        Err(_) => {
+            let _ = child.kill();
+            TERM_SESSIONS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+            return;
+        }
+    };
+    let mut writer = match master.take_writer() {
+        Ok(w) => w,
+        Err(_) => {
+            let _ = child.kill();
+            TERM_SESSIONS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+            return;
+        }
+    };
+    state.db.log_audit("admin", "TERMINAL_OPEN", "pty", "interactive web terminal opened");
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 8192];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    if tx.blocking_send(buf[..n].to_vec()).is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    });
+    loop {
+        tokio::select! {
+            out = rx.recv() => {
+                match out {
+                    Some(data) => {
+                        if ws_tx.send(Message::Binary(data.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    None => {
+                        let _ = ws_tx.send(Message::Text("\r\n[session ended]\r\n".to_string().into())).await;
+                        break;
+                    }
+                }
+            }
+            msg = ws_rx.next() => {
+                match msg {
+                    Some(Ok(Message::Text(t))) => {
+                        let v: Value = serde_json::from_str(t.as_str()).unwrap_or(Value::Null);
+                        match v["t"].as_str() {
+                            Some("i") => {
+                                if let Some(d) = v["d"].as_str() {
+                                    let _ = writer.write_all(d.as_bytes());
+                                    let _ = writer.flush();
+                                }
+                            }
+                            Some("r") => {
+                                let cols = v["c"].as_u64().unwrap_or(120).clamp(20, 400) as u16;
+                                let rows = v["r"].as_u64().unwrap_or(30).clamp(5, 200) as u16;
+                                let _ = master.resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 });
+                            }
+                            _ => {}
+                        }
+                    }
+                    Some(Ok(Message::Binary(b))) => {
+                        let _ = writer.write_all(&b);
+                        let _ = writer.flush();
+                    }
+                    Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
+                    _ => {}
+                }
+            }
+        }
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    TERM_SESSIONS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    state.db.log_audit("admin", "TERMINAL_CLOSE", "pty", "interactive web terminal closed");
 }
 
 async fn handle_site_health(
@@ -4354,6 +4659,10 @@ async fn main() {
     .route("/api/backup/list", get(handle_backup_list))
     .route("/api/backup/download", get(handle_backup_download))
     .route("/api/backup/delete", post(handle_backup_delete))
+    .route("/api/files/upload", post(handle_file_upload).layer(axum::extract::DefaultBodyLimit::max(1024 * 1024 * 1024)))
+    .route("/api/files/download", get(handle_file_download))
+    .route("/api/files/extract", post(handle_file_extract))
+    .route("/api/terminal/ws", get(handle_terminal_ws))
     .route("/api/webserver/migrate", post(handle_webserver_migrate))
     .route("/api/sites/{id}/git", get(handle_site_git_info))
     .route("/api/sites/{id}/git/update", post(handle_site_git_update))

@@ -356,5 +356,21 @@
   "bk_saved": "✅ Backup settings saved.",
   "bk_started": "⏳ Backup started. It will appear in the list below when finished.",
   "bk_delete_confirm": "Delete this backup?",
-  "bk_deleted": "✅ Deleted."
+  "bk_deleted": "✅ Deleted.",
+  "btn_upload": "⬆️ Upload files",
+  "btn_download": "Download",
+  "btn_extract": "📦 Extract",
+  "upload_progress": "⏳ Uploading...",
+  "upload_done": "✅ Uploaded",
+  "extract_confirm": "Extract into the same folder? (Files with the same name will be overwritten)",
+  "extract_running": "⏳ Extracting...",
+  "extract_done": "✅ Extracted.",
+  "live_term_title": "🖥️ Live terminal (SSH replacement)",
+  "guide_live_term": "💡 A <strong>real terminal</strong> right in your browser. Full-screen programs like <code>top</code>, <code>nano</code> and <code>htop</code> work too. It runs as root, so type commands carefully.",
+  "term_connect": "Connect",
+  "term_disconnect": "Disconnect",
+  "term_connecting": "Connecting...",
+  "term_connected": "🟢 Connected",
+  "term_closed": "⚫ Disconnected",
+  "term_cdn_fail": "Could not load the terminal library (check internet access). Use the one-shot command runner below."
 }

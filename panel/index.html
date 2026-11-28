@@ -443,7 +443,10 @@
               <button class="btn btn-sm" onclick="browseDir('/etc/apache2/sites-available')">🪶 Apache Conf</button>
               <button class="btn btn-sm" onclick="browseDir('/www/wwwlogs')">📜 /www/wwwlogs</button>
               <button class="btn btn-sm" onclick="browseUpDir()" data-i18n="btn_up_dir">⬆️ 상위 폴더</button>
+              <button class="btn btn-sm btn-primary" onclick="document.getElementById('upload-input').click()" data-i18n="btn_upload">⬆️ 파일 업로드</button>
+              <input type="file" id="upload-input" multiple class="hidden" onchange="uploadFiles(this.files)" />
             </div>
+            <div id="upload-msg" style="font-size:12px;min-height:16px;margin-bottom:6px"></div>
             <div id="file-browser-list" class="file-list"></div>
             <div class="row" style="margin-bottom:8px">
               <input id="file-path" data-i18n-ph="ph_file_path" placeholder="/www/wwwroot/..." />
@@ -451,6 +454,16 @@
               <button class="btn btn-primary" onclick="saveFile()" data-i18n="btn_save">저장</button>
             </div>
             <textarea id="file-content" rows="8"></textarea>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px" data-i18n="live_term_title">🖥️ 실시간 터미널 (SSH 대체)</h3>
+            <div class="guide-sky" data-i18n="guide_live_term">💡 브라우저에서 바로 쓰는 <strong>진짜 터미널</strong>입니다. <code>top</code>, <code>nano</code>, <code>htop</code> 같은 화면형 프로그램도 동작해요. 관리자(root) 권한이므로 명령은 신중하게 입력하세요.</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+              <button class="btn btn-primary btn-sm" onclick="termConnect()" data-i18n="term_connect">연결</button>
+              <button class="btn btn-sm" onclick="termDisconnect()" data-i18n="term_disconnect">끊기</button>
+              <span id="term-status" style="font-size:12px;color:var(--muted)"></span>
+            </div>
+            <div id="xterm-box" style="height:380px;background:#0b1220;border:1px solid var(--border);border-radius:8px;padding:6px;overflow:hidden"></div>
           </div>
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:15px" data-i18n="web_term_title">웹 터미널</h3>
@@ -1918,6 +1931,82 @@ async function cleanStorage() {
   document.getElementById('storage-out').textContent = JSON.stringify(r, null, 2);
 }
 window.CUR_BROWSE_DIR = '/www/wwwroot';
+function uploadFiles(files) {
+  if (!files || !files.length) return;
+  const dir = window.CUR_BROWSE_DIR || '/www/wwwroot';
+  const fd = new FormData();
+  [...files].forEach(f => fd.append('file', f, f.name));
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/files/upload?dir=' + encodeURIComponent(dir));
+  xhr.withCredentials = true;
+  xhr.upload.onprogress = e => { if (e.lengthComputable) opsMsg('upload-msg', true, t('upload_progress', '⏳ 업로드 중...') + ' ' + Math.round(e.loaded / e.total * 100) + '%'); };
+  xhr.onload = () => {
+    let r = {};
+    try { r = JSON.parse(xhr.responseText); } catch (e) { r = { error: xhr.responseText || ('HTTP ' + xhr.status) }; }
+    opsMsg('upload-msg', !!r.success, r.success ? t('upload_done', '✅ 업로드 완료') + ': ' + (r.files || []).map(f => f.name).join(', ') : (r.error || 'Failed'));
+    document.getElementById('upload-input').value = '';
+    browseDir(dir);
+  };
+  xhr.onerror = () => opsMsg('upload-msg', false, 'Upload failed');
+  xhr.send(fd);
+}
+async function extractArchive(path) {
+  if (!confirm(t('extract_confirm', '같은 폴더에 압축을 풀까요? (같은 이름의 파일은 덮어씁니다)') + '\n' + path)) return;
+  opsMsg('upload-msg', true, t('extract_running', '⏳ 압축을 푸는 중...'));
+  const r = await api('/api/files/extract', { method: 'POST', body: JSON.stringify({ path }) });
+  opsMsg('upload-msg', r.success, r.success ? t('extract_done', '✅ 압축을 풀었습니다.') : (r.error || 'Failed'));
+  if (r.success) browseDir(r.dir);
+}
+let _term = null, _termWs = null, _termFit = null;
+function loadScriptOnce(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) return res();
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+async function ensureXterm() {
+  if (window.Terminal && window.FitAddon) return;
+  if (!document.querySelector('link[data-xterm]')) {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css'; l.dataset.xterm = '1';
+    document.head.appendChild(l);
+  }
+  await loadScriptOnce('https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js');
+  await loadScriptOnce('https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js');
+}
+function termStatus(txt, ok) {
+  const el = document.getElementById('term-status');
+  el.textContent = txt;
+  el.style.color = ok ? '#4ade80' : 'var(--muted)';
+}
+function termFit() {
+  if (!_termFit || !_term) return;
+  try { _termFit.fit(); } catch (e) {}
+  if (_termWs && _termWs.readyState === 1) _termWs.send(JSON.stringify({ t: 'r', c: _term.cols, r: _term.rows }));
+}
+async function termConnect() {
+  if (_termWs) return;
+  try { await ensureXterm(); } catch (e) { termStatus(t('term_cdn_fail', '터미널 화면 라이브러리를 불러오지 못했습니다. (인터넷 연결 확인) 아래 단발 명령 실행기를 이용하세요.'), false); return; }
+  if (!_term) {
+    _term = new window.Terminal({ cursorBlink: true, fontSize: 13, fontFamily: 'Menlo, Consolas, monospace', theme: { background: '#0b1220' } });
+    _termFit = new window.FitAddon.FitAddon();
+    _term.loadAddon(_termFit);
+    _term.open(document.getElementById('xterm-box'));
+    _term.onData(d => { if (_termWs && _termWs.readyState === 1) _termWs.send(JSON.stringify({ t: 'i', d })); });
+    window.addEventListener('resize', termFit);
+  }
+  termFit();
+  termStatus(t('term_connecting', '연결 중...'), false);
+  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/terminal/ws');
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => { termStatus(t('term_connected', '🟢 연결됨'), true); termFit(); _term.focus(); };
+  ws.onmessage = e => { _term.write(typeof e.data === 'string' ? e.data : new Uint8Array(e.data)); };
+  ws.onclose = () => { _termWs = null; termStatus(t('term_closed', '⚫ 연결 끊김'), false); };
+  _termWs = ws;
+}
+function termDisconnect() { if (_termWs) _termWs.close(); }
 async function browseDir(dir) {
   window.CUR_BROWSE_DIR = dir || '/www/wwwroot';
   const r = await api('/api/files/list?path=' + encodeURIComponent(window.CUR_BROWSE_DIR));
@@ -1933,7 +2022,9 @@ async function browseDir(dir) {
     const click = it.is_dir ? `browseDir('${escAttr(full)}')` : `openFileFromBrowser('${escAttr(full)}')`;
     const ico = it.is_dir ? '📁' : '📄';
     const meta = it.is_dir ? 'DIR' : fmtBytes(it.size);
-    return `<div class="file-item" onclick="${click}"><span>${ico} ${escAttr(it.name)}</span><span style="color:var(--muted);font-size:11px">${meta}</span></div>`;
+    const isArc = !it.is_dir && /\.(zip|tar\.gz|tgz|tar)$/i.test(it.name);
+    const acts = it.is_dir ? '' : `<a class="btn btn-sm" style="padding:1px 6px" title="${t('btn_download', '다운로드')}" href="/api/files/download?path=${encodeURIComponent(full)}" onclick="event.stopPropagation()">⬇️</a>` + (isArc ? `<button class="btn btn-sm" style="padding:1px 6px" onclick="event.stopPropagation();extractArchive('${escAttr(full)}')">${t('btn_extract', '📦 풀기')}</button>` : '');
+    return `<div class="file-item" onclick="${click}"><span>${ico} ${escAttr(it.name)}</span><span style="display:flex;gap:6px;align-items:center"><span style="color:var(--muted);font-size:11px">${meta}</span>${acts}</span></div>`;
   }).join('') || '<div class="file-item" style="color:var(--muted)">' + t('dir_empty', '(비어 있음)') + '</div>';
 }
 function browseUpDir() {

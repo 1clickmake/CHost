@@ -356,5 +356,21 @@
   "bk_saved": "✅ バックアップ設定を保存しました。",
   "bk_started": "⏳ バックアップを開始しました。完了すると下の一覧に表示されます。",
   "bk_delete_confirm": "このバックアップを削除しますか？",
-  "bk_deleted": "✅ 削除しました。"
+  "bk_deleted": "✅ 削除しました。",
+  "btn_upload": "⬆️ ファイルアップロード",
+  "btn_download": "ダウンロード",
+  "btn_extract": "📦 展開",
+  "upload_progress": "⏳ アップロード中...",
+  "upload_done": "✅ アップロード完了",
+  "extract_confirm": "同じフォルダに展開しますか？（同名ファイルは上書きされます）",
+  "extract_running": "⏳ 展開中...",
+  "extract_done": "✅ 展開しました。",
+  "live_term_title": "🖥️ リアルタイムターミナル（SSH代替）",
+  "guide_live_term": "💡 ブラウザで直接使える<strong>本物のターミナル</strong>です。<code>top</code>・<code>nano</code>・<code>htop</code> のような画面型プログラムも動作します。root権限なのでコマンドは慎重に入力してください。",
+  "term_connect": "接続",
+  "term_disconnect": "切断",
+  "term_connecting": "接続中...",
+  "term_connected": "🟢 接続済み",
+  "term_closed": "⚫ 切断",
+  "term_cdn_fail": "ターミナル表示ライブラリを読み込めませんでした。（インターネット接続を確認）下の単発コマンド実行を利用してください。"
 }
