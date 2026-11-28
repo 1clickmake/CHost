@@ -170,7 +170,8 @@ pub fn pg_dump(db: &str) -> Result<Vec<u8>, String> {
 // ───────────── 예약 자동 백업 ─────────────
 
 fn sh(cmd: &str) -> Result<(), String> {
-    let o = Command::new("sh").args(["-c", cmd]).output().map_err(|e| e.to_string())?;
+    // bash + pipefail: 파이프 앞쪽(mysqldump/pg_dump) 실패도 오류로 잡는다
+    let o = Command::new("bash").args(["-o", "pipefail", "-c", cmd]).output().map_err(|e| e.to_string())?;
     if o.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&o.stderr).trim().to_string()) }
 }
 
@@ -200,7 +201,7 @@ pub fn run_backup(domains: &[String], panel_db_copy: &dyn Fn(&str) -> Result<(),
         if !valid_ident(&db) {
             continue;
         }
-        match sh(&format!("set -o pipefail 2>/dev/null; mysqldump --single-transaction --routines --events '{db}' | gzip > '{d}/mysql-{db}.sql.gz'", db = db, d = d)) {
+        match sh(&format!("mysqldump --single-transaction --routines --events '{db}' | gzip > '{d}/mysql-{db}.sql.gz'", db = db, d = d)) {
             Ok(()) => done.push(format!("mysql-{}.sql.gz", db)),
             Err(e) => errors.push(format!("mysql {}: {}", db, e)),
         }
