@@ -3,407 +3,859 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CHost Developer Docs</title>
+  <title>CHost 공식 개발자 문서 & 매뉴얼</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <style>
-    :root { --bg:#090d16; --surface:#111827; --border:#233048; --text:#f3f4f6; --muted:#9ca3af; --accent:#6366f1; }
-    * { box-sizing:border-box; margin:0; padding:0; }
-    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; }
-    a { color:#a5b4fc; text-decoration:none; }
-    .nav { border-bottom:1px solid var(--border); background:rgba(17,24,39,.92); position:sticky; top:0; z-index:20; }
-    .nav-inner { max-width:1120px; margin:0 auto; padding:0 24px; height:64px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    .brand { font-weight:800; font-size:19px; color:var(--text); }
-    .nav-links { display:flex; gap:18px; font-size:14px; font-weight:600; align-items:center; flex-wrap:wrap; }
-    .nav-links a { color:var(--muted); }
-    .nav-links a:hover, .nav-links a.active { color:var(--text); }
-    .nav-links select { background:var(--surface); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:8px; font-size:13px; width:auto; }
-    .wrap { max-width:960px; margin:0 auto; padding:42px 24px 80px; }
-    h1 { font-size:32px; margin-bottom:10px; }
-    .lead { color:var(--muted); margin-bottom:32px; }
-    .doc-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:20px; }
-    .doc-card h2 { font-size:19px; margin-bottom:12px; color:#fff; }
-    .doc-card p, .doc-card li { font-size:14px; color:#d1d5db; }
-    .doc-card ul { padding-left:20px; margin-top:8px; }
-    pre { background:#060910; border:1px solid var(--border); border-radius:8px; padding:14px; overflow-x:auto; font-size:13px; color:#a5b4fc; margin-top:10px; }
-    .pre-copy-bar { display:flex; justify-content:flex-end; margin-top:6px; }
-    .btn-copy-code { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:6px; border:1px solid var(--border); background:#0f172a; color:var(--muted); font-size:12px; font-weight:600; cursor:pointer; }
-    .btn-copy-code:hover { border-color:var(--accent); color:var(--text); }
-    code { font-family:Consolas,monospace; }
-    table { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
-    th, td { padding:10px 8px; border-bottom:1px solid var(--border); text-align:left; }
-    th { color:var(--muted); }
+    :root {
+      --bg: #0b0f19;
+      --sidebar-bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-hover: #0284c7;
+      --accent: #818cf8;
+      --code-bg: #020617;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Top Header */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .brand-logo {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none !important;
+    }
+    .brand-logo .ver-pill {
+      font-size: 11px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .search-box {
+      position: relative;
+      width: 280px;
+    }
+    .search-box input {
+      width: 100%;
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px 6px 32px;
+      color: var(--text);
+      font-size: 13px;
+    }
+    .search-box i {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .header-right a { color: var(--text-muted); }
+    .header-right a:hover { color: #fff; text-decoration: none; }
+    .btn-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: #fff !important;
+    }
+    .btn-github:hover { background: #334155; }
+
+    /* Layout: 3 Columns (Sidebar / Content / TOC) */
+    .docs-layout {
+      display: flex;
+      max-width: 1540px;
+      margin: 0 auto;
+      min-height: calc(100vh - 62px);
+    }
+
+    /* Left Sidebar */
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 62px;
+      height: calc(100vh - 62px);
+      overflow-y: auto;
+      padding: 24px 16px;
+      border-right: 1px solid var(--border);
+      background: var(--sidebar-bg);
+    }
+    .sidebar-group {
+      margin-bottom: 24px;
+    }
+    .sidebar-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      padding-left: 10px;
+    }
+    .sidebar-menu {
+      list-style: none;
+    }
+    .sidebar-menu li a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      color: #cbd5e1;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .sidebar-menu li a:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+    .sidebar-menu li a.active {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--primary);
+      font-weight: 700;
+    }
+    .sidebar-badge {
+      margin-left: auto;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(129, 140, 248, 0.2);
+      color: #a5b4fc;
+    }
+
+    /* Main Content Area */
+    .main-content {
+      flex: 1;
+      min-width: 0;
+      padding: 40px 48px 80px;
+    }
+    .doc-section {
+      margin-bottom: 70px;
+      scroll-margin-top: 80px;
+    }
+    .doc-section h1 {
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .doc-section h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 36px 0 16px;
+      color: #f1f5f9;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .doc-section h3 {
+      font-size: 17px;
+      font-weight: 600;
+      margin: 24px 0 10px;
+      color: #e2e8f0;
+    }
+    .doc-section p, .doc-section li {
+      font-size: 14.5px;
+      color: #cbd5e1;
+      line-height: 1.75;
+      margin-bottom: 12px;
+    }
+    .doc-section ul, .doc-section ol {
+      padding-left: 22px;
+      margin-bottom: 16px;
+    }
+
+    /* Screenshot Showcase Frame */
+    .screenshot-frame {
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 20px 0 28px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    }
+    .screenshot-header {
+      background: #0f172a;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .screenshot-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+    .screenshot-frame img {
+      width: 100%;
+      height: auto;
+      display: block;
+      transition: transform 0.2s;
+    }
+
+    /* Callout Boxes */
+    .callout {
+      border-left: 4px solid var(--primary);
+      background: rgba(56, 189, 248, 0.08);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 18px 0;
+      font-size: 13.5px;
+    }
+    .callout.tip { border-color: #10b981; background: rgba(16, 185, 129, 0.08); }
+    .callout.warn { border-color: #f59e0b; background: rgba(245, 158, 11, 0.08); }
+    .callout strong { color: #fff; }
+
+    /* Code Blocks */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-family: Consolas, Monaco, "Courier New", monospace;
+      font-size: 13.5px;
+      color: #e2e8f0;
+      overflow-x: auto;
+      margin: 12px 0 18px;
+      position: relative;
+    }
+    code {
+      font-family: Consolas, Monaco, monospace;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #38bdf8;
+      font-size: 13px;
+    }
+    pre code { background: none; padding: 0; color: inherit; }
+    .code-bar {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: -12px;
+      margin-bottom: 12px;
+    }
+    .btn-copy {
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-copy:hover { color: #fff; border-color: var(--primary); }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 13.5px;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+    th {
+      background: #1e293b;
+      color: #fff;
+      font-weight: 600;
+    }
+    tr:nth-child(even) { background: rgba(255, 255, 255, 0.02); }
+
+    /* Right TOC (On this page) */
+    .toc-wrapper {
+      width: 240px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 62px;
+      height: calc(100vh - 62px);
+      padding: 32px 16px;
+      border-left: 1px solid rgba(255, 255, 255, 0.05);
+      display: none;
+    }
+    @media (min-width: 1280px) { .toc-wrapper { display: block; } }
+    .toc-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .toc-list {
+      list-style: none;
+      font-size: 13px;
+    }
+    .toc-list li { margin-bottom: 8px; }
+    .toc-list a { color: var(--text-muted); text-decoration: none; }
+    .toc-list a:hover { color: var(--primary); }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main-content { padding: 24px 18px; }
+    }
   </style>
 </head>
 <body>
-  <header class="nav">
-    <div class="nav-inner">
-      <a href="/" class="brand">CHost</a>
-      <nav class="nav-links">
-        <a href="/" data-i18n="nav_home">홈</a>
-        <a href="/docs" class="active" data-i18n="nav_docs">개발자 문서</a>
-        <a href="/forum" data-i18n="nav_forum">포럼 게시판</a>
-        <select id="lang-select" onchange="setDocLang(this.value)">
-          <option value="ko">한국어</option>
-          <option value="en">English</option>
-          <option value="ja">日本語</option>
-          <option value="zh-CN">简体中文</option>
-          <option value="es">Español</option>
-        </select>
-        <a href="https://github.com/1clickmake/CHost" target="_blank">GitHub</a>
-      </nav>
+  <!-- Top Navigation -->
+  <header class="header">
+    <div class="header-left">
+      <a href="/" class="brand-logo">
+        <i class="bi bi-hdd-network" style="color:var(--primary)"></i>
+        <span>CHost</span>
+        <span class="ver-pill">v0.1.27</span>
+      </a>
+      <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" id="doc-search" placeholder="문서 검색 (예: SSL, 롤백, Nginx)..." onkeyup="filterDocs(this.value)" />
+      </div>
+    </div>
+    <div class="header-right">
+      <a href="/"><i class="bi bi-house-door"></i> 홈</a>
+      <a href="/docs" style="color:var(--primary)"><i class="bi bi-book"></i> 가이드 문서</a>
+      <a href="/forum"><i class="bi bi-chat-dots"></i> 커뮤니티 포럼</a>
+      <a href="https://github.com/1clickmake/CHost" target="_blank" class="btn-github">
+        <i class="bi bi-github"></i> GitHub
+      </a>
     </div>
   </header>
 
-  <main class="wrap">
-    <h1 data-i18n="doc_title">개발자 문서 (Developer Guide)</h1>
-    <p class="lead" data-i18n="doc_lead">CHost 서버 패널의 설치, 소스 빌드, REST API 규격, 다국어 확장 및 보안 설계를 안내합니다.</p>
-
-    <div class="doc-card">
-      <h2 data-i18n="s1_t">1. 운영체제별 빠른 설치 (Linux)</h2>
-      <p data-i18n="s1_d1">install.sh는 아키텍처(x86_64 / ARM64)를 자동 감지하여 /opt/chost에 바이너리를 배치하고 systemd 서비스를 등록합니다.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-        <button class="os-tab active" onclick="showOs('ubuntu', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #6366f1;background:rgba(99,102,241,.2);color:#c7d2fe;font-size:12px;font-weight:600;cursor:pointer">Ubuntu / Debian</button>
-        <button class="os-tab" onclick="showOs('rhel', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #233048;background:#090d16;color:#9ca3af;font-size:12px;font-weight:600;cursor:pointer">Rocky / AlmaLinux / RHEL</button>
-        <button class="os-tab" onclick="showOs('amzn', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #233048;background:#090d16;color:#9ca3af;font-size:12px;font-weight:600;cursor:pointer">Amazon Linux 2023</button>
-        <button class="os-tab" onclick="showOs('docker', this)" style="padding:6px 12px;border-radius:6px;border:1px solid #233048;background:#090d16;color:#9ca3af;font-size:12px;font-weight:600;cursor:pointer">Docker (Test)</button>
-      </div>
-      <pre id="os-ubuntu">sudo apt update && sudo apt install -y curl tar
-curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
-      <pre id="os-rhel" style="display:none">sudo dnf install -y curl tar epel-release
-sudo firewall-cmd --permanent --add-port=8800/tcp && sudo firewall-cmd --reload
-curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
-      <pre id="os-amzn" style="display:none">sudo dnf install -y curl tar
-curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</pre>
-      <pre id="os-docker" style="display:none">git clone https://github.com/1clickmake/CHost.git && cd CHost
-docker run -d --name chost -p 8800:8800 -v $(pwd):/app -w /app ubuntu:24.04 bash -c "apt update && apt install -y curl ca-certificates && ./install.sh && tail -f /dev/null"</pre>
-      <p style="margin-top:10px" data-i18n="s1_d2">설치 완료 후 초기 관리자 비밀번호는 아래 경로에서 확인할 수 있습니다.</p>
-      <pre>cat /var/lib/chost/init_password.txt</pre>
-      <p style="margin-top:14px;color:#fca5a5;"><strong>CHost 패널 완전 삭제 (Uninstall)</strong> — 서비스와 패널 파일만 깔끔하게 제거합니다.</p>
-      <pre>sudo systemctl disable --now chost && sudo rm -rf /etc/systemd/system/chost.service /opt/chost /var/lib/chost && sudo systemctl daemon-reload</pre>
-      <p style="margin-top:10px;color:#fca5a5;"><strong>웹 루트·로그까지 모두 포함한 완전 초기화</strong> (테스트 서버를 처음 상태로 되돌릴 때 사용)</p>
-      <pre>sudo systemctl disable --now chost && sudo rm -rf /etc/systemd/system/chost.service /opt/chost /var/lib/chost /www/wwwroot /www/wwwlogs && sudo systemctl daemon-reload</pre>
-    </div>
-
-    <div class="doc-card">
-      <h2 data-i18n="s2_t">2. 소스 코드 빌드 (Rust)</h2>
-      <pre>git clone https://github.com/1clickmake/CHost.git
-cd CHost
-cargo build --release --bin chost
-CHOST_PORT=8800 ./target/release/chost</pre>
-    </div>
-
-    <div class="doc-card">
-      <h2 data-i18n="s3_t">3. 핵심 REST API 레퍼런스</h2>
-      <p data-i18n="s3_d">모든 관리 API는 로그인 후 발급되는 chost_token HttpOnly JWT 쿠키로 인증됩니다.</p>
-      <table>
-        <thead><tr><th data-i18n="th_m">Method</th><th data-i18n="th_e">Endpoint</th><th data-i18n="th_d">Description</th></tr></thead>
-        <tbody>
-          <tr><td>POST</td><td><code>/api/auth/login</code></td><td data-i18n="api_1">관리자 인증 및 JWT 세션 발급</td></tr>
-          <tr><td>POST</td><td><code>/api/auth/change-password</code></td><td>패널 로그인 후 관리자 비밀번호 변경</td></tr>
-          <tr><td>GET</td><td><code>/api/system/stats</code></td><td data-i18n="api_2">CPU, 메모리, 디스크 사용률(80% 경고) 및 업타임 조회</td></tr>
-          <tr><td>GET / POST</td><td><code>/api/sites</code></td><td data-i18n="api_3">도메인 목록 조회 및 /www/wwwroot 사이트 생성 (SSL·FTP/SFTP·DB 자동 발급 지원)</td></tr>
-          <tr><td>POST</td><td><code>/api/sites/subdomain</code></td><td data-i18n="api_3_sub">서브도메인·언어·프레임워크·SSL·FTP/SFTP·DB 자동 생성</td></tr>
-          <tr><td>GET / POST</td><td><code>/api/runtimes/status</code> · <code>/install</code></td><td>초기 세팅 마법사 &amp; 런타임 스토어(Nginx/Apache2/MariaDB/PHP/Python/Node/Rust/Java) 원클릭 설치</td></tr>
-          <tr><td>POST</td><td><code>/api/sites/{id}/php</code></td><td data-i18n="api_4">사이트별 PHP 버전(7.4~8.4) 즉시 전환</td></tr>
-          <tr><td>POST</td><td><code>/api/sites/{id}/ssl</code></td><td data-i18n="api_5">Certbot 기반 Let's Encrypt SSL 인증서 발급</td></tr>
-          <tr><td>GET / POST</td><td><code>/api/apps</code></td><td data-i18n="api_6">언어 프리셋(Rust/Python/Node/PHP) 앱 등록</td></tr>
-          <tr><td>POST</td><td><code>/api/db/sqlite/query</code></td><td data-i18n="api_7">내장 멀티 DB 스튜디오 SQL 쿼리 실행</td></tr>
-          <tr><td>GET / POST</td><td><code>/api/storage/scan</code></td><td data-i18n="api_8">보관 기간별 로그 스캔(미리보기) 및 안전 정리</td></tr>
-          <tr><td>GET</td><td><code>/api/audits</code></td><td data-i18n="api_9">관리자 보안 감사 로그 조회</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="doc-card">
-      <h2 data-i18n="s4_t">4. 다국어 (i18n) 사전 구조</h2>
-      <p data-i18n="s4_d">locales/ 디렉토리에 JSON 파일을 추가하면 패널 상단 언어 선택기에 즉시 연동할 수 있습니다. 기본 지원 언어는 ko, en, ja, zh-CN, es입니다.</p>
-    </div>
-
-    <div class="doc-card">
-      <h2 data-i18n="s5_t">5. 보안 및 안전장치 설계</h2>
-      <ul>
-        <li data-i18n="s5_l1">DB 데이터(*.db, /var/lib/mysql) 및 업로드 디렉토리(uploads)는 저장 공간 정리 대상에서 원천 차단됩니다.</li>
-        <li data-i18n="s5_l2">로그 정리는 실행 중인 프로세스의 파일 핸들을 유지하기 위해 copytruncate / 로테이션 방식을 기본으로 합니다.</li>
-        <li data-i18n="s5_l3">모든 설정 변경, DB 쿼리, 터미널 실행 내역은 audit_logs 테이블에 기록됩니다.</li>
-      </ul>
-    </div>
-
-    <div class="doc-card">
-      <h2>6. 패널 메뉴별 화면 가이드 (실제 화면 캡처 · v0.1.10)</h2>
-      <p style="margin-bottom:18px;">CHost 관리자 패널(기본 포트 <code>8800</code>)의 8개 핵심 메뉴별 기능과 입력 항목 설명입니다. 상단 우측의 버전 배지/업데이트 버튼으로 언제든 GitHub 최신 릴리즈를 원클릭 적용할 수 있습니다.</p>
-
-      <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-1. 대시보드 (Dashboard)</h3>
-        <p>서버의 실시간 <strong>CPU 사용률</strong>, <strong>메모리(RAM)</strong>, <strong>디스크(Disk)</strong> 사용량과 진행률 그래프, 서버 가동 시간(Uptime), 설치된 서버 패키지 &amp; 런타임(Nginx/Apache2 실행 상태 포함)을 한눈에 모니터링합니다.</p>
-        <img src="/assets/docs/tab1_dashboard.png" alt="대시보드" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
-      </div>
-
-      <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-2. 사이트 및 도메인 (Sites &amp; Domains) · Conf / Log 통합</h3>
-        <ul>
-          <li><strong>통합 생성 폼</strong>: 직접 도메인(<code>aaa.com</code>)과 서브도메인(<code>sub.chost.work</code>)을 한 화면에서 전환해 언어·프레임워크·런타임 버전을 설정하며, 활성 웹서버(Nginx / Apache2)에 맞춰 설정이 자동 생성됩니다.</li>
-          <li><strong>Issue SSL &amp; 원클릭 FTP/DB</strong>: Let's Encrypt 무료 HTTPS 자동 발급 및 사이트별 FTP/DB 원클릭 생성·조회·수학 퀴즈 안전 삭제를 지원합니다.</li>
-          <li><strong>Conf / Log 모달 &amp; 안전 삭제</strong>: 리스트 우측 <strong>Conf</strong> / <strong>Log</strong> 버튼으로 추가 도메인, 웹서버 설정 문법 검증 후 저장, PHP 버전 전환, 사이트별 로그 및 웹·DB 용량 확인이 가능합니다.</li>
+  <div class="docs-layout">
+    <!-- Left Sidebar Menu (Laravel Style) -->
+    <aside class="sidebar">
+      <div class="sidebar-group">
+        <div class="sidebar-title">🚀 시작하기 (Getting Started)</div>
+        <ul class="sidebar-menu">
+          <li><a href="#intro" class="nav-item active"><i class="bi bi-info-circle"></i> CHost 소개</a></li>
+          <li><a href="#install" class="nav-item"><i class="bi bi-terminal"></i> 1줄 빠른 설치</a></li>
+          <li><a href="#quickstart" class="nav-item"><i class="bi bi-lightning-charge"></i> 초기 접속 및 보안</a></li>
         </ul>
-        <img src="/assets/docs/tab2_sites.png" alt="사이트 및 도메인" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
       </div>
 
-      <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-3. 앱 프로세스 (App Processes)</h3>
-        <p>Rust, Python, Node.js, PHP 백그라운드 앱을 등록하고 Start / Stop / Delete 버튼으로 프로세스 상태를 제어합니다.</p>
-        <img src="/assets/docs/tab3_apps.png" alt="앱 프로세스" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      <div class="sidebar-group">
+        <div class="sidebar-title">📋 패널 핵심 메뉴 매뉴얼</div>
+        <ul class="sidebar-menu">
+          <li><a href="#menu-dashboard" class="nav-item"><i class="bi bi-bar-chart"></i> 대시보드</a></li>
+          <li><a href="#menu-settings" class="nav-item"><i class="bi bi-gear"></i> 설정 센터</a></li>
+          <li><a href="#menu-sites" class="nav-item"><i class="bi bi-globe"></i> 사이트 및 도메인</a></li>
+          <li><a href="#menu-apps" class="nav-item"><i class="bi bi-cpu"></i> 앱 프로세스</a></li>
+          <li><a href="#menu-db" class="nav-item"><i class="bi bi-database"></i> 멀티 DB 스튜디오</a></li>
+          <li><a href="#menu-storage" class="nav-item"><i class="bi bi-trash"></i> 저장 공간 및 로그</a></li>
+          <li><a href="#menu-files" class="nav-item"><i class="bi bi-folder2-open"></i> 파일 & 웹 터미널</a></li>
+          <li><a href="#menu-audit" class="nav-item"><i class="bi bi-shield-check"></i> 보안 감사 로그</a></li>
+          <li><a href="#menu-runtimes" class="nav-item"><i class="bi bi-box-seam"></i> 런타임 스토어</a></li>
+        </ul>
       </div>
 
-      <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-4. 멀티 DB 스튜디오 (Multi-DB Studio)</h3>
-        <p>phpMyAdmin 없이 <strong>MariaDB / MySQL</strong>(DB 목록, 테이블 조회, SQL 실행, 원클릭 <code>.sql</code> 백업 다운로드)과 <strong>SQLite (.db)</strong>를 웹에서 안전하게 관리합니다.</p>
-        <img src="/assets/docs/tab4_db.png" alt="멀티 DB 스튜디오" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      <div class="sidebar-group">
+        <div class="sidebar-title">👑 CHost Pro 프리미엄 기능</div>
+        <ul class="sidebar-menu">
+          <li><a href="#pro-hub" class="nav-item"><i class="bi bi-award"></i> CHost Pro 통합 허브 <span class="sidebar-badge">Pro</span></a></li>
+          <li><a href="#pro-nodes" class="nav-item"><i class="bi bi-display"></i> 멀티 서버 모니터링 <span class="sidebar-badge">Pro</span></a></li>
+          <li><a href="#pro-backup" class="nav-item"><i class="bi bi-cloud-arrow-up"></i> S3 / WebDAV 원격 백업 <span class="sidebar-badge">Pro</span></a></li>
+          <li><a href="#pro-ai" class="nav-item"><i class="bi bi-robot"></i> AI 서버 에러 닥터 <span class="sidebar-badge">Pro</span></a></li>
+          <li><a href="#pro-git" class="nav-item"><i class="bi bi-arrow-counterclockwise"></i> Git 사이트 롤백 센터 <span class="sidebar-badge">Pro</span></a></li>
+        </ul>
       </div>
 
-      <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-5. 저장 공간 및 로그 (Storage &amp; Logs)</h3>
-        <p>지정된 일수(7/15/30일) 이전의 오래된 로그 파일을 미리보기 스캔한 뒤 안전하게 압축(<code>.log</code>) 및 정리(<code>.gz</code>/<code>.tmp</code>)합니다. DB 및 업로드 폴더는 자동 보호됩니다.</p>
-        <img src="/assets/docs/tab5_storage.png" alt="저장 공간 및 로그" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
+      <div class="sidebar-group">
+        <div class="sidebar-title">🛠️ 개발자 & 트러블슈팅</div>
+        <ul class="sidebar-menu">
+          <li><a href="#dev-build" class="nav-item"><i class="bi bi-code-slash"></i> 소스 빌드 (Rust)</a></li>
+          <li><a href="#api-ref" class="nav-item"><i class="bi bi-braces"></i> REST API 레퍼런스</a></li>
+          <li><a href="#troubleshooting" class="nav-item"><i class="bi bi-life-preserver"></i> 긴급 복구 & FAQ</a></li>
+        </ul>
       </div>
+    </aside>
 
-      <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-6. 파일 탐색기 및 웹 터미널 (Files &amp; Terminal)</h3>
-        <p>경로를 외우지 않아도 폴더·파일 탐색기에서 클릭 한 번으로 설정 파일을 열어 수정·저장하고, 하단 웹 터미널의 퀵 버튼으로 서버 상태를 즉시 점검합니다.</p>
-        <img src="/assets/docs/tab6_files.png" alt="파일 및 터미널" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
-      </div>
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- 1. Intro -->
+      <section id="intro" class="doc-section">
+        <h1>CHost 공식 개발자 가이드 & 사용자 매뉴얼</h1>
+        <p class="lead" style="font-size:16px;color:var(--text-muted);margin-bottom:24px">
+          <strong>CHost (씨호스트)</strong>는 초보자도 마우스 클릭 몇 번으로 Nginx/Apache, Node.js, Next.js, Python, PHP, Rust, MariaDB, PostgreSQL을 손쉽게 운영할 수 있도록 제작된 <strong>초경량 한국형 모던 웹 서버 관리 패널</strong>입니다.
+        </p>
 
-      <div style="margin-bottom:28px;">
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-7. 보안 및 감사 로그 (Security &amp; Audit)</h3>
-        <p>페이지 내 <strong>관리자 비밀번호 변경</strong>, 수학 퀴즈 기반 <strong>패널 초기화(가벼운 리셋 / 완전 초기화)</strong>, 그리고 모든 주요 보안 이벤트의 감사 로그를 시간순으로 추적합니다.</p>
-        <img src="/assets/docs/tab7_audit.png" alt="보안 및 감사 로그" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
-      </div>
+        <div class="callout tip">
+          <strong>💡 CHost의 3대 핵심 철학</strong><br/>
+          1. <strong>극강의 가벼움:</strong> 순수 Rust 싱글 바이너리로 메모리 점유율 30MB 이하, 백그라운드 리소스 소모 제로.<br/>
+          2. <strong>초보자 친화적 자동화:</strong> 도메인만 넣으면 Nginx 리버스 프록시, systemd 데몬화, 무료 SSL(Let's Encrypt) 자동 발급.<br/>
+          3. <strong>Open-Core Pro 완성도:</strong> 원클릭 Git 롤백, AI 에러 닥터, S3 원격 백업, 멀티 서버 모니터링 탑재.
+        </div>
+      </section>
 
-      <div>
-        <h3 style="font-size:16px;color:#a5b4fc;margin-bottom:8px;">6-8. 런타임 스토어 &amp; 포럼 바로가기 (Runtime Store)</h3>
-        <p>Nginx / Apache2(실행 상태 실시간 구분), MariaDB, Certbot, PHP(7.4~8.3), Python, Node.js, Rust, Java를 선택 설치할 수 있으며, 하단 <strong>포럼 바로가기</strong>로 커뮤니티 지원 페이지에 즉시 이동합니다.</p>
-        <img src="/assets/docs/tab8_runtimes.png" alt="런타임 스토어" style="width:100%;border-radius:10px;border:1px solid #233048;margin-top:10px;">
-      </div>
-    </div>
-  </main>
+      <!-- 2. Install -->
+      <section id="install" class="doc-section">
+        <h2>🚀 1줄 빠른 설치 (Linux)</h2>
+        <p>Ubuntu 22.04/24.04, Debian 11/12, Rocky Linux, AlmaLinux, Amazon Linux 2023 등 대부분의 최신 리눅스 배포판을 완벽히 지원합니다.</p>
+        
+        <pre><code id="code-install">curl -sSL https://raw.githubusercontent.com/1clickmake/CHost/main/install.sh | sudo bash</code></pre>
+        <div class="code-bar"><button class="btn-copy" onclick="copyCode('code-install')">📋 복사</button></div>
 
-<script>
-const DOC_I18N = {
-  ko: {
-    nav_home:"홈", nav_docs:"개발자 문서", nav_forum:"포럼 게시판",
-    doc_title:"개발자 문서 (Developer Guide)",
-    doc_lead:"CHost 서버 패널의 설치, 소스 빌드, REST API 규격, 다국어 확장 및 보안 설계를 안내합니다.",
-    s1_t:"1. 운영체제별 빠른 설치 (Linux)",
-    s1_d1:"install.sh는 아키텍처(x86_64 / ARM64)를 자동 감지하여 /opt/chost에 바이너리를 배치하고 systemd 서비스를 등록합니다.",
-    s1_d2:"설치 완료 후 초기 관리자 비밀번호는 아래 경로에서 확인할 수 있습니다.",
-    s2_t:"2. 소스 코드 빌드 (Rust)",
-    s3_t:"3. 핵심 REST API 레퍼런스",
-    s3_d:"모든 관리 API는 로그인 후 발급되는 chost_token HttpOnly JWT 쿠키로 인증됩니다.",
-    th_m:"Method", th_e:"Endpoint", th_d:"설명",
-    api_1:"관리자 인증 및 JWT 세션 발급",
-    api_2:"CPU, 메모리, 디스크 사용률(80% 경고) 및 업타임 조회",
-    api_3:"도메인 목록 조회 및 /www/wwwroot 사이트 생성",
-    api_3_sub:"서브도메인·언어·프레임워크·SSL/SSH 자동 생성",
-    api_4:"사이트별 PHP 버전(7.4~8.4) 즉시 전환",
-    api_5:"Certbot 기반 Let's Encrypt SSL 인증서 발급",
-    api_6:"언어 프리셋(Rust/Python/Node/PHP) 앱 등록",
-    api_7:"내장 멀티 DB 스튜디오 SQL 쿼리 실행",
-    api_8:"보관 기간별 로그 스캔(미리보기) 및 안전 정리",
-    api_9:"관리자 보안 감사 로그 조회",
-    s4_t:"4. 다국어 (i18n) 사전 구조",
-    s4_d:"locales/ 디렉토리에 JSON 파일을 추가하면 패널 상단 언어 선택기에 즉시 연동할 수 있습니다. 기본 지원 언어는 ko, en, ja, zh-CN, es입니다.",
-    s5_t:"5. 보안 및 안전장치 설계",
-    s5_l1:"DB 데이터(*.db, /var/lib/mysql) 및 업로드 디렉토리(uploads)는 저장 공간 정리 대상에서 원천 차단됩니다.",
-    s5_l2:"로그 정리는 실행 중인 프로세스의 파일 핸들을 유지하기 위해 copytruncate / 로테이션 방식을 기본으로 합니다.",
-    s5_l3:"모든 설정 변경, DB 쿼리, 터미널 실행 내역은 audit_logs 테이블에 기록됩니다."
-  },
-  en: {
-    nav_home:"Home", nav_docs:"Developer Docs", nav_forum:"Forum",
-    doc_title:"Developer Guide",
-    doc_lead:"Installation, building from source, REST API reference, i18n customization, and security architecture for CHost.",
-    s1_t:"1. Quick Install by OS (Linux)",
-    s1_d1:"install.sh auto-detects architecture (x86_64 / ARM64), installs to /opt/chost, and registers the systemd service.",
-    s1_d2:"After installation, retrieve your generated initial admin password from:",
-    s2_t:"2. Build from Source (Rust)",
-    s3_t:"3. Core REST API Reference",
-    s3_d:"All admin endpoints authenticate via the chost_token HttpOnly JWT cookie issued on login.",
-    th_m:"Method", th_e:"Endpoint", th_d:"Description",
-    api_1:"Admin authentication and JWT session issuance",
-    api_2:"Fetch CPU, memory, disk usage (80% alert), and uptime",
-    api_3:"List sites and create /www/wwwroot domain configs",
-    api_3_sub:"Create subdomain with language, framework, SSL, and SSH presets",
-    api_4:"Switch PHP version (7.4-8.4) per site",
-    api_5:"Issue Let's Encrypt SSL certificate via Certbot",
-    api_6:"Register language preset apps (Rust/Python/Node/PHP)",
-    api_7:"Execute SQL queries in the built-in Multi-DB Studio",
-    api_8:"Scan old logs (preview) and execute safe cleanup",
-    api_9:"Retrieve admin security audit logs",
-    s4_t:"4. Multilingual (i18n) Dictionary Structure",
-    s4_d:"Add a JSON dictionary under locales/ to support additional languages in the panel switcher. Built-in: ko, en, ja, zh-CN, es.",
-    s5_t:"5. Security & Safety Safeguards",
-    s5_l1:"Databases (*.db, /var/lib/mysql) and upload directories are strictly excluded from storage cleanup.",
-    s5_l2:"Log cleanup uses copytruncate/rotation to preserve open file handles of running processes.",
-    s5_l3:"Every configuration change, SQL execution, and shell command is recorded in audit_logs."
-  },
-  ja: {
-    nav_home:"ホーム", nav_docs:"開発者ドキュメント", nav_forum:"フォーラム",
-    doc_title:"開発者ドキュメント (Developer Guide)",
-    doc_lead:"CHostのインストール、ソースビルド、REST API仕様、多言語拡張、セキュリティ設計を案内します。",
-    s1_t:"1. OS別クイックインストール (Linux)",
-    s1_d1:"install.shはアーキテクチャ(x86_64 / ARM64)を自動検出し、/opt/chostへの配置とsystemd登録を行います。",
-    s1_d2:"インストール後、初期管理者パスワードは以下のパスで確認できます。",
-    s2_t:"2. ソースコードビルド (Rust)",
-    s3_t:"3. コア REST API リファレンス",
-    s3_d:"すべての管理APIはログイン時に発行される chost_token HttpOnly JWT Cookieで認証されます。",
-    th_m:"Method", th_e:"Endpoint", th_d:"説明",
-    api_1:"管理者認証およびJWTセッション発行",
-    api_2:"CPU・メモリ・ディスク使用率(80%警告)と稼働時間の取得",
-    api_3:"ドメイン一覧取得および /www/wwwroot サイト作成",
-    api_3_sub:"サブドメイン・言語・フレームワーク・SSL/SSH 自動構成",
-    api_4:"サイト別のPHPバージョン(7.4〜8.4)即時切替",
-    api_5:"CertbotによるLet's Encrypt SSL証明書発行",
-    api_6:"言語プリセット(Rust/Python/Node/PHP)アプリ登録",
-    api_7:"内蔵マルチDBスタジオでのSQLクエリ実行",
-    api_8:"期間別ログスキャン(プレビュー)および安全削除",
-    api_9:"管理者セキュリティ監査ログの取得",
-    s4_t:"4. 多言語 (i18n) 辞書構造",
-    s4_d:"locales/ ディレクトリにJSONファイルを追加するとパネルの言語切替に即座に反映されます。標準対応: ko, en, ja, zh-CN, es。",
-    s5_t:"5. セキュリティと安全装置の設計",
-    s5_l1:"DBデータ(*.db, /var/lib/mysql)とアップロードフォルダは容量整理の対象から完全に除外されます。",
-    s5_l2:"ログ整理は実行中プロセスのファイルハンドルを維持するため copytruncate 方式を基本とします。",
-    s5_l3:"設定変更・SQL実行・端末コマンドはすべて audit_logs テーブルに記録されます。"
-  },
-  "zh-CN": {
-    nav_home:"首页", nav_docs:"开发文档", nav_forum:"社区论坛",
-    doc_title:"开发者文档 (Developer Guide)",
-    doc_lead:"介绍 CHost 的快速安装、源码构建、REST API 规范、多语言扩展及安全架构设计。",
-    s1_t:"1. 各操作系统快速安装 (Linux)",
-    s1_d1:"install.sh 会自动识别架构 (x86_64 / ARM64)，将二进制文件部署至 /opt/chost 并注册 systemd 服务。",
-    s1_d2:"安装完成后，可在以下路径查看初始管理员密码：",
-    s2_t:"2. 从源码构建 (Rust)",
-    s3_t:"3. 核心 REST API 参考",
-    s3_d:"所有管理接口均通过登录后签发的 chost_token HttpOnly JWT Cookie 进行认证。",
-    th_m:"Method", th_e:"Endpoint", th_d:"说明",
-    api_1:"管理员认证与 JWT 会话签发",
-    api_2:"获取 CPU、内存、磁盘使用率(80% 告警)与运行时间",
-    api_3:"获取站点列表并创建 /www/wwwroot 站点",
-    api_3_sub:"自动创建子域名、语言环境、框架预设及 SSL/SSH",
-    api_4:"按站点即时切换 PHP 版本 (7.4-8.4)",
-    api_5:"通过 Certbot 签发 Let's Encrypt SSL 证书",
-    api_6:"注册多语言预设应用 (Rust/Python/Node/PHP)",
-    api_7:"在内置多数据库工作室中执行 SQL 查询",
-    api_8:"按保留天数扫描日志(预览)并安全清理",
-    api_9:"查询管理员安全审计日志",
-    s4_t:"4. 多语言 (i18n) 词典结构",
-    s4_d:"在 locales/ 目录下新增 JSON 文件即可扩展面板语言。内置支持: ko, en, ja, zh-CN, es。",
-    s5_t:"5. 安全与防误删机制",
-    s5_l1:"数据库文件 (*.db, /var/lib/mysql) 与上传目录均受白名单保护，不会被清理。",
-    s5_l2:"日志清理默认采用 copytruncate 轮转方式，确保运行中进程的文件句柄不受影响。",
-    s5_l3:"所有配置修改、SQL 执行与终端命令均记录在 audit_logs 表中。"
-  },
-  es: {
-    nav_home:"Inicio", nav_docs:"Documentación", nav_forum:"Foro",
-    doc_title:"Guía para Desarrolladores",
-    doc_lead:"Instalación, compilación desde código fuente, referencia REST API, soporte i18n y diseño de seguridad de CHost.",
-    s1_t:"1. Instalación Rápida por SO (Linux)",
-    s1_d1:"install.sh detecta automáticamente la arquitectura (x86_64 / ARM64), instala en /opt/chost y registra el servicio systemd.",
-    s1_d2:"Tras la instalación, consulta la contraseña inicial en:",
-    s2_t:"2. Compilar desde Código Fuente (Rust)",
-    s3_t:"3. Referencia de API REST",
-    s3_d:"Todos los endpoints administrativos se autentican mediante la cookie HttpOnly JWT chost_token.",
-    th_m:"Método", th_e:"Endpoint", th_d:"Descripción",
-    api_1:"Autenticación de administrador y emisión de sesión JWT",
-    api_2:"Consultar CPU, memoria, uso de disco (alerta 80%) y uptime",
-    api_3:"Listar sitios y crear configuraciones en /www/wwwroot",
-    api_3_sub:"Crear subdominio con presets de lenguaje, framework, SSL y SSH",
-    api_4:"Cambiar versión de PHP (7.4-8.4) por sitio",
-    api_5:"Emitir certificado SSL Let's Encrypt con Certbot",
-    api_6:"Registrar apps con presets (Rust/Python/Node/PHP)",
-    api_7:"Ejecutar consultas SQL en el Estudio Multi-DB integrado",
-    api_8:"Escanear logs antiguos (vista previa) y limpieza segura",
-    api_9:"Consultar registros de auditoría de seguridad",
-    s4_t:"4. Estructura de Diccionario (i18n)",
-    s4_d:"Añade un archivo JSON en locales/ para ampliar idiomas en el panel. Incluidos: ko, en, ja, zh-CN, es.",
-    s5_t:"5. Seguridad y Protección de Datos",
-    s5_l1:"Las bases de datos (*.db, /var/lib/mysql) y carpetas de subida están excluidas de la limpieza.",
-    s5_l2:"La limpieza usa copytruncate/rotación para preservar los descriptores de archivos activos.",
-    s5_l3:"Todos los cambios, consultas SQL y comandos se registran en audit_logs."
-  }
-};
+        <p>설치 스크립트는 서버 아키텍처(x86_64 / ARM64)를 자동 감지하여 <code>/opt/chost</code>에 바이너리를 배치하고, 무작위 관리자 비밀번호를 생성한 후 <code>systemd</code> 서비스를 즉시 가동합니다.</p>
 
-function showOs(id, btn) {
-  ['ubuntu','rhel','amzn','docker'].forEach(k => {
-    document.getElementById('os-' + k).style.display = (k === id) ? 'block' : 'none';
-  });
-  document.querySelectorAll('.os-tab').forEach(b => {
-    b.style.borderColor = '#233048';
-    b.style.background = '#090d16';
-    b.style.color = '#9ca3af';
-  });
-  btn.style.borderColor = '#6366f1';
-  btn.style.background = 'rgba(99,102,241,.2)';
-  btn.style.color = '#c7d2fe';
-}
-const COPY_I18N = {
-  ko: { copy: "코드 복사", copied: "복사됨!" },
-  en: { copy: "Copy Code", copied: "Copied!" },
-  ja: { copy: "コピー", copied: "コピー済!" },
-  "zh-CN": { copy: "复制代码", copied: "已复制!" },
-  es: { copy: "Copiar código", copied: "¡Copiado!" }
-};
-function initPreCopyButtons() {
-  document.querySelectorAll('pre').forEach(pre => {
-    if (pre.parentElement && pre.parentElement.classList.contains('pre-wrap')) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'pre-wrap';
-    if (pre.id) {
-      wrap.id = pre.id;
-      pre.removeAttribute('id');
+        <div class="callout">
+          <strong>🔑 초기 비밀번호 확인 방법</strong><br/>
+          설치 완료 후 콘솔 화면에 출력되며, 언제든 아래 명령어로 다시 확인할 수 있습니다:<br/>
+          <code>sudo cat /var/lib/chost/init_password.txt</code>
+        </div>
+      </section>
+
+      <!-- 3. Quickstart -->
+      <section id="quickstart" class="doc-section">
+        <h2>⚡ 초기 접속 및 기본 보안</h2>
+        <p>웹 브라우저를 열고 <code>http://서버IP:8800</code> 으로 접속하여 초기 비밀번호를 입력하면 바로 대시보드로 이동합니다.</p>
+        <div class="callout warn">
+          <strong>보안 권장사항:</strong> 로그인 직후 사이드바의 <strong>[⚙️ 설정]</strong> 메뉴로 이동하여 1) 관리자 비밀번호 변경, 2) 2단계 인증(TOTP OTP), 3) 비밀 접속 경로(/my-secret)를 설정하는 것을 강력히 권장합니다.
+        </div>
+      </section>
+
+      <!-- Menu 1. Dashboard -->
+      <section id="menu-dashboard" class="doc-section">
+        <h2>📊 대시보드 (Dashboard)</h2>
+        <p>서버의 전반적인 건강 상태와 현재 서비스 중인 사이트/앱, 설치된 런타임 현황을 실시간으로 요약 브리핑합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">대시보드 실시간 모니터링 화면 (tab1_dashboard.png)</span>
+          </div>
+          <img src="/assets/docs/tab1_dashboard.png" alt="CHost 대시보드 화면" />
+        </div>
+
+        <h3>주요 기능</h3>
+        <ul>
+          <li><strong>CPU / RAM / Disk / Uptime 게이지:</strong> 서버 리소스를 1초 단위로 감시하며, 디스크가 80%를 넘으면 즉시 경고와 함께 <code>[대용량 폴더 분석]</code> 버튼이 활성화됩니다.</li>
+          <li><strong>실행 중인 사이트 / 앱 상태 카드:</strong> 도메인별 온라인/오프라인 상태 및 프록시 포트, systemd 데몬 상태를 시각화합니다.</li>
+          <li><strong>설치된 서버 패키지 & 런타임:</strong> Nginx, MariaDB, Node.js, Python 등의 설치 및 실행 유무를 확인합니다.</li>
+        </ul>
+      </section>
+
+      <!-- Menu 2. Settings -->
+      <section id="menu-settings" class="doc-section">
+        <h2>⚙️ 설정 센터 (Settings Hub)</h2>
+        <p>패널 관리자 보안, 포트 방화벽, 장애 알림, 보안 접속 경로, 초기화 퀴즈 등 서버 운영에 필수적인 설정을 한곳에서 총괄합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">설정 센터 상세 화면 (tab2_settings.png)</span>
+          </div>
+          <img src="/assets/docs/tab2_settings.png" alt="CHost 설정 화면" />
+        </div>
+
+        <h3>설정 항목 가이드</h3>
+        <ul>
+          <li><strong>🔐 패널 관리자 비밀번호 변경:</strong> Argon2id 단방향 암호화로 안전하게 새 비밀번호를 저장합니다.</li>
+          <li><strong>🔔 장애·리소스 알림:</strong> 디스크 90% 초과, 사이트 다운, SSL 만료 14일 전에 Slack/Discord 웹훅 또는 텔레그램 봇으로 즉시 통보합니다.</li>
+          <li><strong>🛡️ 방화벽 (UFW):</strong> 버튼 한 번으로 SSH, 웹(80/443), 패널 포트만 열고 불필요한 포트를 차단합니다.</li>
+          <li><strong>📱 2단계 인증 (OTP):</strong> Google Authenticator 앱으로 로그인 시 6자리 일회용 비밀번호를 요구합니다.</li>
+          <li><strong>🌍 접속 IP 제한:</strong> 관리자 IP(또는 대역)에서만 패널 로그인이 가능하도록 화이트리스트를 구성합니다.</li>
+          <li><strong>🚪 보안 접속 경로:</strong> 기본 <code>/</code> 경로 대신 <code>/admin-secret-2026</code> 같은 임의의 경로로만 로그인 창이 열리도록 잠급니다.</li>
+        </ul>
+      </section>
+
+      <!-- Menu 3. Sites -->
+      <section id="menu-sites" class="doc-section">
+        <h2>🌐 사이트 및 도메인 관리 (Sites)</h2>
+        <p>도메인 연결, 가상 호스트 생성, Let's Encrypt SSL 무료 발급, 서브도메인, PHP 버전 스위칭을 전자동으로 처리합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">사이트 및 도메인 관리 화면 (tab3_sites.png)</span>
+          </div>
+          <img src="/assets/docs/tab3_sites.png" alt="CHost 사이트 관리 화면" />
+        </div>
+
+        <h3>주요 편의 기능</h3>
+        <ul>
+          <li><strong>듀얼 웹서버 전환:</strong> Nginx와 Apache2 중 원하는 엔진으로 원클릭 스위칭하며, 기존 설정 파일을 보존한 채 안전하게 마이그레이션합니다.</li>
+          <li><strong>원클릭 무료 SSL:</strong> Certbot 연동으로 <code>https://</code> 인증서를 발급하고 매월 자동 갱신합니다.</li>
+          <li><strong>다중 PHP 버전 선택:</strong> 사이트마다 PHP 7.4, 8.0, 8.1, 8.2, 8.3, 8.4 중 최적의 버전을 독립 지정할 수 있습니다.</li>
+          <li><strong>공용 vendor 엔진:</strong> 그누보드7, 라라벨 프로젝트 생성 시 공유 vendor 디렉터리를 연결하여 디스크 용량을 90% 이상 절약합니다.</li>
+        </ul>
+      </section>
+
+      <!-- Menu 4. Apps -->
+      <section id="menu-apps" class="doc-section">
+        <h2>⚙️ 앱 프로세스 관리 (App Processes)</h2>
+        <p>Node.js, Next.js, Python FastAPI, Go, Rust 등 백엔드 애플리케이션을 리버스 프록시와 결합하고 systemd 서비스로 안정적으로 구동합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">앱 프로세스 관리 화면 (tab4_apps.png)</span>
+          </div>
+          <img src="/assets/docs/tab4_apps.png" alt="CHost 앱 관리 화면" />
+        </div>
+
+        <h3>주요 기능</h3>
+        <ul>
+          <li><strong>스마트 헬스체크:</strong> 앱 기동 후 127.0.0.1:PORT 로 직접 HTTP 프로브를 시도하여 정상 응답을 확인할 때까지 방문자에게 정적 준비 중 페이지를 보여줍니다.</li>
+          <li><strong>실시간 로그 스트리밍:</strong> <code>journalctl -u chost-app-*</code> 로그를 실시간으로 모니터링하여 크래시 원인을 빠르게 파악할 수 있습니다.</li>
+        </ul>
+      </section>
+
+      <!-- Menu 5. DB Studio -->
+      <section id="menu-db" class="doc-section">
+        <h2>🗄️ 멀티 DB 스튜디오 (Database Studio)</h2>
+        <p>MariaDB, PostgreSQL, SQLite를 하나의 패널에서 관리하며, 웹 기반 쿼리 실행, 사용자 계정 생성, 백업 및 CSV 다운로드를 지원합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">멀티 DB 스튜디오 화면 (tab5_db.png)</span>
+          </div>
+          <img src="/assets/docs/tab5_db.png" alt="CHost 멀티 DB 스튜디오 화면" />
+        </div>
+
+        <h3>주요 기능</h3>
+        <ul>
+          <li><strong>웹 쿼리 에디터:</strong> 테이블 스키마 확인, SQL 질의 실행, 결과 테이블 확인.</li>
+          <li><strong>UTF-8 BOM CSV 내보내기:</strong> 엑셀에서 한글이 깨지지 않는 표준 CSV 포맷으로 테이블 데이터를 즉시 다운로드합니다.</li>
+          <li><strong>예약 자동 백업:</strong> 매일 정해진 시각(기본 03시)에 모든 DB 덤프와 웹 소스, 패널 설정을 <code>/www/backup</code>에 압축 보관합니다.</li>
+        </ul>
+      </section>
+
+      <!-- Menu 6. Storage -->
+      <section id="menu-storage" class="doc-section">
+        <h2>🧹 저장 공간 및 로그 보관 정책 (Storage & Logs)</h2>
+        <p>오래된 웹서버 로그로 디스크가 가득 차 서버가 멈추는 문제를 방지하기 위해 <code>logrotate</code>와 <code>du</code> 기반 대용량 폴더 분석기를 제공합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">저장 공간 정리 및 Top 폴더 분석 화면 (tab6_storage.png)</span>
+          </div>
+          <img src="/assets/docs/tab6_storage.png" alt="CHost 저장 공간 화면" />
+        </div>
+
+        <h3>주요 기능</h3>
+        <ul>
+          <li><strong>자동 로그 보관 스케줄러:</strong> 지정한 보관 일수(예: 30일)를 초과한 웹로그는 <code>logrotate</code>로 압축 회전시키고, systemd 저널은 <code>vacuum-time</code>으로 안전하게 비웁니다.</li>
+          <li><strong>디스크 Top 15 폴더 분석기:</strong> 디스크 용량을 많이 차지하고 있는 상위 디렉터리를 용량 순으로 정렬하여 원클릭으로 탐색합니다.</li>
+        </ul>
+      </section>
+
+      <!-- Menu 7. Files & Terminal -->
+      <section id="menu-files" class="doc-section">
+        <h2>💻 파일 탐색기 & 웹 터미널 (Files & Terminal)</h2>
+        <p>별도의 FTP 프로그램이나 SSH 클라이언트 없이도 웹 브라우저 안에서 파일을 탐색·수정하고 리눅스 셸을 자유롭게 다룰 수 있습니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">파일 탐색기 및 WebSocket PTY 웹 터미널 (tab7_terminal.png)</span>
+          </div>
+          <img src="/assets/docs/tab7_terminal.png" alt="CHost 파일 및 터미널 화면" />
+        </div>
+
+        <h3>주요 기능</h3>
+        <ul>
+          <li><strong>1GB 파일 업로드:</strong> 브라우저 드래그 앤 드롭으로 대용량 압축 파일이나 소스 코드를 서버로 즉시 전송합니다.</li>
+          <li><strong>원클릭 압축 해제:</strong> <code>.zip</code>, <code>.tar.gz</code> 파일을 서버 내부에서 고속으로 압축 해제합니다.</li>
+          <li><strong>진짜 PTY 웹 터미널:</strong> <code>xterm.js</code>와 <code>portable-pty</code> 기반의 실시간 양방향 WebSocket 터미널로 <code>vim</code>, <code>top</code>, <code>htop</code> 등을 온전하게 실행할 수 있습니다.</li>
+        </ul>
+      </section>
+
+      <!-- Menu 8. Audit Logs -->
+      <section id="menu-audit" class="doc-section">
+        <h2>🛡️ 보안 감사 로그 (Security Audit Logs)</h2>
+        <p>패널에서 일어난 모든 관리자 작업(로그인, 비밀번호 변경, 사이트 추가/삭제, 백업, 롤백 등)을 시간과 IP, 대상별로 영구 기록합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">보안 감사 로그 페이징 화면 (tab8_security.png)</span>
+          </div>
+          <img src="/assets/docs/tab8_security.png" alt="CHost 보안 감사 로그 화면" />
+        </div>
+
+        <h3>특징</h3>
+        <ul>
+          <li><strong>페이징 최적화:</strong> 최근 최대 500건의 로그를 한 페이지당 30건 단위로 나누어 쾌적하게 조회할 수 있습니다.</li>
+          <li><strong>침입 추적:</strong> 비정상 로그인 시도 및 잠금 이력이 고스란히 남아 침해 사고 발생 시 원인을 정확히 추적할 수 있습니다.</li>
+        </ul>
+      </section>
+
+      <!-- Menu 9. Runtime Store -->
+      <section id="menu-runtimes" class="doc-section">
+        <h2>📦 런타임 & 서버 패키지 스토어 (Runtime Store)</h2>
+        <p>서버에 필요한 웹서버(Nginx/Apache), 데이터베이스(MariaDB/PostgreSQL), 언어 런타임(PHP 다중 버전, Node, Python, Rust)을 원클릭으로 설치하거나 제거합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">런타임 스토어 화면 (tab9_runtimes.png)</span>
+          </div>
+          <img src="/assets/docs/tab9_runtimes.png" alt="CHost 런타임 스토어 화면" />
+        </div>
+      </section>
+
+      <!-- Pro Hub Overview -->
+      <section id="pro-hub" class="doc-section">
+        <h2>👑 CHost Pro 통합 허브 (Pro Hub)</h2>
+        <p>고급 엔터프라이즈 및 상용 웹 호스팅을 위한 <strong>4대 프리미엄 유료 기능</strong>을 한곳에 모아 탭 구조로 쾌적하게 제공합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">CHost Pro 통합 허브 메인 (tab10_pro.png)</span>
+          </div>
+          <img src="/assets/docs/tab10_pro.png" alt="CHost Pro 허브 화면" />
+        </div>
+      </section>
+
+      <!-- Pro 1. Nodes -->
+      <section id="pro-nodes" class="doc-section">
+        <h2>🖥️ 멀티 서버 통합 관리 (Multi-Server)</h2>
+        <p>여러 대의 서버(서울 노드, 일본 노드, 개발 서버 등)에 설치된 CHost 패널들을 중앙 패널 하나에 등록하여 실시간으로 상태를 모니터링합니다.</p>
+        <ul>
+          <li><strong>중앙 집중 관제:</strong> 각 원격 서버의 CPU, RAM, Disk 사용률, 실행 중인 사이트 개수 및 버전을 한눈에 확인합니다.</li>
+          <li><strong>원클릭 이동:</strong> 원격 패널 바로가기 링크 및 실시간 헬스 상태 갱신을 지원합니다.</li>
+        </ul>
+      </section>
+
+      <!-- Pro 2. Remote Backup -->
+      <section id="pro-backup" class="doc-section">
+        <h2>☁️ 외부 원격 백업 (S3 / WebDAV)</h2>
+        <p>서버 로컬 디스크 손상이나 화재 등 비상 상황에 대비하여, 백업 파일을 외부 클라우드 스토리지로 안전하게 자동 분산 보관합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">원격 백업 설정 화면 (tab10_pro_backup.png)</span>
+          </div>
+          <img src="/assets/docs/tab10_pro_backup.png" alt="CHost Pro 원격 백업 화면" />
+        </div>
+
+        <ul>
+          <li><strong>S3 SigV4 순수 구현:</strong> AWS S3, Cloudflare R2, MinIO 스토리지로 HMAC-SHA256 암호화 서명을 생성하여 고속 전송합니다.</li>
+          <li><strong>WebDAV 지원:</strong> 개인 시놀로지 NAS, QNAP, Nextcloud 스토리지로의 자동 업로드를 지원합니다.</li>
+          <li><strong>예약 백업 연동:</strong> 매일 예약 백업이 끝난 직후 원격 클라우드로 자동 전송되도록 설정할 수 있습니다.</li>
+        </ul>
+      </section>
+
+      <!-- Pro 3. AI Doctor -->
+      <section id="pro-ai" class="doc-section">
+        <h2>🤖 AI 서버 에러 닥터 (AI Server Doctor)</h2>
+        <p>사이트 접속 불가, 502 Bad Gateway, 데이터베이스 연결 오류 등 복잡한 서버 장애를 인공지능이 즉시 진단하여 명쾌한 해결책을 제시합니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">AI 서버 에러 닥터 화면 (tab10_pro_ai.png)</span>
+          </div>
+          <img src="/assets/docs/tab10_pro_ai.png" alt="CHost AI 서버 닥터 화면" />
+        </div>
+
+        <ul>
+          <li><strong>내장 규칙 진단 엔진 (무료/기본):</strong> 포트 충돌(EADDRINUSE), 502 Bad Gateway, MySQL 인증 실패, 디렉터리 권한 부족, OOM 강제 종료, PHP 문법 에러, Rust 패닉을 수초 내에 분석합니다.</li>
+          <li><strong>OpenAI / Gemini 연동:</strong> 보안 설정에서 API 키를 입력하면 최신 로그 맥락까지 LLM이 정밀 분석하여 단계별 조치 가이드를 한국어로 알려줍니다.</li>
+        </ul>
+      </section>
+
+      <!-- Pro 4. Git Rollback -->
+      <section id="pro-git" class="doc-section">
+        <h2>↩️ Git 사이트 롤백 센터 (Git Rollback Center)</h2>
+        <p>Git으로 배포된 모든 웹 애플리케이션의 커밋 타임라인을 확인하고, 장애 발생 시 클릭 한 번으로 과거 정상 시점으로 되돌립니다.</p>
+
+        <div class="screenshot-frame">
+          <div class="screenshot-header">
+            <span class="screenshot-dot dot-red"></span>
+            <span class="screenshot-dot dot-yellow"></span>
+            <span class="screenshot-dot dot-green"></span>
+            <span style="margin-left:8px">Git 사이트 롤백 센터 화면 (tab10_pro_git.png)</span>
+          </div>
+          <img src="/assets/docs/tab10_pro_git.png" alt="CHost Git 롤백 센터 화면" />
+        </div>
+
+        <ul>
+          <li><strong>원클릭 롤백:</strong> 이전 커밋의 <code>[↩️ 롤백]</code> 버튼을 누르면 <code>git reset --hard</code>를 수행하고 앱을 자동으로 다시 빌드·재기동합니다.</li>
+          <li><strong>무중단 헬스체크:</strong> 롤백 중에도 방문자에게 에러 화면 대신 준비 중 안내 화면을 송출하여 안정성을 극대화합니다.</li>
+        </ul>
+      </section>
+
+      <!-- Troubleshooting & FAQ -->
+      <section id="troubleshooting" class="doc-section">
+        <h2>❓ 긴급 복구 CLI 플래그 & FAQ</h2>
+        <p>패널 비밀번호나 OTP 키를 분실했거나, IP 차단으로 패널에 들어갈 수 없을 때 서버 터미널에서 즉시 해결할 수 있는 긴급 복구 명령어입니다.</p>
+
+        <table>
+          <thead>
+            <tr><th>상황</th><th>명령어</th><th>설명</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>OTP 휴대폰 분실</strong></td>
+              <td><code>sudo /opt/chost/chost --reset-2fa</code></td>
+              <td>2단계 인증을 즉시 해제하여 일반 비밀번호로 로그인 가능하게 합니다.</td>
+            </tr>
+            <tr>
+              <td><strong>IP 화이트리스트 차단</strong></td>
+              <td><code>sudo /opt/chost/chost --clear-ip-whitelist</code></td>
+              <td>IP 제한을 모두 비워 모든 IP에서 패널 접근을 허용합니다.</td>
+            </tr>
+            <tr>
+              <td><strong>보안 접속 경로 분실</strong></td>
+              <td><code>sudo /opt/chost/chost --show-entry</code></td>
+              <td>현재 설정된 비밀 접속 경로 URL을 터미널에 출력합니다. (해제: <code>--reset-entry</code>)</td>
+            </tr>
+            <tr>
+              <td><strong>서비스 상태 확인</strong></td>
+              <td><code>sudo systemctl status chost</code></td>
+              <td>CHost 패널 데몬의 실행 상태와 포트 바인딩을 확인합니다.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <!-- Right TOC (On this page) -->
+    <aside class="toc-wrapper">
+      <div class="toc-title">현재 페이지 목차</div>
+      <ul class="toc-list">
+        <li><a href="#intro">소개 및 핵심 철학</a></li>
+        <li><a href="#install">1줄 빠른 설치</a></li>
+        <li><a href="#quickstart">초기 접속 및 보안</a></li>
+        <li><a href="#menu-dashboard">대시보드</a></li>
+        <li><a href="#menu-settings">설정 센터</a></li>
+        <li><a href="#menu-sites">사이트 및 도메인</a></li>
+        <li><a href="#menu-apps">앱 프로세스</a></li>
+        <li><a href="#menu-db">멀티 DB 스튜디오</a></li>
+        <li><a href="#menu-storage">저장 공간 및 로그</a></li>
+        <li><a href="#menu-files">파일 & 웹 터미널</a></li>
+        <li><a href="#menu-audit">보안 감사 로그</a></li>
+        <li><a href="#menu-runtimes">런타임 스토어</a></li>
+        <li><a href="#pro-hub">CHost Pro 허브</a></li>
+        <li><a href="#pro-nodes">멀티 서버 모니터링</a></li>
+        <li><a href="#pro-backup">S3/WebDAV 원격 백업</a></li>
+        <li><a href="#pro-ai">AI 서버 닥터</a></li>
+        <li><a href="#pro-git">Git 롤백 센터</a></li>
+        <li><a href="#troubleshooting">긴급 복구 & FAQ</a></li>
+      </ul>
+    </aside>
+  </div>
+
+  <script>
+    function copyCode(id) {
+      const code = document.getElementById(id).textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        alert('명령어가 클립보드에 복사되었습니다!');
+      });
     }
-    if (pre.style.display) {
-      wrap.style.display = pre.style.display;
-      pre.style.display = '';
+
+    function filterDocs(query) {
+      const q = query.toLowerCase().trim();
+      const items = document.querySelectorAll('.sidebar-menu li a');
+      items.forEach(a => {
+        const txt = a.textContent.toLowerCase();
+        a.parentElement.style.display = txt.includes(q) ? '' : 'none';
+      });
     }
-    const bar = document.createElement('div');
-    bar.className = 'pre-copy-bar';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn-copy-code';
-    const l = localStorage.getItem('chost_lang') || 'ko';
-    const dict = COPY_I18N[l] || COPY_I18N.ko;
-    btn.innerHTML = `<i class="bi bi-clipboard"></i> <span class="copy-lbl">${dict.copy}</span>`;
-    btn.onclick = () => {
-      navigator.clipboard.writeText(pre.innerText.trim());
-      const curL = localStorage.getItem('chost_lang') || 'ko';
-      const d = COPY_I18N[curL] || COPY_I18N.ko;
-      btn.innerHTML = `<i class="bi bi-check2" style="color:#10b981"></i> <span class="copy-lbl" style="color:#6ee7b7">${d.copied}</span>`;
-      setTimeout(() => {
-        const nowL = localStorage.getItem('chost_lang') || 'ko';
-        const d2 = COPY_I18N[nowL] || COPY_I18N.ko;
-        btn.innerHTML = `<i class="bi bi-clipboard"></i> <span class="copy-lbl">${d2.copy}</span>`;
-      }, 1300);
-    };
-    bar.appendChild(btn);
-    pre.parentNode.insertBefore(wrap, pre);
-    wrap.appendChild(pre);
-    wrap.appendChild(bar);
-  });
-}
-function setDocLang(l) {
-  if (!DOC_I18N[l]) l = 'ko';
-  localStorage.setItem('chost_lang', l);
-  document.getElementById('lang-select').value = l;
-  const d = DOC_I18N[l];
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    const k = el.getAttribute('data-i18n');
-    if (d[k]) el.textContent = d[k];
-  });
-  const cd = COPY_I18N[l] || COPY_I18N.ko;
-  document.querySelectorAll('.btn-copy-code .copy-lbl').forEach(el => {
-    el.textContent = cd.copy;
-  });
-}
-initPreCopyButtons();
-setDocLang(localStorage.getItem('chost_lang') || 'ko');
-</script>
+
+    // ScrollSpy for Sidebar Active State
+    window.addEventListener('scroll', () => {
+      const sections = document.querySelectorAll('.doc-section');
+      const navLinks = document.querySelectorAll('.sidebar-menu li a');
+      let current = '';
+
+      sections.forEach(sec => {
+        const top = sec.offsetTop - 120;
+        if (window.scrollY >= top) {
+          current = sec.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+      });
+    });
+  </script>
 </body>
 </html>
