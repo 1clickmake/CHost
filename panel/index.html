@@ -429,6 +429,32 @@
             </div>
             <pre id="storage-out" class="console"></pre>
           </div>
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px" data-i18n="lp_title">🗓️ 로그 보관 정책 (자동)</h3>
+            <div class="guide-sky" data-i18n="guide_lp">💡 켜 두면 사이트 로그(<code>/www/wwwlogs</code>)를 매일 나눠 압축하고(<code>logrotate</code>, 실행 중인 로그도 안전하게 <code>copytruncate</code>), 매일 새벽 4시에 보관 기간이 지난 로그와 시스템 저널을 자동으로 정리합니다. DB·업로드 폴더는 건드리지 않아요.</div>
+            <div class="row" style="align-items:center">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto"><input type="checkbox" id="lp-enabled" style="width:auto" /> <span data-i18n="lp_enable">자동 정리 사용</span></label>
+              <select id="lp-days" class="compact" style="width:auto">
+                <option value="7" data-i18n="opt_days_7">7일 이상 된 파일</option>
+                <option value="15" data-i18n="opt_days_15">15일 이상 된 파일</option>
+                <option value="30" data-i18n="opt_days_30">30일 이상 된 파일</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="saveLogPolicy(false)" data-i18n="btn_save">저장</button>
+              <button class="btn btn-sm" onclick="saveLogPolicy(true)" data-i18n="lp_run_now">저장 후 지금 실행</button>
+            </div>
+            <div id="lp-msg" style="font-size:12px;min-height:16px;margin-top:8px"></div>
+          </div>
+          <div class="card" id="disk-top-card">
+            <h3 style="margin-bottom:10px;font-size:15px" data-i18n="dt_title">🔎 디스크 용량 분석</h3>
+            <div class="guide-sky" data-i18n="guide_dt">💡 어떤 폴더가 디스크를 많이 차지하는지 큰 순서대로 보여줍니다. 폴더 이름을 누르면 그 안으로 들어가요. (디스크가 크면 몇십 초 걸릴 수 있어요)</div>
+            <div class="row" style="margin-bottom:8px">
+              <input id="dt-path" value="/" />
+              <button class="btn btn-primary btn-sm" onclick="diskTop()" data-i18n="dt_run">분석</button>
+              <button class="btn btn-sm" onclick="diskTopUp()" data-i18n="btn_up_dir">⬆️ 상위 폴더</button>
+            </div>
+            <div id="dt-msg" style="font-size:12px;min-height:16px;margin-bottom:6px"></div>
+            <div id="dt-list"></div>
+          </div>
         </section>
 
         <section id="tab-terminal" class="hidden">
@@ -676,6 +702,7 @@ async function loadLocale(lang) {
   }
 }
 function showTab(name, btn) {
+  if (name === 'storage') loadLogPolicy();
   if (name === 'db') { loadBackupPanel(); loadMariaUsers(); }
   if (name === 'security') { loadAlertSettings(); loadFirewall(); loadSecurity(); }
   document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
@@ -899,7 +926,7 @@ async function refreshAll() {
     setUsageBar('bar-cpu', cpuPct);
     setUsageBar('bar-ram', ramPct);
     setUsageBar('bar-disk', diskPct);
-    document.getElementById('m-disk-warn').innerHTML = s.disk_warning ? '<span class="badge badge-warn">Disk &gt; 80%</span>' : '<span class="badge badge-ok">Healthy</span>';
+    document.getElementById('m-disk-warn').innerHTML = s.disk_warning ? `<span class="badge badge-warn">Disk &gt; 80%</span> <button class="btn btn-sm" style="padding:1px 8px" onclick="openDiskTop()">${t('dt_open', '용량 큰 폴더 보기')}</button>` : '<span class="badge badge-ok">Healthy</span>';
     document.getElementById('m-uptime').textContent = `${Math.floor(s.uptime_secs / 3600)}h`;
   }
   const pv = document.getElementById('php-versions-list');
@@ -2007,6 +2034,45 @@ async function termConnect() {
   _termWs = ws;
 }
 function termDisconnect() { if (_termWs) _termWs.close(); }
+async function loadLogPolicy() {
+  const r = await api('/api/storage/policy');
+  if (!r || !r.success) return;
+  document.getElementById('lp-enabled').checked = !!r.enabled;
+  document.getElementById('lp-days').value = String(r.days);
+}
+async function saveLogPolicy(runNow) {
+  const body = { enabled: document.getElementById('lp-enabled').checked, days: parseInt(document.getElementById('lp-days').value, 10), run_now: !!runNow };
+  opsMsg('lp-msg', true, t('fw_working', '⏳ 적용 중...'));
+  const r = await api('/api/storage/policy', { method: 'POST', body: JSON.stringify(body) });
+  opsMsg('lp-msg', r.success, r.success ? (t('lp_saved', '✅ 로그 보관 정책이 저장되었습니다.') + (r.result ? ' (' + r.result + ')' : '')) : (r.error || 'Failed'));
+}
+async function diskTop(path) {
+  const el = document.getElementById('dt-path');
+  if (path) el.value = path;
+  const p = el.value.trim() || '/';
+  opsMsg('dt-msg', true, t('dt_running', '⏳ 분석 중... (큰 디스크는 시간이 걸려요)'));
+  document.getElementById('dt-list').innerHTML = '';
+  const r = await api('/api/storage/top?path=' + encodeURIComponent(p));
+  if (!r || !r.success) { opsMsg('dt-msg', false, (r && r.error) || 'Failed'); return; }
+  opsMsg('dt-msg', true, `${escAttr(r.path)} · ${t('dt_total', '합계')} ${fmtSize(r.total)}`);
+  const max = Math.max(1, ...(r.items || []).map(i => i.size));
+  document.getElementById('dt-list').innerHTML = (r.items || []).map(i => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 90px;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">
+      <div style="min-width:0"><a href="#" onclick="diskTop('${escAttr(i.path)}');return false" style="color:#93c5fd;text-decoration:none;font-size:13px;word-break:break-all">📁 ${escAttr(i.path)}</a>
+      <div style="height:6px;background:var(--bg);border-radius:4px;margin-top:4px"><div style="height:6px;border-radius:4px;background:#38bdf8;width:${Math.round(i.size / max * 100)}%"></div></div></div>
+      <div style="text-align:right;font-size:12px;color:var(--muted)">${fmtSize(i.size)}</div></div>`).join('') || `<div style="font-size:13px;color:var(--muted)">${t('dir_empty', '(비어 있음)')}</div>`;
+}
+function diskTopUp() {
+  const el = document.getElementById('dt-path');
+  const parts = (el.value || '/').split('/').filter(Boolean);
+  parts.pop();
+  diskTop('/' + parts.join('/'));
+}
+function openDiskTop() {
+  const btn = [...document.querySelectorAll('.nav-btn')].find(b => (b.getAttribute('onclick') || '').includes("'storage'"));
+  showTab('storage', btn);
+  diskTop('/');
+  setTimeout(() => document.getElementById('disk-top-card').scrollIntoView({ behavior: 'smooth' }), 100);
+}
 async function browseDir(dir) {
   window.CUR_BROWSE_DIR = dir || '/www/wwwroot';
   const r = await api('/api/files/list?path=' + encodeURIComponent(window.CUR_BROWSE_DIR));

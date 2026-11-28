@@ -372,5 +372,16 @@
   "term_connecting": "Connecting...",
   "term_connected": "🟢 Connected",
   "term_closed": "⚫ Disconnected",
-  "term_cdn_fail": "Could not load the terminal library (check internet access). Use the one-shot command runner below."
+  "term_cdn_fail": "Could not load the terminal library (check internet access). Use the one-shot command runner below.",
+  "lp_title": "🗓️ Log retention policy (automatic)",
+  "guide_lp": "💡 When on, site logs (<code>/www/wwwlogs</code>) are rotated and compressed daily (<code>logrotate</code>, with <code>copytruncate</code> so running logs stay safe), and every day at 4 AM logs older than the retention period and the system journal are cleaned up. Databases and upload folders are never touched.",
+  "lp_enable": "Enable automatic cleanup",
+  "lp_run_now": "Save & run now",
+  "lp_saved": "✅ Log retention policy saved.",
+  "dt_title": "🔎 Disk usage analysis",
+  "guide_dt": "💡 Shows which folders use the most disk space, largest first. Click a folder to drill into it. (Large disks can take tens of seconds)",
+  "dt_run": "Analyze",
+  "dt_running": "⏳ Analyzing... (large disks take a while)",
+  "dt_total": "Total",
+  "dt_open": "Show largest folders"
 }

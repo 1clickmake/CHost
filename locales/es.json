@@ -372,5 +372,16 @@
   "term_connecting": "Conectando...",
   "term_connected": "🟢 Conectado",
   "term_closed": "⚫ Desconectado",
-  "term_cdn_fail": "No se pudo cargar la librería de la terminal (revisa la conexión). Usa el ejecutor de comandos de abajo."
+  "term_cdn_fail": "No se pudo cargar la librería de la terminal (revisa la conexión). Usa el ejecutor de comandos de abajo.",
+  "lp_title": "🗓️ Política de retención de registros (automática)",
+  "guide_lp": "💡 Activado, los registros de los sitios (<code>/www/wwwlogs</code>) se rotan y comprimen a diario (<code>logrotate</code>, con <code>copytruncate</code> para los registros en uso) y cada día a las 4:00 se eliminan los registros más antiguos que el periodo de retención y el journal del sistema. Nunca toca bases de datos ni carpetas de subidas.",
+  "lp_enable": "Activar limpieza automática",
+  "lp_run_now": "Guardar y ejecutar ahora",
+  "lp_saved": "✅ Política de retención guardada.",
+  "dt_title": "🔎 Análisis de uso de disco",
+  "guide_dt": "💡 Muestra las carpetas que más espacio ocupan, de mayor a menor. Pulsa una carpeta para entrar. (En discos grandes puede tardar decenas de segundos)",
+  "dt_run": "Analizar",
+  "dt_running": "⏳ Analizando... (los discos grandes tardan)",
+  "dt_total": "Total",
+  "dt_open": "Ver carpetas más grandes"
 }

@@ -3027,6 +3027,181 @@ async fn terminal_session(socket: axum::extract::ws::WebSocket, state: Arc<AppSt
     state.db.log_audit("admin", "TERMINAL_CLOSE", "pty", "interactive web terminal closed");
 }
 
+fn run_storage_clean(days: u64, compress: bool) -> (usize, u64) {
+    let cutoff = SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(days * 86400))
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    let scan_roots: Vec<&str> = if cfg!(unix) { vec!["/var/log", "/www/wwwlogs", "/tmp"] } else { vec![] };
+    let mut cleaned_count: usize = 0;
+    let mut freed_bytes: u64 = 0;
+    for root in scan_roots {
+        if !FsPath::new(root).exists() {
+            continue;
+        }
+        for entry in WalkDir::new(root).max_depth(3).into_iter().flatten() {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let p = entry.path();
+            if is_protected_path(p) {
+                continue;
+            }
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if !(name.ends_with(".log") || name.ends_with(".gz") || name.ends_with(".tmp")) {
+                continue;
+            }
+            if let Ok(meta) = entry.metadata() {
+                if let Ok(modified) = meta.modified() {
+                    if modified < cutoff {
+                        let sz = meta.len();
+                        if compress && name.ends_with(".log") {
+                            if Command::new("gzip").args(["-f", &p.to_string_lossy()]).status().map(|s| s.success()).unwrap_or(false) {
+                                cleaned_count += 1;
+                                freed_bytes += sz / 2;
+                            }
+                        } else if fs::remove_file(p).is_ok() {
+                            cleaned_count += 1;
+                            freed_bytes += sz;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    (cleaned_count, freed_bytes)
+}
+
+const LOGROTATE_CONF: &str = "/etc/logrotate.d/chost-wwwlogs";
+
+fn write_logrotate_conf(days: u64) -> Result<(), String> {
+    let body = format!(
+        "# managed by CHost\n/www/wwwlogs/*.log {{\n    daily\n    rotate {d}\n    maxage {d}\n    missingok\n    notifempty\n    compress\n    delaycompress\n    copytruncate\n    dateext\n}}\n",
+        d = days
+    );
+    fs::write(LOGROTATE_CONF, body).map_err(|e| e.to_string())?;
+    let out = Command::new("logrotate").args(["-d", LOGROTATE_CONF]).output();
+    match out {
+        Ok(o) if o.status.success() => Ok(()),
+        Ok(o) => Err(String::from_utf8_lossy(&o.stderr).lines().filter(|l| l.contains("error")).collect::<Vec<_>>().join(" ")),
+        Err(_) => Ok(()),
+    }
+}
+
+fn run_log_policy(days: u64) -> String {
+    let (n, freed) = run_storage_clean(days, true);
+    let j = Command::new("journalctl")
+        .args(["--vacuum-time", &format!("{}d", days)])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stderr).lines().last().unwrap_or("").to_string())
+        .unwrap_or_default();
+    format!("files={} freed_mb={:.1} journal: {}", n, freed as f64 / 1048576.0, j)
+}
+
+fn spawn_log_policy_scheduler(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            if state.db.get_setting("log_policy_enabled", "0") != "1" {
+                continue;
+            }
+            use chrono::Timelike;
+            let now = chrono::Local::now();
+            let today = now.format("%Y-%m-%d").to_string();
+            if now.hour() == 4 && state.db.get_setting("log_policy_last_date", "") != today {
+                let _ = state.db.set_setting("log_policy_last_date", &today);
+                let days: u64 = state.db.get_setting("log_policy_days", "30").parse().unwrap_or(30);
+                let res = tokio::task::spawn_blocking(move || run_log_policy(days)).await.unwrap_or_default();
+                state.db.log_audit("system", "LOG_POLICY_RUN", "logs", &res);
+            }
+        }
+    });
+}
+
+async fn handle_log_policy_get(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    Json(json!({
+        "success": true,
+        "enabled": state.db.get_setting("log_policy_enabled", "0") == "1",
+        "days": state.db.get_setting("log_policy_days", "30").parse::<u64>().unwrap_or(30),
+        "logrotate": FsPath::new(LOGROTATE_CONF).exists()
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+struct LogPolicyReq {
+    enabled: bool,
+    days: u64,
+    #[serde(default)]
+    run_now: bool,
+}
+
+async fn handle_log_policy_save(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<LogPolicyReq>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !(1..=365).contains(&req.days) {
+        return bad_req("Days must be 1-365.");
+    }
+    if cfg!(unix) {
+        if req.enabled {
+            if let Err(e) = write_logrotate_conf(req.days) {
+                let _ = fs::remove_file(LOGROTATE_CONF);
+                return bad_req(&format!("logrotate config error: {}", e));
+            }
+        } else {
+            let _ = fs::remove_file(LOGROTATE_CONF);
+        }
+    }
+    let _ = state.db.set_setting("log_policy_enabled", if req.enabled { "1" } else { "0" });
+    let _ = state.db.set_setting("log_policy_days", &req.days.to_string());
+    state.db.log_audit("admin", "LOG_POLICY", "logs", &format!("enabled={} days={}", req.enabled, req.days));
+    let mut result = Value::Null;
+    if req.run_now && cfg!(unix) {
+        let d = req.days;
+        let res = tokio::task::spawn_blocking(move || run_log_policy(d)).await.unwrap_or_default();
+        state.db.log_audit("admin", "LOG_POLICY_RUN", "logs", &res);
+        result = json!(res);
+    }
+    Json(json!({ "success": true, "result": result })).into_response()
+}
+
+async fn handle_disk_top(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<QueryPath>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let path = q.path.unwrap_or_else(|| "/".to_string()).trim().to_string();
+    if !path.starts_with('/') || !FsPath::new(&path).is_dir() {
+        return bad_req("Folder not found.");
+    }
+    let p2 = path.clone();
+    let out = tokio::task::spawn_blocking(move || Command::new("timeout").args(["90", "du", "-x", "-B1", "-d1", &p2]).output()).await;
+    let stdout = match out {
+        Ok(Ok(o)) => String::from_utf8_lossy(&o.stdout).to_string(),
+        Ok(Err(e)) => return bad_req(&e.to_string()),
+        Err(e) => return bad_req(&e.to_string()),
+    };
+    let base = path.trim_end_matches('/');
+    let mut total: u64 = 0;
+    let mut items: Vec<(u64, String)> = Vec::new();
+    for line in stdout.lines() {
+        let mut it = line.splitn(2, '\t');
+        let (Some(sz), Some(p)) = (it.next(), it.next()) else { continue };
+        let sz: u64 = sz.trim().parse().unwrap_or(0);
+        let p = p.trim().to_string();
+        if p.trim_end_matches('/') == base || (base.is_empty() && p == "/") {
+            total = sz;
+        } else {
+            items.push((sz, p));
+        }
+    }
+    items.sort_by(|a, b| b.0.cmp(&a.0));
+    let list: Vec<Value> = items.into_iter().take(15).map(|(sz, p)| json!({ "path": p, "size": sz })).collect();
+    Json(json!({ "success": true, "path": path, "total": total, "items": list })).into_response()
+}
+
 async fn handle_site_health(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -3646,50 +3821,7 @@ async fn handle_storage_clean(
     if req.preview {
         return Json(json!({ "success": true, "preview": true, "message": "Preview mode completed." })).into_response();
     }
-    let cutoff = SystemTime::now()
-        .checked_sub(std::time::Duration::from_secs(req.days * 86400))
-        .unwrap_or(SystemTime::UNIX_EPOCH);
-    let scan_roots = if cfg!(unix) {
-        vec!["/var/log", "/www/wwwlogs", "/tmp"]
-    } else {
-        vec![]
-    };
-    let mut cleaned_count: usize = 0;
-    let mut freed_bytes: u64 = 0;
-    for root in scan_roots {
-        if !FsPath::new(root).exists() {
-            continue;
-        }
-        for entry in WalkDir::new(root).max_depth(3).into_iter().flatten() {
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            let p = entry.path();
-            if is_protected_path(p) {
-                continue;
-            }
-            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if !(name.ends_with(".log") || name.ends_with(".gz") || name.ends_with(".tmp")) {
-                continue;
-            }
-            if let Ok(meta) = entry.metadata() {
-                if let Ok(modified) = meta.modified() {
-                    if modified < cutoff {
-                        let sz = meta.len();
-                        if req.compress && name.ends_with(".log") {
-                            if Command::new("gzip").args(["-f", &p.to_string_lossy()]).status().map(|s| s.success()).unwrap_or(false) {
-                                cleaned_count += 1;
-                                freed_bytes += sz / 2;
-                            }
-                        } else if fs::remove_file(p).is_ok() {
-                            cleaned_count += 1;
-                            freed_bytes += sz;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let (cleaned_count, freed_bytes) = run_storage_clean(req.days, req.compress);
     state.db.log_audit(
         "admin",
         "STORAGE_CLEAN",
@@ -4606,6 +4738,7 @@ async fn main() {
 
     spawn_alert_monitor(state.clone());
     spawn_backup_scheduler(state.clone());
+    spawn_log_policy_scheduler(state.clone());
 
     let app = Router::new()
         .route("/", get(serve_root))
@@ -4663,6 +4796,8 @@ async fn main() {
     .route("/api/files/download", get(handle_file_download))
     .route("/api/files/extract", post(handle_file_extract))
     .route("/api/terminal/ws", get(handle_terminal_ws))
+    .route("/api/storage/policy", get(handle_log_policy_get).post(handle_log_policy_save))
+    .route("/api/storage/top", get(handle_disk_top))
     .route("/api/webserver/migrate", post(handle_webserver_migrate))
     .route("/api/sites/{id}/git", get(handle_site_git_info))
     .route("/api/sites/{id}/git/update", post(handle_site_git_update))

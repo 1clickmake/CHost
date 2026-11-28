@@ -372,5 +372,16 @@
   "term_connecting": "连接中...",
   "term_connected": "🟢 已连接",
   "term_closed": "⚫ 已断开",
-  "term_cdn_fail": "无法加载终端界面库（请检查网络），请使用下方的单条命令执行器。"
+  "term_cdn_fail": "无法加载终端界面库（请检查网络），请使用下方的单条命令执行器。",
+  "lp_title": "🗓️ 日志保留策略（自动）",
+  "guide_lp": "💡 启用后，站点日志（<code>/www/wwwlogs</code>）每天轮转并压缩（<code>logrotate</code>，运行中的日志用 <code>copytruncate</code> 安全处理），每天凌晨 4 点自动清理超过保留期的日志和系统日志（journal）。不会触碰数据库和上传目录。",
+  "lp_enable": "启用自动清理",
+  "lp_run_now": "保存并立即执行",
+  "lp_saved": "✅ 日志保留策略已保存。",
+  "dt_title": "🔎 磁盘占用分析",
+  "guide_dt": "💡 按大小顺序显示占用磁盘最多的文件夹，点击文件夹名可进入。（磁盘较大时可能需要几十秒）",
+  "dt_run": "分析",
+  "dt_running": "⏳ 分析中...（磁盘较大时需要一些时间）",
+  "dt_total": "合计",
+  "dt_open": "查看大文件夹"
 }
