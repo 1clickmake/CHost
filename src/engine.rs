@@ -542,16 +542,46 @@ pub fn git_info(root: &str) -> Option<Value> {
         return None;
     }
     let commit = git_out(root, &["rev-parse", "--short", "HEAD"]).unwrap_or_default();
+    let full_commit = git_out(root, &["rev-parse", "HEAD"]).unwrap_or_default();
     let branch = git_out(root, &["rev-parse", "--abbrev-ref", "HEAD"]).unwrap_or_default();
     let remote = git_out(root, &["remote", "get-url", "origin"]).unwrap_or_default();
-    let log = git_out(root, &["log", "-n", "8", "--date=short", "--pretty=format:%h  %ad  %s"]).unwrap_or_default();
-    Some(json!({ "commit": commit, "branch": branch, "remote": remote, "log": log }))
+    let log = git_out(root, &["log", "-n", "12", "--date=short", "--pretty=format:%h  %ad  %s"]).unwrap_or_default();
+    let raw_commits = git_out(root, &["log", "-n", "12", "--date=short", "--pretty=format:%H\t%h\t%ad\t%s"]).unwrap_or_default();
+    let commits: Vec<Value> = raw_commits
+        .lines()
+        .filter_map(|line| {
+            let mut it = line.splitn(4, '\t');
+            let (Some(h), Some(sh), Some(d), Some(m)) = (it.next(), it.next(), it.next(), it.next()) else {
+                return None;
+            };
+            Some(json!({ "hash": h, "short": sh, "date": d, "msg": m, "current": h == full_commit }))
+        })
+        .collect();
+    Some(json!({ "commit": commit, "full_commit": full_commit, "branch": branch, "remote": remote, "log": log, "commits": commits }))
 }
 
 /// git pull --ff-only 로 최신 소스를 받는다. (이전/이후 커밋 반환)
 pub fn git_update(root: &str) -> Result<Value, String> {
     let old = git_out(root, &["rev-parse", "HEAD"])?;
     let output = git_out(root, &["pull", "--ff-only"])?;
+    let new = git_out(root, &["rev-parse", "HEAD"])?;
+    Ok(json!({ "old": old, "new": new, "changed": old != new, "output": output }))
+}
+
+/// 지정한 커밋 해시로 안전하게 롤백 (git reset --hard <hash>)
+pub fn valid_git_hash(hash: &str) -> bool {
+    (7..=40).contains(&hash.len()) && hash.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+pub fn git_rollback(root: &str, hash: &str) -> Result<Value, String> {
+    let h = hash.trim();
+    if !valid_git_hash(h) {
+        return Err("Invalid commit hash.".to_string());
+    }
+    let old = git_out(root, &["rev-parse", "HEAD"])?;
+    let target_ref = format!("{}^{{commit}}", h);
+    let resolved = git_out(root, &["rev-parse", "--verify", &target_ref])?;
+    let output = git_out(root, &["reset", "--hard", &resolved])?;
     let new = git_out(root, &["rev-parse", "HEAD"])?;
     Ok(json!({ "old": old, "new": new, "changed": old != new, "output": output }))
 }

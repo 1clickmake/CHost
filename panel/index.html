@@ -116,6 +116,7 @@
       <button class="nav-btn" onclick="showTab('terminal', this)"><span class="nav-ico">💻</span><span data-i18n="nav_terminal">파일 및 터미널</span></button>
       <button class="nav-btn" onclick="showTab('security', this)"><span class="nav-ico">🛡️</span><span data-i18n="nav_security">보안 및 감사 로그</span></button>
       <button class="nav-btn" onclick="showTab('runtimes', this)"><span class="nav-ico">📦</span><span data-i18n="nav_runtimes">런타임 스토어</span></button>
+      <button class="nav-btn" onclick="showTab('nodes', this)"><span class="nav-ico">🖥️</span><span data-i18n="nav_nodes">멀티 서버</span></button>
       <a class="nav-btn" href="https://chost.cmake.work/forum" target="_blank" rel="noopener noreferrer" style="text-decoration:none;margin-top:8px;border-top:1px solid var(--border);padding-top:12px"><span class="nav-ico">💬</span><span data-i18n="nav_forum_link">포럼 바로가기</span></a>
     </aside>
 
@@ -408,6 +409,36 @@
             <div id="bk-msg" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
             <div id="bk-list"></div>
           </div>
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px" data-i18n="rbk_title">☁️ 외부 원격 백업 (S3 / WebDAV)</h3>
+            <div class="guide-sky" data-i18n="guide_rbk">💡 로컬 백업(<code>/www/backup</code>)을 AWS S3·Cloudflare R2·MinIO 또는 WebDAV 스토리지로 안전하게 원격 전송합니다. 자동 전송을 켜면 예약 백업 완료 후 바로 업로드됩니다.</div>
+            <div class="row" style="margin-bottom:8px;align-items:center">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto"><input type="checkbox" id="rbk-enabled" style="width:auto" /> <span data-i18n="rbk_enable">원격 백업 사용</span></label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto"><input type="checkbox" id="rbk-auto" style="width:auto" /> <span data-i18n="rbk_auto">백업 후 자동 업로드</span></label>
+              <select id="rbk-proto" class="compact" style="width:auto" onchange="toggleRbkFields()">
+                <option value="webdav">WebDAV</option>
+                <option value="s3">S3 / R2 / MinIO</option>
+              </select>
+            </div>
+            <div class="row" style="margin-bottom:8px">
+              <input id="rbk-endpoint" placeholder="https://dav.example.com/chost  or  https://s3.ap-northeast-2.amazonaws.com" />
+              <input id="rbk-prefix" placeholder="prefix (chost)" style="max-width:160px" />
+            </div>
+            <div class="row rbk-s3-only hidden" style="margin-bottom:8px">
+              <input id="rbk-bucket" placeholder="S3 Bucket Name" />
+              <input id="rbk-region" placeholder="Region (us-east-1)" style="max-width:180px" />
+            </div>
+            <div class="row" style="margin-bottom:8px">
+              <input id="rbk-user" placeholder="Username / Access Key" />
+              <input id="rbk-pass" type="password" data-i18n-ph="ph_rbk_secret" placeholder="비밀번호 / Secret Key (변경 시만 입력)" />
+            </div>
+            <div id="rbk-msg" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" onclick="saveRemoteBackup()" data-i18n="btn_save">저장</button>
+              <button class="btn btn-sm" onclick="testRemoteBackup()" data-i18n="rbk_test">연결 테스트</button>
+              <button class="btn btn-sm" onclick="syncRemoteBackup()" data-i18n="rbk_sync">최신 백업 지금 업로드</button>
+            </div>
+          </div>
         </section>
 
         <section id="tab-storage" class="hidden">
@@ -454,6 +485,23 @@
             </div>
             <div id="dt-msg" style="font-size:12px;min-height:16px;margin-bottom:6px"></div>
             <div id="dt-list"></div>
+          </div>
+        </section>
+
+
+        <section id="tab-nodes" class="hidden">
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px" data-i18n="nodes_title">🖥️ 멀티 서버 통합 관리</h3>
+            <div class="guide-sky" data-i18n="guide_nodes">💡 다른 서버에 설치된 CHost 패널을 등록해 CPU·RAM·디스크·사이트 상태를 한 화면에서 모니터링할 수 있습니다.</div>
+            <div class="row" style="margin-bottom:8px">
+              <input id="node-name" data-i18n-ph="ph_node_name" placeholder="서버 별칭 (예: 서울 운영서버)" style="max-width:200px" />
+              <input id="node-url" placeholder="http://1.2.3.4:8800" />
+              <input id="node-entry" data-i18n-ph="ph_node_entry" placeholder="보안경로 (선택, /secret)" style="max-width:180px" />
+              <input id="node-pw" type="password" data-i18n-ph="ph_login_pw" placeholder="Admin Password" style="max-width:180px" />
+              <button class="btn btn-primary btn-sm" onclick="addNode()" data-i18n="node_add">서버 추가</button>
+            </div>
+            <div id="nodes-msg" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+            <div id="nodes-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>
           </div>
         </section>
 
@@ -617,6 +665,22 @@
           </div>
 
           <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px" data-i18n="ai_set_title">🤖 AI 서버 닥터 설정</h3>
+            <div class="guide-sky" data-i18n="guide_ai_set">💡 기본 내장 진단 엔진은 API 키 없이도 502·포트 충돌·DB·권한 오류를 즉시 분석합니다. OpenAI 또는 Gemini API 키를 등록하면 로그 맥락까지 AI가 상세히 진단해 드립니다.</div>
+            <div class="row" style="margin-bottom:8px">
+              <select id="ai-provider" class="compact" style="max-width:200px">
+                <option value="builtin" data-i18n="ai_prov_builtin">내장 규칙 엔진 (무료)</option>
+                <option value="openai">OpenAI (GPT)</option>
+                <option value="gemini">Google Gemini</option>
+              </select>
+              <input id="ai-model" placeholder="Model (gpt-4o-mini / gemini-2.0-flash)" />
+              <input id="ai-key" type="password" data-i18n-ph="ph_ai_key" placeholder="API Key (변경 시만 입력)" />
+              <button class="btn btn-primary btn-sm" onclick="saveAiSettings()" data-i18n="btn_save">저장</button>
+            </div>
+            <div id="ai-set-msg" style="font-size:12px;min-height:16px"></div>
+          </div>
+
+          <div class="card">
             <h3 style="margin-bottom:10px;font-size:15px" data-i18n="audit_title">보안 감사 로그</h3>
             <table>
               <thead><tr><th data-i18n="th_time">시간</th><th data-i18n="th_actor">실행자</th><th data-i18n="th_action">작업</th><th data-i18n="th_target">대상</th><th data-i18n="th_detail">상세</th></tr></thead>
@@ -703,8 +767,9 @@ async function loadLocale(lang) {
 }
 function showTab(name, btn) {
   if (name === 'storage') loadLogPolicy();
-  if (name === 'db') { loadBackupPanel(); loadMariaUsers(); }
-  if (name === 'security') { loadAlertSettings(); loadFirewall(); loadSecurity(); }
+  if (name === 'db') { loadBackupPanel(); loadMariaUsers(); loadRemoteBackup(); }
+  if (name === 'security') { loadAlertSettings(); loadFirewall(); loadSecurity(); loadAiSettings(); }
+  if (name === 'nodes') { loadNodes(); }
   document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
   document.getElementById('tab-' + name).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -1682,6 +1747,31 @@ async function loadGitPane() {
   document.getElementById('sc-git-branch').textContent = r.git.branch || '-';
   document.getElementById('sc-git-remote').textContent = r.git.remote || '-';
   document.getElementById('sc-git-log').textContent = r.git.log || '';
+  const listEl = document.getElementById('sc-git-commits');
+  const commits = r.git.commits || [];
+  listEl.innerHTML = commits.length ? commits.map(c => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px">
+      <div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        <code>${escHtml(c.short)}</code> <span style="color:var(--muted)">${escHtml(c.date)}</span> ${escHtml(c.msg)}
+      </div>
+      ${c.current
+        ? `<span class="badge badge-ok">HEAD</span>`
+        : `<button class="btn btn-sm" onclick="runGitRollback('${escAttr(c.hash)}','${escAttr(c.short)}')">${escHtml(t('sc_git_rb_btn', '↩️ 롤백'))}</button>`}
+    </div>
+  `).join('') : `<pre class="console">${escHtml(r.git.log || '')}</pre>`;
+}
+async function runGitRollback(hash, shortHash) {
+  if (!confirm(t('sc_git_rb_confirm', '정말 선택한 커밋으로 롤백할까요?') + ' (' + shortHash + ')')) return;
+  const id = parseInt(document.getElementById('sc-id').value, 10);
+  const msg = document.getElementById('sc-msg');
+  msg.style.color = 'var(--muted)';
+  msg.textContent = t('sc_git_rb_running', '⏳ 이전 커밋으로 롤백 중...');
+  const r = await api(`/api/sites/${id}/git/rollback`, { method: 'POST', body: JSON.stringify({ hash }) });
+  if (!r || !r.success) { msg.style.color = '#fca5a5'; msg.textContent = (r && r.error) || 'Failed'; return; }
+  msg.style.color = '#6ee7b7';
+  msg.textContent = t('sc_git_rb_done', '✅ 롤백 완료') + ' (' + shortHash + ')';
+  await loadGitPane();
+  if (typeof refreshSiteHealth === 'function') refreshSiteHealth(0);
 }
 async function runGitUpdate() {
   const id = parseInt(document.getElementById('sc-id').value, 10);
@@ -2073,6 +2163,174 @@ function openDiskTop() {
   diskTop('/');
   setTimeout(() => document.getElementById('disk-top-card').scrollIntoView({ behavior: 'smooth' }), 100);
 }
+
+async function diagnoseSiteError() {
+  const id = parseInt(document.getElementById('sc-id').value, 10);
+  const box = document.getElementById('sc-ai-box');
+  if (!id || !box) return;
+  box.classList.remove('hidden');
+  box.innerHTML = escHtml(t('sc_ai_running', '🤖 로그를 분석하고 있습니다...'));
+  const r = await api(`/api/sites/${id}/diagnose`, { method: 'POST', body: '{}' });
+  if (!r || !r.success) { box.textContent = (r && r.error) || 'Failed'; return; }
+  const d = r.diagnosis || {};
+  const findings = (d.findings || []).map(f => `
+    <div style="margin-bottom:6px">
+      <strong>• ${escHtml(f.title)}</strong><br/>
+      <span style="color:var(--muted)">${escHtml(f.cause)}</span><br/>
+      <span style="color:#7dd3fc">→ ${escHtml(f.fix)}</span>
+    </div>
+  `).join('');
+  const aiBlock = d.ai_analysis ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(56,189,248,.25);white-space:pre-wrap"><strong>🤖 AI (${escHtml(d.mode)})</strong>
+${escHtml(d.ai_analysis)}</div>` : '';
+  const aiErr = d.ai_error ? `<div style="margin-top:6px;color:#fca5a5">AI API: ${escHtml(d.ai_error)}</div>` : '';
+  box.innerHTML = findings + aiBlock + aiErr;
+}
+
+async function loadAiSettings() {
+  const r = await api('/api/pro/ai/settings');
+  if (!r || !r.success) return;
+  document.getElementById('ai-provider').value = r.provider || 'builtin';
+  document.getElementById('ai-model').value = r.model || '';
+  document.getElementById('ai-key').value = '';
+  document.getElementById('ai-key').placeholder = r.has_key ? '•••••••• (saved)' : t('ph_ai_key', 'API Key (변경 시만 입력)');
+}
+
+async function saveAiSettings() {
+  const r = await api('/api/pro/ai/settings', {
+    method: 'POST',
+    body: JSON.stringify({
+      provider: document.getElementById('ai-provider').value,
+      model: document.getElementById('ai-model').value,
+      api_key: document.getElementById('ai-key').value,
+    }),
+  });
+  opsMsg('ai-set-msg', r && r.success, (r && r.success) ? t('msg_saved', '저장되었습니다.') : (r && r.error) || 'Failed');
+  if (r && r.success) loadAiSettings();
+}
+
+function toggleRbkFields() {
+  const p = document.getElementById('rbk-proto').value;
+  document.querySelectorAll('.rbk-s3-only').forEach(el => el.classList.toggle('hidden', p !== 's3'));
+}
+
+async function loadRemoteBackup() {
+  const r = await api('/api/pro/remote-backup');
+  if (!r || !r.success) return;
+  document.getElementById('rbk-enabled').checked = !!r.enabled;
+  document.getElementById('rbk-auto').checked = !!r.auto_upload;
+  document.getElementById('rbk-proto').value = r.protocol || 'webdav';
+  document.getElementById('rbk-endpoint').value = r.endpoint || '';
+  document.getElementById('rbk-bucket').value = r.bucket || '';
+  document.getElementById('rbk-region').value = r.region || 'us-east-1';
+  document.getElementById('rbk-user').value = r.username || '';
+  document.getElementById('rbk-pass').value = '';
+  document.getElementById('rbk-prefix').value = r.prefix || 'chost';
+  toggleRbkFields();
+}
+
+async function saveRemoteBackup() {
+  const r = await api('/api/pro/remote-backup', {
+    method: 'POST',
+    body: JSON.stringify({
+      enabled: document.getElementById('rbk-enabled').checked,
+      auto_upload: document.getElementById('rbk-auto').checked,
+      protocol: document.getElementById('rbk-proto').value,
+      endpoint: document.getElementById('rbk-endpoint').value,
+      bucket: document.getElementById('rbk-bucket').value,
+      region: document.getElementById('rbk-region').value,
+      username: document.getElementById('rbk-user').value,
+      password: document.getElementById('rbk-pass').value,
+      prefix: document.getElementById('rbk-prefix').value,
+    }),
+  });
+  opsMsg('rbk-msg', r && r.success, (r && r.success) ? t('msg_saved', '저장되었습니다.') : (r && r.error) || 'Failed');
+}
+
+async function testRemoteBackup() {
+  opsMsg('rbk-msg', true, '...');
+  const r = await api('/api/pro/remote-backup/test', { method: 'POST', body: '{}' });
+  opsMsg('rbk-msg', r && r.success, (r && r.success) ? (r.message || 'OK') : (r && r.error) || 'Failed');
+}
+
+async function syncRemoteBackup() {
+  opsMsg('rbk-msg', true, t('rbk_syncing', '⏳ 업로드 중...'));
+  const r = await api('/api/pro/remote-backup/sync', { method: 'POST', body: '{}' });
+  const rep = r && r.report ? ` (${(r.report.uploaded || []).length} files)` : '';
+  opsMsg('rbk-msg', r && r.success, (r && r.success) ? (t('rbk_sync_ok', '✅ 원격 업로드 완료') + rep) : (r && r.error) || 'Failed');
+}
+
+async function loadNodes() {
+  const r = await api('/api/pro/nodes');
+  const grid = document.getElementById('nodes-grid');
+  if (!r || !r.success || !grid) return;
+  const nodes = r.nodes || [];
+  if (!nodes.length) {
+    grid.innerHTML = `<div style="color:var(--muted);font-size:13px">${escHtml(t('nodes_empty', '등록된 서버가 없습니다.'))}</div>`;
+    return;
+  }
+  grid.innerHTML = nodes.map(n => `
+    <div class="card" style="margin:0;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <strong>${escHtml(n.name)}</strong>
+        <span id="node-st-${escAttr(n.id)}" class="badge">-</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);word-break:break-all;margin-bottom:8px">${escHtml(n.url)}</div>
+      <div id="node-info-${escAttr(n.id)}" style="font-size:12px;min-height:36px;margin-bottom:10px;color:var(--muted)">-</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="checkNodeStatus('${escAttr(n.id)}')">${escHtml(t('node_refresh', '🔄 상태 조회'))}</button>
+        <a class="btn btn-sm" href="${escAttr(n.url)}" target="_blank" rel="noopener noreferrer">${escHtml(t('node_open', '🔗 열기'))}</a>
+        <button class="btn btn-sm btn-danger" onclick="deleteNode('${escAttr(n.id)}')">${escHtml(t('btn_delete', '삭제'))}</button>
+      </div>
+    </div>
+  `).join('');
+  nodes.forEach(n => checkNodeStatus(n.id));
+}
+
+async function checkNodeStatus(id) {
+  const stEl = document.getElementById('node-st-' + id);
+  const infoEl = document.getElementById('node-info-' + id);
+  if (!stEl || !infoEl) return;
+  stEl.textContent = '...';
+  const r = await api(`/api/pro/nodes/${encodeURIComponent(id)}/status`);
+  const s = (r && r.status) || {};
+  if (!s.online) {
+    stEl.className = 'badge badge-err';
+    stEl.textContent = 'Offline';
+    infoEl.textContent = s.error || 'Unreachable';
+    return;
+  }
+  stEl.className = 'badge badge-ok';
+  stEl.textContent = s.version ? `v${s.version}` : 'Online';
+  const ramPct = s.ram_total ? Math.round((s.ram_used / s.ram_total) * 100) : 0;
+  const diskPct = s.disk_total ? Math.round((s.disk_used / s.disk_total) * 100) : 0;
+  infoEl.innerHTML = `CPU: <strong>${Math.round(s.cpu || 0)}%</strong> · RAM: <strong>${ramPct}%</strong> · Disk: <strong>${diskPct}%</strong> · Sites: <strong>${s.sites || 0}</strong>`;
+}
+
+async function addNode() {
+  const r = await api('/api/pro/nodes', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: document.getElementById('node-name').value,
+      url: document.getElementById('node-url').value,
+      entry_path: document.getElementById('node-entry').value,
+      password: document.getElementById('node-pw').value,
+    }),
+  });
+  opsMsg('nodes-msg', r && r.success, (r && r.success) ? t('msg_saved', '저장되었습니다.') : (r && r.error) || 'Failed');
+  if (r && r.success) {
+    document.getElementById('node-name').value = '';
+    document.getElementById('node-url').value = '';
+    document.getElementById('node-entry').value = '';
+    document.getElementById('node-pw').value = '';
+    loadNodes();
+  }
+}
+
+async function deleteNode(id) {
+  const r = await api(`/api/pro/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (r && r.success) loadNodes();
+}
+
 async function browseDir(dir) {
   window.CUR_BROWSE_DIR = dir || '/www/wwwroot';
   const r = await api('/api/files/list?path=' + encodeURIComponent(window.CUR_BROWSE_DIR));
@@ -2354,7 +2612,8 @@ checkAuth();
               <div><span style="color:var(--muted)" data-i18n="sc_git_commit">현재 커밋</span>: <strong id="sc-git-commit">-</strong> · <span id="sc-git-branch">-</span></div>
               <div style="margin-top:4px;word-break:break-all"><span style="color:var(--muted)">origin</span>: <span id="sc-git-remote">-</span></div>
             </div>
-            <pre id="sc-git-log" class="console" style="max-height:140px"></pre>
+            <div id="sc-git-commits" style="max-height:170px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px;background:var(--bg);margin-bottom:10px"></div>
+            <pre id="sc-git-log" class="console hidden" style="max-height:140px"></pre>
             <div style="margin-top:10px"><button class="btn btn-primary btn-sm" id="sc-git-btn" onclick="runGitUpdate()" data-i18n="sc_git_btn">⬇️ 최신 소스로 업데이트</button></div>
           </div>
         </div>
@@ -2373,7 +2632,9 @@ checkAuth();
             <button class="btn btn-sm" onclick="loadSiteLogs('error')" data-i18n="sc_log_error">에러 로그 (Error)</button>
             <button class="btn btn-sm" onclick="loadSiteLogs('access')" data-i18n="sc_log_access">접속 로그 (Access)</button>
             <button class="btn btn-sm btn-danger" onclick="clearSiteLogs()" data-i18n="sc_log_clear">로그 비우기</button>
+            <button class="btn btn-primary btn-sm" onclick="diagnoseSiteError()" data-i18n="sc_ai_btn">🤖 AI 원인 진단</button>
           </div>
+          <div id="sc-ai-box" class="hidden" style="margin-bottom:10px;padding:10px;border:1px solid rgba(56,189,248,.35);border-radius:8px;background:rgba(14,165,233,.08);font-size:12px;line-height:1.55"></div>
           <pre id="sc-log-out" class="console" style="max-height:200px"></pre>
         </div>
       </div>

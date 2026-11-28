@@ -3,6 +3,7 @@ mod engine;
 mod ops;
 mod security;
 mod dbtools;
+mod pro;
 
 use axum::{
     extract::Request,
@@ -1606,30 +1607,11 @@ async fn handle_site_git_update(
                 .into_response();
         }
     };
-    let mut deployed = "none";
-    if upd["changed"] == true && cfg!(unix) {
-        let det = engine::detect_project(FsPath::new(&root));
-        let fw = det["framework"].as_str().unwrap_or("blank").to_string();
-        let lang = det["language"].as_str().unwrap_or("static").to_string();
-        if site.site_type == "php" {
-            let rp = root.clone();
-            let tag = fw.clone();
-            let _ = tokio::task::spawn_blocking(move || engine::setup_php_project(&rp, &tag)).await;
-            deployed = "php";
-        } else if site.site_type == "proxy" {
-            if lang == "rust" {
-                let bin = if fw == "crust" { "rust_board".to_string() } else { engine::cargo_bin_name(&root).unwrap_or_default() };
-                if !bin.is_empty() {
-                    let _ = fs::remove_file(FsPath::new(&root).join("target/release").join(bin));
-                }
-            }
-            let (service, _building) = provision_proxy_app(&site.domain, &root, &lang, &fw, site.proxy_port);
-            if let Some(svc) = service {
-                spawn_health_watch(state.clone(), site.domain.clone(), site.proxy_port, svc, true);
-            }
-            deployed = "proxy";
-        }
-    }
+    let deployed = if upd["changed"] == true {
+        reprovision_after_git(&state, &site.domain, &site.root_path, &site.site_type, site.proxy_port).await
+    } else {
+        "none"
+    };
     state.db.log_audit(
         "admin",
         "GIT_UPDATE",
@@ -1637,6 +1619,79 @@ async fn handle_site_git_update(
         &format!("{} -> {} (changed={})", upd["old"].as_str().unwrap_or(""), upd["new"].as_str().unwrap_or(""), upd["changed"]),
     );
     Json(json!({ "success": true, "update": upd, "deployed": deployed })).into_response()
+}
+
+async fn reprovision_after_git(state: &Arc<AppState>, domain: &str, root_path: &str, site_type: &str, proxy_port: i64) -> &'static str {
+    if !cfg!(unix) {
+        return "none";
+    }
+    let root = root_path.to_string();
+    let det = engine::detect_project(FsPath::new(&root));
+    let fw = det["framework"].as_str().unwrap_or("blank").to_string();
+    let lang = det["language"].as_str().unwrap_or("static").to_string();
+    if site_type == "php" {
+        let rp = root.clone();
+        let tag = fw.clone();
+        let _ = tokio::task::spawn_blocking(move || engine::setup_php_project(&rp, &tag)).await;
+        "php"
+    } else if site_type == "proxy" {
+        if lang == "rust" {
+            let bin = if fw == "crust" { "rust_board".to_string() } else { engine::cargo_bin_name(&root).unwrap_or_default() };
+            if !bin.is_empty() {
+                let _ = fs::remove_file(FsPath::new(&root).join("target/release").join(bin));
+            }
+        }
+        let (service, _building) = provision_proxy_app(domain, &root, &lang, &fw, proxy_port);
+        if let Some(svc) = service {
+            spawn_health_watch(state.clone(), domain.to_string(), proxy_port, svc, true);
+        }
+        "proxy"
+    } else {
+        "none"
+    }
+}
+
+#[derive(Deserialize)]
+struct GitRollbackReq {
+    hash: String,
+}
+
+async fn handle_site_git_rollback(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(req): Json<GitRollbackReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Ok(Some(site)) = state.db.get_site(id) else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response();
+    };
+    let root = site.root_path.clone();
+    if !FsPath::new(&root).join(".git").exists() {
+        return bad_req("This site was not installed from Git.");
+    }
+    let h = req.hash.clone();
+    let rp = root.clone();
+    let res = tokio::task::spawn_blocking(move || engine::git_rollback(&rp, &h)).await;
+    let rb = match res {
+        Ok(Ok(v)) => v,
+        Ok(Err(e)) => return bad_req(&e),
+        Err(e) => return bad_req(&e.to_string()),
+    };
+    let deployed = if rb["changed"] == true {
+        reprovision_after_git(&state, &site.domain, &site.root_path, &site.site_type, site.proxy_port).await
+    } else {
+        "none"
+    };
+    state.db.log_audit(
+        "admin",
+        "GIT_ROLLBACK",
+        &site.domain,
+        &format!("{} -> {} (changed={})", rb["old"].as_str().unwrap_or(""), rb["new"].as_str().unwrap_or(""), rb["changed"]),
+    );
+    Json(json!({ "success": true, "rollback": rb, "deployed": deployed })).into_response()
 }
 
 async fn handle_dashboard_sites(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
@@ -2594,6 +2649,15 @@ fn start_backup(state: Arc<AppState>, actor: &'static str) -> bool {
             rep["name"].as_str().unwrap_or("-"),
             &format!("files={} errors={}", rep["files"].as_array().map(|a| a.len()).unwrap_or(0), rep["errors"]),
         );
+        if ok && state.db.get_setting("remote_backup_enabled", "0") == "1" && state.db.get_setting("remote_backup_auto", "0") == "1" {
+            if let Some(dir_name) = rep["name"].as_str() {
+                let cfg = load_remote_backup_cfg(&state.db);
+                match pro::upload_backup_dir(&cfg, dir_name).await {
+                    Ok(v) => state.db.log_audit(actor, "REMOTE_BACKUP", dir_name, &v.to_string()),
+                    Err(e) => state.db.log_audit(actor, "REMOTE_BACKUP_ERR", dir_name, &e),
+                }
+            }
+        }
         if !ok && state.db.get_setting("alert_enabled", "0") == "1" {
             let (w, t, c) = (
                 state.db.get_setting("alert_webhook_url", ""),
@@ -3200,6 +3264,331 @@ async fn handle_disk_top(State(state): State<Arc<AppState>>, headers: HeaderMap,
     items.sort_by(|a, b| b.0.cmp(&a.0));
     let list: Vec<Value> = items.into_iter().take(15).map(|(sz, p)| json!({ "path": p, "size": sz })).collect();
     Json(json!({ "success": true, "path": path, "total": total, "items": list })).into_response()
+}
+
+
+// ───────────── Pro Features (AI Doctor / Remote Backup / Multi-Server) ─────────────
+
+async fn handle_site_diagnose(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let Ok(Some(site)) = state.db.get_site(id) else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response();
+    };
+    let domain = site.domain.clone();
+    let stype = site.site_type.clone();
+    let root = site.root_path.clone();
+    let svc = app_service_name(&domain);
+    let (logs, fw, lang) = tokio::task::spawn_blocking(move || {
+        let logs = pro::collect_site_diagnostics_logs(&domain, &stype, &svc);
+        let det = engine::detect_project(FsPath::new(&root));
+        let fw = det["framework"].as_str().unwrap_or("blank").to_string();
+        let lang = det["language"].as_str().unwrap_or("static").to_string();
+        (logs, fw, lang)
+    })
+    .await
+    .unwrap_or_default();
+
+    let provider = state.db.get_setting("ai_provider", "builtin");
+    let api_key = state.db.get_setting("ai_api_key", "");
+    let model = state.db.get_setting("ai_model", "");
+    let diag = pro::ai_diagnose(&provider, &api_key, &model, &site.domain, &fw, &lang, &logs).await;
+    state.db.log_audit("admin", "AI_DIAGNOSE", &site.domain, diag["mode"].as_str().unwrap_or("builtin"));
+    Json(json!({ "success": true, "diagnosis": diag })).into_response()
+}
+
+async fn handle_ai_settings_get(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let key = state.db.get_setting("ai_api_key", "");
+    Json(json!({
+        "success": true,
+        "provider": state.db.get_setting("ai_provider", "builtin"),
+        "model": state.db.get_setting("ai_model", ""),
+        "has_key": !key.is_empty(),
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+struct AiSettingsReq {
+    provider: String,
+    #[serde(default)]
+    api_key: String,
+    #[serde(default)]
+    model: String,
+}
+
+async fn handle_ai_settings_save(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AiSettingsReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let prov = req.provider.trim();
+    if !matches!(prov, "builtin" | "openai" | "gemini") {
+        return bad_req("Provider must be builtin, openai, or gemini.");
+    }
+    let _ = state.db.set_setting("ai_provider", prov);
+    let _ = state.db.set_setting("ai_model", req.model.trim());
+    if !req.api_key.trim().is_empty() {
+        let _ = state.db.set_setting("ai_api_key", req.api_key.trim());
+    } else if prov == "builtin" {
+        let _ = state.db.set_setting("ai_api_key", "");
+    }
+    state.db.log_audit("admin", "AI_SETTINGS", prov, "");
+    Json(json!({ "success": true })).into_response()
+}
+
+fn load_remote_backup_cfg(db: &Database) -> pro::RemoteBackupCfg {
+    pro::RemoteBackupCfg {
+        enabled: db.get_setting("remote_backup_enabled", "0") == "1",
+        protocol: db.get_setting("remote_backup_protocol", "webdav"),
+        endpoint: db.get_setting("remote_backup_endpoint", ""),
+        bucket: db.get_setting("remote_backup_bucket", ""),
+        region: db.get_setting("remote_backup_region", "us-east-1"),
+        username: db.get_setting("remote_backup_user", ""),
+        password: db.get_setting("remote_backup_pass", ""),
+        prefix: db.get_setting("remote_backup_prefix", "chost"),
+        auto_upload: db.get_setting("remote_backup_auto", "0") == "1",
+    }
+}
+
+async fn handle_remote_backup_get(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let cfg = load_remote_backup_cfg(&state.db);
+    Json(json!({
+        "success": true,
+        "enabled": cfg.enabled,
+        "protocol": cfg.protocol,
+        "endpoint": cfg.endpoint,
+        "bucket": cfg.bucket,
+        "region": cfg.region,
+        "username": cfg.username,
+        "has_password": !cfg.password.is_empty(),
+        "prefix": cfg.prefix,
+        "auto_upload": cfg.auto_upload,
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+struct RemoteBackupSaveReq {
+    enabled: bool,
+    protocol: String,
+    endpoint: String,
+    #[serde(default)]
+    bucket: String,
+    #[serde(default)]
+    region: String,
+    #[serde(default)]
+    username: String,
+    #[serde(default)]
+    password: String,
+    #[serde(default)]
+    prefix: String,
+    #[serde(default)]
+    auto_upload: bool,
+}
+
+async fn handle_remote_backup_save(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<RemoteBackupSaveReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let prev = load_remote_backup_cfg(&state.db);
+    let pass = if req.password.trim().is_empty() { prev.password } else { req.password };
+    let cfg = pro::RemoteBackupCfg {
+        enabled: req.enabled,
+        protocol: req.protocol.trim().to_string(),
+        endpoint: req.endpoint.trim().to_string(),
+        bucket: req.bucket.trim().to_string(),
+        region: req.region.trim().to_string(),
+        username: req.username.trim().to_string(),
+        password: pass.clone(),
+        prefix: req.prefix.trim().to_string(),
+        auto_upload: req.auto_upload,
+    };
+    if let Err(e) = pro::validate_remote_cfg(&cfg) {
+        return bad_req(&e);
+    }
+    let _ = state.db.set_setting("remote_backup_enabled", if cfg.enabled { "1" } else { "0" });
+    let _ = state.db.set_setting("remote_backup_protocol", &cfg.protocol);
+    let _ = state.db.set_setting("remote_backup_endpoint", &cfg.endpoint);
+    let _ = state.db.set_setting("remote_backup_bucket", &cfg.bucket);
+    let _ = state.db.set_setting("remote_backup_region", &cfg.region);
+    let _ = state.db.set_setting("remote_backup_user", &cfg.username);
+    let _ = state.db.set_setting("remote_backup_pass", &pass);
+    let _ = state.db.set_setting("remote_backup_prefix", &cfg.prefix);
+    let _ = state.db.set_setting("remote_backup_auto", if cfg.auto_upload { "1" } else { "0" });
+    state.db.log_audit("admin", "REMOTE_BACKUP_CFG", &cfg.protocol, &cfg.endpoint);
+    Json(json!({ "success": true })).into_response()
+}
+
+async fn handle_remote_backup_test(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let cfg = load_remote_backup_cfg(&state.db);
+    match pro::test_remote_backup(&cfg).await {
+        Ok(msg) => Json(json!({ "success": true, "message": msg })).into_response(),
+        Err(e) => bad_req(&e),
+    }
+}
+
+#[derive(Deserialize, Default)]
+struct RemoteSyncReq {
+    #[serde(default)]
+    name: String,
+}
+
+async fn handle_remote_backup_sync(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    body: Option<Json<RemoteSyncReq>>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let cfg = load_remote_backup_cfg(&state.db);
+    let req_name = body.map(|b| b.0.name).unwrap_or_default();
+    let dir_name = if !req_name.trim().is_empty() {
+        if !dbtools::valid_backup_name(req_name.trim()) {
+            return bad_req("Invalid backup name.");
+        }
+        req_name.trim().to_string()
+    } else {
+        let list = tokio::task::spawn_blocking(dbtools::list_backups).await.unwrap_or_default();
+        let Some(first) = list.first().and_then(|v| v["name"].as_str()) else {
+            return bad_req("No local backups found.");
+        };
+        first.to_string()
+    };
+    match pro::upload_backup_dir(&cfg, &dir_name).await {
+        Ok(rep) => {
+            state.db.log_audit("admin", "REMOTE_BACKUP_SYNC", &dir_name, &rep.to_string());
+            Json(json!({ "success": rep["ok"] == true, "name": dir_name, "report": rep })).into_response()
+        }
+        Err(e) => bad_req(&e),
+    }
+}
+
+fn load_nodes(db: &Database) -> Vec<pro::NodeEntry> {
+    let raw = db.get_setting("pro_nodes", "[]");
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+fn save_nodes(db: &Database, nodes: &[pro::NodeEntry]) {
+    if let Ok(s) = serde_json::to_string(nodes) {
+        let _ = db.set_setting("pro_nodes", &s);
+    }
+}
+
+async fn handle_nodes_list(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let list: Vec<Value> = load_nodes(&state.db)
+        .into_iter()
+        .map(|n| json!({ "id": n.id, "name": n.name, "url": n.url, "entry_path": n.entry_path }))
+        .collect();
+    Json(json!({ "success": true, "nodes": list })).into_response()
+}
+
+#[derive(Deserialize)]
+struct NodeAddReq {
+    name: String,
+    url: String,
+    password: String,
+    #[serde(default)]
+    entry_path: String,
+}
+
+async fn handle_nodes_add(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<NodeAddReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let name = req.name.trim();
+    let url = req.url.trim().trim_end_matches('/');
+    if name.is_empty() || name.len() > 60 {
+        return bad_req("Node name is required.");
+    }
+    if !pro::valid_node_url(url) {
+        return bad_req("Valid http(s):// URL is required.");
+    }
+    if req.password.is_empty() {
+        return bad_req("Panel password is required.");
+    }
+    let node = pro::NodeEntry {
+        id: uuid::Uuid::new_v4().to_string()[..8].to_string(),
+        name: name.to_string(),
+        url: url.to_string(),
+        password: req.password,
+        entry_path: req.entry_path.trim().to_string(),
+    };
+    let status = pro::fetch_node_status(&node).await;
+    let mut nodes = load_nodes(&state.db);
+    nodes.push(node.clone());
+    save_nodes(&state.db, &nodes);
+    state.db.log_audit("admin", "NODE_ADD", &node.name, &node.url);
+    Json(json!({
+        "success": true,
+        "node": { "id": node.id, "name": node.name, "url": node.url, "entry_path": node.entry_path },
+        "status": status
+    }))
+    .into_response()
+}
+
+async fn handle_nodes_delete(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let mut nodes = load_nodes(&state.db);
+    let before = nodes.len();
+    nodes.retain(|n| n.id != id);
+    if nodes.len() == before {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response();
+    }
+    save_nodes(&state.db, &nodes);
+    state.db.log_audit("admin", "NODE_DELETE", &id, "");
+    Json(json!({ "success": true })).into_response()
+}
+
+async fn handle_node_status(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let nodes = load_nodes(&state.db);
+    let Some(node) = nodes.into_iter().find(|n| n.id == id) else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response();
+    };
+    let status = pro::fetch_node_status(&node).await;
+    Json(json!({ "success": true, "id": id, "status": status })).into_response()
 }
 
 async fn handle_site_health(
@@ -4801,6 +5190,15 @@ async fn main() {
     .route("/api/webserver/migrate", post(handle_webserver_migrate))
     .route("/api/sites/{id}/git", get(handle_site_git_info))
     .route("/api/sites/{id}/git/update", post(handle_site_git_update))
+    .route("/api/sites/{id}/git/rollback", post(handle_site_git_rollback))
+    .route("/api/sites/{id}/diagnose", post(handle_site_diagnose))
+    .route("/api/pro/ai/settings", get(handle_ai_settings_get).post(handle_ai_settings_save))
+    .route("/api/pro/remote-backup", get(handle_remote_backup_get).post(handle_remote_backup_save))
+    .route("/api/pro/remote-backup/test", post(handle_remote_backup_test))
+    .route("/api/pro/remote-backup/sync", post(handle_remote_backup_sync))
+    .route("/api/pro/nodes", get(handle_nodes_list).post(handle_nodes_add))
+    .route("/api/pro/nodes/{id}", delete(handle_nodes_delete))
+    .route("/api/pro/nodes/{id}/status", get(handle_node_status))
     .route("/api/detect", post(handle_detect))
         .route("/api/sites/{id}/ssl", post(handle_issue_ssl))
         .route("/api/php/versions", get(handle_php_versions))
