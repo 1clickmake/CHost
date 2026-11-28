@@ -417,5 +417,17 @@
   "audit_page_unit": "páginas",
   "page_prev": "Anterior",
   "page_next": "Siguiente",
-  "nav_settings": "Ajustes"
+  "nav_settings": "Ajustes",
+  "nav_pro": "CHost Pro",
+  "pro_main_desc": "Administra las 4 funciones premium Pro cómodamente desde un único centro con pestañas.",
+  "pro_tab_nodes": "🖥️ Multi-Servidor",
+  "pro_tab_backup": "☁️ Copia Remota (S3/WebDAV)",
+  "pro_tab_ai": "🤖 Doctor IA de Servidor",
+  "pro_tab_git": "↩️ Centro de Reversión Git",
+  "pro_ai_quick_title": "🩺 Diagnóstico Rápido de Sitios",
+  "guide_pro_ai_quick": "💡 Selecciona un sitio y ejecuta el diagnóstico para analizar registros de errores y systemd al instante.",
+  "pro_btn_run_diag": "🤖 Ejecutar Diagnóstico",
+  "pro_git_center_title": "↩️ Centro de Reversión Git",
+  "guide_pro_git_center": "💡 Consulta el historial de commits de los sitios Git y revierte a cualquier commit anterior con un clic.",
+  "pro_git_empty": "No hay sitios instalados mediante Git."
 }

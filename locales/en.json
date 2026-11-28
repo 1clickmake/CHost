@@ -417,5 +417,17 @@
   "audit_page_unit": "pages",
   "page_prev": "Prev",
   "page_next": "Next",
-  "nav_settings": "Settings"
+  "nav_settings": "Settings",
+  "nav_pro": "CHost Pro",
+  "pro_main_desc": "Manage all 4 premium Pro features seamlessly across dedicated tabs in one centralized hub.",
+  "pro_tab_nodes": "🖥️ Multi-Server",
+  "pro_tab_backup": "☁️ Remote Backup",
+  "pro_tab_ai": "🤖 AI Server Doctor",
+  "pro_tab_git": "↩️ Git Rollback Center",
+  "pro_ai_quick_title": "🩺 Fast Site Error Diagnostics",
+  "guide_pro_ai_quick": "💡 Select any site and run diagnostic to inspect web server error logs and systemd journal for instant fixes.",
+  "pro_btn_run_diag": "🤖 Run Diagnosis",
+  "pro_git_center_title": "↩️ Git Site Rollback Center",
+  "guide_pro_git_center": "💡 Inspect commit timelines of all Git-installed sites and rollback to any previous commit with one click.",
+  "pro_git_empty": "No sites installed via Git."
 }

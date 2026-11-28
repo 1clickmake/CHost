@@ -417,5 +417,17 @@
   "audit_page_unit": "ページ",
   "page_prev": "前へ",
   "page_next": "次へ",
-  "nav_settings": "設定"
+  "nav_settings": "設定",
+  "nav_pro": "CHost Pro",
+  "pro_main_desc": "4大プレミアム有料機能を1つのタブ切り替えハブで直感的に統合管理できます。",
+  "pro_tab_nodes": "🖥️ マルチサーバー",
+  "pro_tab_backup": "☁️ リモートバックアップ",
+  "pro_tab_ai": "🤖 AI サーバードクター",
+  "pro_tab_git": "↩️ Git ロールバックセンター",
+  "pro_ai_quick_title": "🩺 サイトエラー迅速診断",
+  "guide_pro_ai_quick": "💡 診断するサイトを選択して実行すると、エラーログとsystemdジャーナルを収集して原因と解決策を即座に診断します。",
+  "pro_btn_run_diag": "🤖 原因診断を実行",
+  "pro_git_center_title": "↩️ Git サイトロールバックセンター",
+  "guide_pro_git_center": "💡 Gitからインストールされた全サイトのコミット履歴を確認し、過去の正常コミットへワンクリックでロールバックできます。",
+  "pro_git_empty": "Gitからインストールされたサイトはありません。"
 }

@@ -417,5 +417,17 @@
   "audit_page_unit": "页",
   "page_prev": "上一页",
   "page_next": "下一页",
-  "nav_settings": "设置"
+  "nav_settings": "设置",
+  "nav_pro": "CHost Pro",
+  "pro_main_desc": "在一个中心化页面中通过标签页轻松管理4大高级付费功能。",
+  "pro_tab_nodes": "🖥️ 多服务器管理",
+  "pro_tab_backup": "☁️ 远程备份 (S3/WebDAV)",
+  "pro_tab_ai": "🤖 AI 服务器医生",
+  "pro_tab_git": "↩️ Git 站点回滚中心",
+  "pro_ai_quick_title": "🩺 站点快速故障诊断",
+  "guide_pro_ai_quick": "💡 选择站点并点击执行诊断，系统将收集Web错误日志与systemd日志，秒级分析故障原因与修复建议。",
+  "pro_btn_run_diag": "🤖 执行故障诊断",
+  "pro_git_center_title": "↩️ Git 站点回滚中心",
+  "guide_pro_git_center": "💡 查看所有通过Git部署站点的提交历史，一键安全回滚到指定历史版本。",
+  "pro_git_empty": "暂无通过Git安装的站点。"
 }
