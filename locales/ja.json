@@ -10,7 +10,7 @@
   "nav_db": "マルチDBスタジオ",
   "nav_storage": "ストレージ・ログ",
   "nav_terminal": "ファイル・ターミナル",
-  "nav_security": "セキュリティ・監査",
+  "nav_security": "監査ログ",
   "cpu_usage": "CPU使用率",
   "ram_usage": "メモリ使用量",
   "disk_usage": "ディスク使用量",
@@ -416,5 +416,6 @@
   "audit_page_info": "最新最大500件中",
   "audit_page_unit": "ページ",
   "page_prev": "前へ",
-  "page_next": "次へ"
+  "page_next": "次へ",
+  "nav_settings": "設定"
 }

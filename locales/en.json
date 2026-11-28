@@ -10,7 +10,7 @@
   "nav_db": "Multi-DB Studio",
   "nav_storage": "Storage & Logs",
   "nav_terminal": "Files & Terminal",
-  "nav_security": "Security & Audit",
+  "nav_security": "Audit Logs",
   "cpu_usage": "CPU Usage",
   "ram_usage": "Memory Usage",
   "disk_usage": "Disk Usage",
@@ -416,5 +416,6 @@
   "audit_page_info": "Out of max 500 latest,",
   "audit_page_unit": "pages",
   "page_prev": "Prev",
-  "page_next": "Next"
+  "page_next": "Next",
+  "nav_settings": "Settings"
 }

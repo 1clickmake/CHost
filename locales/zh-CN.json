@@ -10,7 +10,7 @@
   "nav_db": "多数据库工作室",
   "nav_storage": "存储与日志",
   "nav_terminal": "文件与终端",
-  "nav_security": "安全审计日志",
+  "nav_security": "审计日志",
   "cpu_usage": "CPU 使用率",
   "ram_usage": "内存使用",
   "disk_usage": "磁盘使用",
@@ -416,5 +416,6 @@
   "audit_page_info": "最近最多500条中",
   "audit_page_unit": "页",
   "page_prev": "上一页",
-  "page_next": "下一页"
+  "page_next": "下一页",
+  "nav_settings": "设置"
 }

@@ -10,7 +10,7 @@
   "nav_db": "Estudio Multi-DB",
   "nav_storage": "Almacenamiento y Logs",
   "nav_terminal": "Archivos y Terminal",
-  "nav_security": "Seguridad y Auditoría",
+  "nav_security": "Registros de auditoría",
   "cpu_usage": "Uso de CPU",
   "ram_usage": "Uso de Memoria",
   "disk_usage": "Uso de Disco",
@@ -416,5 +416,6 @@
   "audit_page_info": "De hasta 500 más recientes,",
   "audit_page_unit": "páginas",
   "page_prev": "Anterior",
-  "page_next": "Siguiente"
+  "page_next": "Siguiente",
+  "nav_settings": "Ajustes"
 }
