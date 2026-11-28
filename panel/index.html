@@ -681,11 +681,15 @@
           </div>
 
           <div class="card">
-            <h3 style="margin-bottom:10px;font-size:15px" data-i18n="audit_title">보안 감사 로그</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+              <h3 style="margin:0;font-size:15px" data-i18n="audit_title">보안 감사 로그</h3>
+              <span id="audits-meta" style="font-size:12px;color:var(--muted)"></span>
+            </div>
             <table>
               <thead><tr><th data-i18n="th_time">시간</th><th data-i18n="th_actor">실행자</th><th data-i18n="th_action">작업</th><th data-i18n="th_target">대상</th><th data-i18n="th_detail">상세</th></tr></thead>
               <tbody id="audits-tbody"></tbody>
             </table>
+            <div id="audits-pagination" style="display:flex;justify-content:center;align-items:center;gap:6px;margin-top:14px;flex-wrap:wrap"></div>
           </div>
         </section>
       </main>
@@ -2381,12 +2385,46 @@ async function execTerm() {
   const r = await api('/api/terminal', { method: 'POST', body: JSON.stringify({ cmd }) });
   document.getElementById('term-out').textContent = r.output || '';
 }
-async function loadAudits() {
-  const r = await api('/api/audits');
+let _auditCurPage = 1;
+async function loadAudits(page = 1) {
+  _auditCurPage = page;
+  const r = await api(`/api/audits?page=${page}&per_page=30`);
   if (!r.success) return;
-  document.getElementById('audits-tbody').innerHTML = r.logs.map(l =>
-    `<tr><td>${l.created_at.slice(0,19)}</td><td>${l.actor}</td><td>${l.action}</td><td>${l.target}</td><td>${l.detail}</td></tr>`
-  ).join('');
+  const tbody = document.getElementById('audits-tbody');
+  if (!r.logs.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:18px">${escHtml(t('audit_empty', '기록된 감사 로그가 없습니다.'))}</td></tr>`;
+  } else {
+    tbody.innerHTML = r.logs.map(l =>
+      `<tr><td>${escHtml(l.created_at.slice(0,19))}</td><td><span class="badge">${escHtml(l.actor)}</span></td><td><strong>${escHtml(l.action)}</strong></td><td><code>${escHtml(l.target)}</code></td><td style="color:var(--muted);word-break:break-all">${escHtml(l.detail)}</td></tr>`
+    ).join('');
+  }
+  const meta = document.getElementById('audits-meta');
+  if (meta) {
+    meta.textContent = `${t('audit_page_info', '최근 최대 500개 중')} ${r.total}개 (${r.page} / ${r.total_pages} ${t('audit_page_unit', '페이지')})`;
+  }
+  renderAuditPagination(r.page, r.total_pages);
+}
+function renderAuditPagination(cur, total) {
+  const el = document.getElementById('audits-pagination');
+  if (!el) return;
+  if (total <= 1) { el.innerHTML = ''; return; }
+  let html = '';
+  html += `<button class="btn btn-sm" ${cur <= 1 ? 'disabled' : ''} onclick="loadAudits(${cur - 1})">◀ ${escHtml(t('page_prev', '이전'))}</button>`;
+  const start = Math.max(1, cur - 2);
+  const end = Math.min(total, cur + 2);
+  if (start > 1) {
+    html += `<button class="btn btn-sm ${cur === 1 ? 'btn-primary' : ''}" onclick="loadAudits(1)">1</button>`;
+    if (start > 2) html += `<span style="color:var(--muted);padding:0 2px">…</span>`;
+  }
+  for (let p = start; p <= end; p++) {
+    html += `<button class="btn btn-sm ${p === cur ? 'btn-primary' : ''}" onclick="loadAudits(${p})">${p}</button>`;
+  }
+  if (end < total) {
+    if (end < total - 1) html += `<span style="color:var(--muted);padding:0 2px">…</span>`;
+    html += `<button class="btn btn-sm ${cur === total ? 'btn-primary' : ''}" onclick="loadAudits(${total})">${total}</button>`;
+  }
+  html += `<button class="btn btn-sm" ${cur >= total ? 'disabled' : ''} onclick="loadAudits(${cur + 1})">${escHtml(t('page_next', '다음'))} ▶</button>`;
+  el.innerHTML = html;
 }
 let _installPollTimer = null;
 const RECOMMENDED_STACK = ['nginx', 'mariadb', 'certbot', 'php8.3'];

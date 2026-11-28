@@ -411,5 +411,10 @@
   "node_add": "添加服务器",
   "nodes_empty": "暂无已注册服务器。",
   "node_refresh": "🔄 刷新状态",
-  "node_open": "🔗 打开"
+  "node_open": "🔗 打开",
+  "audit_empty": "暂无审计日志。",
+  "audit_page_info": "最近最多500条中",
+  "audit_page_unit": "页",
+  "page_prev": "上一页",
+  "page_next": "下一页"
 }

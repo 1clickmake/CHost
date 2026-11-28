@@ -4291,12 +4291,50 @@ async fn handle_terminal_exec(
     }
 }
 
-async fn handle_audits(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+#[derive(Deserialize)]
+struct AuditsQuery {
+    page: Option<i64>,
+    per_page: Option<i64>,
+}
+
+async fn handle_audits(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(q): Query<AuditsQuery>,
+) -> Response {
     if !is_authed(&state, &headers) {
         return unauthorized();
     }
-    let logs = state.db.list_audits(100).unwrap_or_default();
-    Json(json!({ "success": true, "logs": logs })).into_response()
+    const MAX_AUDITS_CAP: i64 = 500;
+    let page = q.page.unwrap_or(1).max(1);
+    let per_page = q.per_page.unwrap_or(30).clamp(1, 100);
+
+    let raw_total = state.db.count_audits().unwrap_or(0);
+    let total = raw_total.min(MAX_AUDITS_CAP);
+    let total_pages = if total == 0 { 1 } else { (total + per_page - 1) / per_page };
+    let cur_page = page.min(total_pages);
+
+    let offset = (cur_page - 1) * per_page;
+    let remain = total.saturating_sub(offset);
+    let fetch_limit = remain.min(per_page);
+
+    let logs = if fetch_limit > 0 {
+        state.db.list_audits(fetch_limit, offset).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    Json(json!({
+        "success": true,
+        "logs": logs,
+        "page": cur_page,
+        "per_page": per_page,
+        "total": total,
+        "raw_total": raw_total,
+        "total_pages": total_pages,
+        "max_cap": MAX_AUDITS_CAP
+    }))
+    .into_response()
 }
 
 #[derive(Deserialize)]

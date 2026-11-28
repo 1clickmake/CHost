@@ -216,12 +216,12 @@ impl Database {
         );
     }
 
-    pub fn list_audits(&self, limit: i64) -> Result<Vec<AuditRecord>> {
+    pub fn list_audits(&self, limit: i64, offset: i64) -> Result<Vec<AuditRecord>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, actor, action, target, detail, created_at FROM audit_logs ORDER BY id DESC LIMIT ?1",
+            "SELECT id, actor, action, target, detail, created_at FROM audit_logs ORDER BY id DESC LIMIT ?1 OFFSET ?2",
         )?;
-        let rows = stmt.query_map(params![limit], |r| {
+        let rows = stmt.query_map(params![limit, offset], |r| {
             Ok(AuditRecord {
                 id: r.get(0)?,
                 actor: r.get(1)?,
@@ -232,6 +232,11 @@ impl Database {
             })
         })?;
         rows.collect()
+    }
+
+    pub fn count_audits(&self) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        conn.query_row("SELECT COUNT(*) FROM audit_logs", [], |r| r.get(0))
     }
 
     pub fn list_sites(&self) -> Result<Vec<SiteRecord>> {

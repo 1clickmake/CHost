@@ -411,5 +411,10 @@
   "node_add": "Add Server",
   "nodes_empty": "No servers registered.",
   "node_refresh": "🔄 Refresh",
-  "node_open": "🔗 Open"
+  "node_open": "🔗 Open",
+  "audit_empty": "No audit logs recorded.",
+  "audit_page_info": "Out of max 500 latest,",
+  "audit_page_unit": "pages",
+  "page_prev": "Prev",
+  "page_next": "Next"
 }

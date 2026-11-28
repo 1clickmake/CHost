@@ -411,5 +411,10 @@
   "node_add": "서버 추가",
   "nodes_empty": "등록된 서버가 없습니다.",
   "node_refresh": "🔄 상태 조회",
-  "node_open": "🔗 열기"
+  "node_open": "🔗 열기",
+  "audit_empty": "기록된 감사 로그가 없습니다.",
+  "audit_page_info": "최근 최대 500개 중",
+  "audit_page_unit": "페이지",
+  "page_prev": "이전",
+  "page_next": "다음"
 }

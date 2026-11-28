@@ -411,5 +411,10 @@
   "node_add": "Añadir servidor",
   "nodes_empty": "No hay servidores registrados.",
   "node_refresh": "🔄 Actualizar",
-  "node_open": "🔗 Abrir"
+  "node_open": "🔗 Abrir",
+  "audit_empty": "No hay registros de auditoría.",
+  "audit_page_info": "De hasta 500 más recientes,",
+  "audit_page_unit": "páginas",
+  "page_prev": "Anterior",
+  "page_next": "Siguiente"
 }

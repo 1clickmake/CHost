@@ -411,5 +411,10 @@
   "node_add": "サーバー追加",
   "nodes_empty": "登録されたサーバーはありません。",
   "node_refresh": "🔄 状態更新",
-  "node_open": "🔗 開く"
+  "node_open": "🔗 開く",
+  "audit_empty": "監査ログはありません。",
+  "audit_page_info": "最新最大500件中",
+  "audit_page_unit": "ページ",
+  "page_prev": "前へ",
+  "page_next": "次へ"
 }
