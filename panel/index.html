@@ -305,6 +305,7 @@
             <div style="display:flex;gap:8px;margin-bottom:12px">
               <button id="db-mode-maria" class="btn btn-sm btn-primary" onclick="switchDbMode('mariadb')" data-i18n="btn_mode_mariadb">MariaDB / MySQL</button>
               <button id="db-mode-sqlite" class="btn btn-sm" onclick="switchDbMode('sqlite')" data-i18n="btn_mode_sqlite">SQLite (.db)</button>
+              <button id="db-mode-pg" class="btn btn-sm" onclick="switchDbMode('pg')">PostgreSQL</button>
             </div>
             <div id="db-pane-mariadb">
               <div class="row" style="margin-bottom:10px">
@@ -313,12 +314,68 @@
                 <button class="btn btn-primary" onclick="downloadMariaBackup()" data-i18n="btn_backup_sql">SQL 백업 다운로드</button>
               </div>
               <div id="maria-tables" style="margin-bottom:10px;font-size:12px;color:var(--muted)"></div>
+              <div class="row" style="margin-bottom:10px">
+                <select id="maria-table-select" class="compact"></select>
+                <button class="btn btn-sm" onclick="exportCsv('mariadb')" data-i18n="btn_export_csv">📄 CSV 내보내기</button>
+              </div>
               <textarea id="maria-sql" rows="3" data-i18n-ph="ph_maria_sql" placeholder="SHOW TABLES; 또는 SELECT * FROM 테이블명 LIMIT 20;"></textarea>
               <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
                 <button class="btn btn-primary" onclick="runMariaQuery()" data-i18n="btn_run_sql">SQL 실행</button>
                 <button class="btn btn-sm" onclick="document.getElementById('maria-sql').value='SHOW TABLES;'" data-i18n="btn_ex_show_tables">예제: SHOW TABLES;</button>
               </div>
               <pre id="maria-result" class="console"></pre>
+              <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+                <h4 style="font-size:14px;margin-bottom:8px" data-i18n="dbacc_title">👤 DB 계정 관리</h4>
+                <div class="guide-sky" data-i18n="guide_dbacc">💡 새 DB와 전용 계정을 한 번에 만들거나, 기존 계정의 비밀번호를 바꿀 수 있어요. (비밀번호 8자 이상, 따옴표·역슬래시·공백 제외)</div>
+                <table style="margin-bottom:10px"><thead><tr><th data-i18n="dbacc_user">계정</th><th>Host</th><th data-i18n="dbacc_dbs">권한 DB</th></tr></thead><tbody id="maria-users-tbody"></tbody></table>
+                <div class="row" style="margin-bottom:8px">
+                  <input id="mdb-new-db" data-i18n-ph="ph_db_name" placeholder="DB 이름" />
+                  <input id="mdb-new-user" data-i18n-ph="ph_db_user" placeholder="DB 유저 아이디" />
+                  <input id="mdb-new-pass" data-i18n-ph="ph_db_pass" placeholder="DB 비밀번호" />
+                  <button class="btn btn-primary btn-sm" onclick="dbCreate('mariadb')" data-i18n="dbacc_create">DB + 계정 만들기</button>
+                </div>
+                <div class="row">
+                  <select id="mdb-pw-user" class="compact"></select>
+                  <input id="mdb-pw-new" data-i18n-ph="ph_pw_new" placeholder="새 비밀번호" />
+                  <button class="btn btn-sm" onclick="dbChangePw('mariadb')" data-i18n="dbacc_change_pw">비밀번호 변경</button>
+                </div>
+                <div id="mdb-acc-msg" style="font-size:12px;min-height:16px;margin-top:8px"></div>
+              </div>
+            </div>
+            <div id="db-pane-pg" class="hidden">
+              <div id="pg-not-installed" class="warn-box hidden" data-i18n="pg_not_installed">PostgreSQL 이 설치되어 있지 않습니다. '런타임 스토어'에서 PostgreSQL 을 설치하세요.</div>
+              <div id="pg-main">
+                <div class="row" style="margin-bottom:10px">
+                  <select id="pg-db-select" onchange="loadPgTables()"></select>
+                  <button class="btn" onclick="loadPgDatabases()" data-i18n="btn_refresh_dbs">DB 새로고침</button>
+                  <button class="btn btn-primary" onclick="downloadPgBackup()" data-i18n="btn_backup_sql">SQL 백업 다운로드</button>
+                </div>
+                <div class="row" style="margin-bottom:10px">
+                  <select id="pg-table-select" class="compact"></select>
+                  <button class="btn btn-sm" onclick="exportCsv('pg')" data-i18n="btn_export_csv">📄 CSV 내보내기</button>
+                </div>
+                <textarea id="pg-sql" rows="3" placeholder="SELECT * FROM table_name LIMIT 20;"></textarea>
+                <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+                  <button class="btn btn-primary" onclick="runPgQuery()" data-i18n="btn_run_sql">SQL 실행</button>
+                  <button class="btn btn-sm" onclick="document.getElementById('pg-sql').value='SELECT version();'" >SELECT version();</button>
+                </div>
+                <pre id="pg-result" class="console"></pre>
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+                  <h4 style="font-size:14px;margin-bottom:8px" data-i18n="dbacc_title">👤 DB 계정 관리</h4>
+                  <div class="row" style="margin-bottom:8px">
+                    <input id="pg-new-db" data-i18n-ph="ph_db_name" placeholder="DB 이름" />
+                    <input id="pg-new-user" data-i18n-ph="ph_db_user" placeholder="DB 유저 아이디" />
+                    <input id="pg-new-pass" data-i18n-ph="ph_db_pass" placeholder="DB 비밀번호" />
+                    <button class="btn btn-primary btn-sm" onclick="dbCreate('pg')" data-i18n="dbacc_create">DB + 계정 만들기</button>
+                  </div>
+                  <div class="row">
+                    <input id="pg-pw-user" data-i18n-ph="ph_db_user" placeholder="DB 유저 아이디" />
+                    <input id="pg-pw-new" data-i18n-ph="ph_pw_new" placeholder="새 비밀번호" />
+                    <button class="btn btn-sm" onclick="dbChangePw('pg')" data-i18n="dbacc_change_pw">비밀번호 변경</button>
+                  </div>
+                  <div id="pg-acc-msg" style="font-size:12px;min-height:16px;margin-top:8px"></div>
+                </div>
+              </div>
             </div>
             <div id="db-pane-sqlite" class="hidden">
               <div class="row" style="margin-bottom:10px">
@@ -326,6 +383,10 @@
                 <button class="btn btn-primary" onclick="loadSqliteTables()" data-i18n="btn_load_tables">테이블 불러오기</button>
               </div>
               <div id="db-tables" style="margin-bottom:10px;font-size:12px;color:var(--muted)"></div>
+              <div class="row" style="margin-bottom:10px">
+                <select id="sqlite-table-select" class="compact"></select>
+                <button class="btn btn-sm" onclick="exportCsv('sqlite')" data-i18n="btn_export_csv">📄 CSV 내보내기</button>
+              </div>
               <textarea id="db-sql" rows="3" data-i18n-ph="ph_db_sql" placeholder="SELECT * FROM sites LIMIT 20;"></textarea>
               <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
                 <button class="btn btn-primary" onclick="runSqliteQuery()" data-i18n="btn_run_sql">SQL 실행</button>
@@ -333,6 +394,19 @@
               </div>
               <pre id="db-result" class="console"></pre>
             </div>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:10px;font-size:15px" data-i18n="bk_title">💾 예약 자동 백업</h3>
+            <div class="guide-sky" data-i18n="guide_bk">💡 매일 정해진 시각에 <strong>모든 DB(MariaDB·PostgreSQL)와 사이트 파일, CHost 설정</strong>을 <code>/www/backup</code> 에 압축 보관합니다. (node_modules·빌드 폴더·.git 제외) 오래된 백업은 보관 개수만큼만 남기고 자동 정리됩니다.</div>
+            <div class="row" style="margin-bottom:10px;align-items:center">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;flex:0 0 auto"><input type="checkbox" id="bk-enabled" style="width:auto" /> <span data-i18n="bk_enable">자동 백업 사용</span></label>
+              <label style="font-size:13px;flex:0 0 auto"><span data-i18n="bk_hour">매일</span> <select id="bk-hour" class="compact" style="width:auto"></select></label>
+              <label style="font-size:13px;flex:0 0 auto"><span data-i18n="bk_keep">보관 개수</span> <input id="bk-keep" type="number" min="1" max="90" style="width:70px" /></label>
+              <button class="btn btn-primary btn-sm" onclick="saveBackupSettings()" data-i18n="btn_save">저장</button>
+              <button class="btn btn-sm" onclick="runBackupNow()" data-i18n="bk_run_now">지금 백업</button>
+            </div>
+            <div id="bk-msg" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+            <div id="bk-list"></div>
           </div>
         </section>
 
@@ -589,6 +663,7 @@ async function loadLocale(lang) {
   }
 }
 function showTab(name, btn) {
+  if (name === 'db') { loadBackupPanel(); loadMariaUsers(); }
   if (name === 'security') { loadAlertSettings(); loadFirewall(); loadSecurity(); }
   document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
   document.getElementById('tab-' + name).classList.remove('hidden');
@@ -1666,8 +1741,130 @@ async function delApp(id) { await api(`/api/apps/${id}`, { method: 'DELETE' }); 
 function switchDbMode(mode) {
   document.getElementById('db-pane-mariadb').classList.toggle('hidden', mode !== 'mariadb');
   document.getElementById('db-pane-sqlite').classList.toggle('hidden', mode !== 'sqlite');
+  document.getElementById('db-pane-pg').classList.toggle('hidden', mode !== 'pg');
   document.getElementById('db-mode-maria').classList.toggle('btn-primary', mode === 'mariadb');
   document.getElementById('db-mode-sqlite').classList.toggle('btn-primary', mode === 'sqlite');
+  document.getElementById('db-mode-pg').classList.toggle('btn-primary', mode === 'pg');
+  if (mode === 'pg') loadPgDatabases();
+  if (mode === 'mariadb') loadMariaUsers();
+}
+function fillSelect(id, items) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = items.length ? items.map(v => `<option value="${escAttr(v)}">${escAttr(v)}</option>`).join('') : `<option value="">-</option>`;
+}
+function exportCsv(kind) {
+  let url = '';
+  if (kind === 'mariadb') {
+    const db = document.getElementById('maria-db-select').value, tb = document.getElementById('maria-table-select').value;
+    if (!db || !tb) return;
+    url = `/api/db/mariadb/csv?db=${encodeURIComponent(db)}&table=${encodeURIComponent(tb)}`;
+  } else if (kind === 'pg') {
+    const db = document.getElementById('pg-db-select').value, tb = document.getElementById('pg-table-select').value;
+    if (!db || !tb) return;
+    url = `/api/db/pg/csv?db=${encodeURIComponent(db)}&table=${encodeURIComponent(tb)}`;
+  } else {
+    const p = document.getElementById('db-path').value, tb = document.getElementById('sqlite-table-select').value;
+    if (!p || !tb) return;
+    url = `/api/db/sqlite/csv?path=${encodeURIComponent(p)}&table=${encodeURIComponent(tb)}`;
+  }
+  window.location.href = url;
+}
+async function loadMariaUsers() {
+  const r = await api('/api/db/mariadb/users');
+  const tb = document.getElementById('maria-users-tbody');
+  if (!tb) return;
+  const users = (r && r.success) ? (r.users || []) : [];
+  tb.innerHTML = users.map(u => `<tr><td>${escAttr(u.user)}</td><td>${escAttr(u.host)}</td><td>${escAttr((u.databases || []).join(', '))}</td></tr>`).join('') || `<tr><td colspan="3" style="color:var(--muted)">-</td></tr>`;
+  const sel = document.getElementById('mdb-pw-user');
+  sel.innerHTML = users.map(u => `<option value="${escAttr(u.user)}|${escAttr(u.host)}">${escAttr(u.user)}@${escAttr(u.host)}</option>`).join('');
+}
+async function dbCreate(kind) {
+  const p = kind === 'pg' ? 'pg' : 'mdb';
+  const body = { db_name: document.getElementById(p + '-new-db').value.trim(), db_user: document.getElementById(p + '-new-user').value.trim(), db_pass: document.getElementById(p + '-new-pass').value.trim() };
+  const r = await api(kind === 'pg' ? '/api/db/pg/create' : '/api/db/mariadb/create', { method: 'POST', body: JSON.stringify(body) });
+  opsMsg(p === 'pg' ? 'pg-acc-msg' : 'mdb-acc-msg', r.success, r.success ? t('dbacc_created', '✅ DB와 계정이 만들어졌습니다.') : (r.error || 'Failed'));
+  if (r.success) { if (kind === 'pg') loadPgDatabases(); else { loadMariaDatabases(); loadMariaUsers(); } }
+}
+async function dbChangePw(kind) {
+  let body;
+  if (kind === 'pg') body = { user: document.getElementById('pg-pw-user').value.trim(), password: document.getElementById('pg-pw-new').value.trim() };
+  else {
+    const [user, host] = (document.getElementById('mdb-pw-user').value || '|').split('|');
+    body = { user, host, password: document.getElementById('mdb-pw-new').value.trim() };
+  }
+  const r = await api(kind === 'pg' ? '/api/db/pg/password' : '/api/db/mariadb/password', { method: 'POST', body: JSON.stringify(body) });
+  opsMsg(kind === 'pg' ? 'pg-acc-msg' : 'mdb-acc-msg', r.success, r.success ? t('dbacc_pw_ok', '✅ 비밀번호가 변경되었습니다. (사이트 설정 파일의 DB 비밀번호도 함께 바꿔 주세요)') : (r.error || 'Failed'));
+}
+async function loadPgDatabases() {
+  const r = await api('/api/db/pg/databases');
+  const installed = r && r.success && r.installed;
+  document.getElementById('pg-not-installed').classList.toggle('hidden', !!installed);
+  document.getElementById('pg-main').classList.toggle('hidden', !installed);
+  if (!installed) return;
+  fillSelect('pg-db-select', r.databases || []);
+  loadPgTables();
+}
+async function loadPgTables() {
+  const db = document.getElementById('pg-db-select').value;
+  if (!db) { fillSelect('pg-table-select', []); return; }
+  const r = await api('/api/db/pg/tables?db=' + encodeURIComponent(db));
+  fillSelect('pg-table-select', r.success ? (r.tables || []) : []);
+}
+async function runPgQuery() {
+  const db = document.getElementById('pg-db-select').value;
+  const sql = document.getElementById('pg-sql').value;
+  const r = await api('/api/db/pg/query', { method: 'POST', body: JSON.stringify({ db, sql }) });
+  document.getElementById('pg-result').textContent = r.output || r.error || '';
+}
+function downloadPgBackup() {
+  const db = document.getElementById('pg-db-select').value;
+  if (db) window.location.href = '/api/db/pg/backup?db=' + encodeURIComponent(db);
+}
+function fmtSize(n) {
+  n = Number(n || 0);
+  if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+let _bkTimer = null;
+async function loadBackupPanel() {
+  const hs = document.getElementById('bk-hour');
+  if (hs && !hs.options.length) hs.innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${String(h).padStart(2, '0')}:00</option>`).join('');
+  const st = await api('/api/backup/settings');
+  if (st && st.success) {
+    document.getElementById('bk-enabled').checked = !!st.enabled;
+    hs.value = String(st.hour);
+    document.getElementById('bk-keep').value = st.keep;
+  }
+  const r = await api('/api/backup/list');
+  const box = document.getElementById('bk-list');
+  if (!r || !r.success) return;
+  const rows = (r.backups || []).map(b => `<div style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><strong style="font-size:13px">📦 ${escAttr(b.name)}</strong>
+      <span style="font-size:12px;color:var(--muted)">${fmtSize(b.total)} <button class="btn btn-sm btn-danger" style="margin-left:6px" onclick="deleteBackup('${escAttr(b.name)}')">${t('btn_delete', '삭제')}</button></span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${(b.files || []).map(f => `<a class="btn btn-sm" href="/api/backup/download?name=${encodeURIComponent(b.name)}&file=${encodeURIComponent(f.file)}">⬇️ ${escAttr(f.file)} (${fmtSize(f.size)})</a>`).join('')}</div>
+    </div>`);
+  box.innerHTML = (r.running ? `<div style="font-size:13px;color:#fcd34d;margin-bottom:8px">${t('bk_running', '⏳ 백업 진행 중...')}</div>` : '') + (rows.join('') || `<div style="font-size:13px;color:var(--muted)">${t('bk_empty', '아직 백업이 없습니다.')}</div>`);
+  clearTimeout(_bkTimer);
+  if (r.running) _bkTimer = setTimeout(loadBackupPanel, 4000);
+}
+async function saveBackupSettings() {
+  const body = { enabled: document.getElementById('bk-enabled').checked, hour: parseInt(document.getElementById('bk-hour').value, 10), keep: parseInt(document.getElementById('bk-keep').value || '7', 10) };
+  const r = await api('/api/backup/settings', { method: 'POST', body: JSON.stringify(body) });
+  opsMsg('bk-msg', r.success, r.success ? t('bk_saved', '✅ 백업 설정이 저장되었습니다.') : (r.error || 'Failed'));
+}
+async function runBackupNow() {
+  const r = await api('/api/backup/run', { method: 'POST', body: '{}' });
+  opsMsg('bk-msg', r.success, r.success ? t('bk_started', '⏳ 백업을 시작했습니다. 완료되면 아래 목록에 나타납니다.') : (r.error || 'Failed'));
+  setTimeout(loadBackupPanel, 1500);
+}
+async function deleteBackup(name) {
+  if (!confirm(t('bk_delete_confirm', '이 백업을 삭제할까요?') + '\n' + name)) return;
+  const r = await api('/api/backup/delete', { method: 'POST', body: JSON.stringify({ name }) });
+  opsMsg('bk-msg', r.success, r.success ? t('bk_deleted', '✅ 삭제되었습니다.') : (r.error || 'Failed'));
+  loadBackupPanel();
 }
 async function loadMariaDatabases() {
   const r = await api('/api/db/mariadb/databases');
@@ -1685,6 +1882,7 @@ async function loadMariaTables() {
   if (!db) return;
   const r = await api('/api/db/mariadb/tables?db=' + encodeURIComponent(db));
   document.getElementById('maria-tables').textContent = r.success ? ('Tables: ' + (r.tables || []).join(', ')) : '';
+  fillSelect('maria-table-select', r.success ? (r.tables || []) : []);
 }
 async function runMariaQuery() {
   const db = document.getElementById('maria-db-select').value;
@@ -1701,6 +1899,7 @@ async function loadSqliteTables() {
   const p = document.getElementById('db-path').value;
   const r = await api('/api/db/sqlite/tables?path=' + encodeURIComponent(p));
   document.getElementById('db-tables').textContent = r.success ? 'Tables: ' + r.tables.join(', ') : r.error;
+  fillSelect('sqlite-table-select', r.success ? (r.tables || []) : []);
 }
 async function runSqliteQuery() {
   const db_path = document.getElementById('db-path').value;

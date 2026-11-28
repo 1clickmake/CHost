@@ -328,6 +328,18 @@ impl Database {
         Ok(conn.last_insert_rowid())
     }
 
+    pub fn update_db_pass_for_user(&self, db_user: &str, db_pass: &str) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("UPDATE sites SET db_pass = ?2 WHERE db_user = ?1", params![db_user, db_pass])
+    }
+
+    /// 실행 중에도 일관된 사본을 만든다 (백업용)
+    pub fn vacuum_into(&self, path: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("VACUUM INTO ?1", params![path])?;
+        Ok(())
+    }
+
     pub fn update_site_php(&self, id: i64, php_version: &str) -> Result<usize> {
         let conn = self.conn.lock().unwrap();
         conn.execute(

@@ -2,6 +2,7 @@ mod db;
 mod engine;
 mod ops;
 mod security;
+mod dbtools;
 
 use axum::{
     extract::Request,
@@ -2253,6 +2254,474 @@ async fn handle_entry_save(
     resp
 }
 
+fn bad_req(msg: &str) -> Response {
+    (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": msg }))).into_response()
+}
+
+fn csv_download(name: &str, body: String) -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()),
+            (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}.csv\"", name)),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+#[derive(Deserialize)]
+struct DbTableQuery {
+    db: String,
+    table: String,
+}
+
+async fn handle_maria_csv(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<DbTableQuery>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !dbtools::valid_ident(&q.db) || !dbtools::valid_ident(&q.table) {
+        return bad_req("Invalid database or table name.");
+    }
+    let sql = format!("SELECT * FROM `{}`;", q.table);
+    let (db, table) = (q.db.clone(), q.table.clone());
+    match tokio::task::spawn_blocking(move || dbtools::mysql(&["-B", "-D", &db, "-e", &sql])).await {
+        Ok(Ok(tsv)) => {
+            state.db.log_audit("admin", "MARIADB_CSV", &format!("{}.{}", q.db, table), "CSV exported");
+            csv_download(&format!("{}-{}", q.db, table), dbtools::mysql_tsv_to_csv(&tsv))
+        }
+        Ok(Err(e)) => bad_req(&e),
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+struct SqliteCsvQuery {
+    path: String,
+    table: String,
+}
+
+async fn handle_sqlite_csv(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<SqliteCsvQuery>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !dbtools::valid_ident(&q.table) {
+        return bad_req("Invalid table name.");
+    }
+    let Ok(conn) = Connection::open_with_flags(q.path.trim(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY) else {
+        return bad_req("Cannot open SQLite file.");
+    };
+    let Ok(mut stmt) = conn.prepare(&format!("SELECT * FROM \"{}\"", q.table)) else {
+        return bad_req("Table not found.");
+    };
+    let cols: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+    let n = cols.len();
+    let mut out = String::from("\u{FEFF}");
+    out.push_str(&dbtools::csv_line(&cols));
+    if let Ok(mut rows) = stmt.query([]) {
+        while let Ok(Some(r)) = rows.next() {
+            let mut vals = Vec::with_capacity(n);
+            for i in 0..n {
+                vals.push(match r.get_ref(i) {
+                    Ok(rusqlite::types::ValueRef::Null) | Err(_) => String::new(),
+                    Ok(rusqlite::types::ValueRef::Integer(v)) => v.to_string(),
+                    Ok(rusqlite::types::ValueRef::Real(v)) => v.to_string(),
+                    Ok(rusqlite::types::ValueRef::Text(t)) => String::from_utf8_lossy(t).to_string(),
+                    Ok(rusqlite::types::ValueRef::Blob(b)) => format!("<BLOB {} bytes>", b.len()),
+                });
+            }
+            out.push_str(&dbtools::csv_line(&vals));
+        }
+    }
+    state.db.log_audit("admin", "SQLITE_CSV", q.path.trim(), &q.table);
+    csv_download(&q.table, out)
+}
+
+async fn handle_maria_users(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    match tokio::task::spawn_blocking(dbtools::maria_users).await {
+        Ok(Ok(u)) => Json(json!({ "success": true, "users": u })).into_response(),
+        Ok(Err(e)) => bad_req(&e),
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+struct DbCreateReq {
+    db_name: String,
+    db_user: String,
+    db_pass: String,
+}
+
+async fn handle_maria_create(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<DbCreateReq>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let (d, u, p) = (req.db_name.trim().to_string(), req.db_user.trim().to_string(), req.db_pass.trim().to_string());
+    if !dbtools::valid_ident(&d) || !dbtools::valid_ident(&u) {
+        return bad_req("DB name / user: letters, digits and _ only.");
+    }
+    if !dbtools::valid_db_password(&p) {
+        return bad_req("Password: 8-64 chars, no quotes, backslash or spaces.");
+    }
+    let sql = format!(
+        "CREATE DATABASE IF NOT EXISTS `{d}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS '{u}'@'localhost' IDENTIFIED BY '{p}'; GRANT ALL PRIVILEGES ON `{d}`.* TO '{u}'@'localhost'; FLUSH PRIVILEGES;",
+        d = d, u = u, p = p
+    );
+    match tokio::task::spawn_blocking(move || dbtools::mysql(&["-e", &sql])).await {
+        Ok(Ok(_)) => {
+            state.db.log_audit("admin", "MARIADB_CREATE", &d, &format!("user={}", u));
+            Json(json!({ "success": true })).into_response()
+        }
+        Ok(Err(e)) => bad_req(&e),
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+struct DbPassReq {
+    user: String,
+    #[serde(default)]
+    host: String,
+    password: String,
+}
+
+async fn handle_maria_password(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<DbPassReq>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let host = if req.host.trim().is_empty() { "localhost".to_string() } else { req.host.trim().to_string() };
+    let (u, p) = (req.user.trim().to_string(), req.password.trim().to_string());
+    if !dbtools::valid_ident(&u) || !dbtools::valid_host(&host) {
+        return bad_req("Invalid user or host.");
+    }
+    if !dbtools::valid_db_password(&p) {
+        return bad_req("Password: 8-64 chars, no quotes, backslash or spaces.");
+    }
+    let sql = format!("ALTER USER '{}'@'{}' IDENTIFIED BY '{}'; FLUSH PRIVILEGES;", u, host, p);
+    match tokio::task::spawn_blocking(move || dbtools::mysql(&["-e", &sql])).await {
+        Ok(Ok(_)) => {
+            let _ = state.db.update_db_pass_for_user(&u, &p);
+            state.db.log_audit("admin", "MARIADB_PASSWORD", &format!("{}@{}", u, host), "password changed");
+            Json(json!({ "success": true })).into_response()
+        }
+        Ok(Err(e)) => bad_req(&e),
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+struct PgDbQuery {
+    #[serde(default)]
+    db: String,
+}
+
+async fn handle_pg_databases(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let (avail, dbs) = tokio::task::spawn_blocking(|| {
+        let a = dbtools::pg_available();
+        (a, if a { dbtools::pg_databases() } else { Vec::new() })
+    })
+    .await
+    .unwrap_or((false, Vec::new()));
+    Json(json!({ "success": true, "installed": avail, "databases": dbs })).into_response()
+}
+
+async fn handle_pg_tables(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<PgDbQuery>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !dbtools::valid_ident(&q.db) {
+        return bad_req("Invalid database name.");
+    }
+    let db = q.db.clone();
+    let t = tokio::task::spawn_blocking(move || dbtools::pg_tables(&db)).await.unwrap_or_default();
+    Json(json!({ "success": true, "tables": t })).into_response()
+}
+
+#[derive(Deserialize)]
+struct PgQueryReq {
+    db: String,
+    sql: String,
+}
+
+async fn handle_pg_query(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<PgQueryReq>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !dbtools::valid_ident(&req.db) || req.sql.trim().is_empty() {
+        return bad_req("DB or SQL is empty.");
+    }
+    let (db, sql) = (req.db.clone(), req.sql.trim().to_string());
+    state.db.log_audit("admin", "PG_QUERY", &req.db, req.sql.trim());
+    match tokio::task::spawn_blocking(move || dbtools::psql(Some(&db), &sql, &[])).await {
+        Ok(Ok(o)) => Json(json!({ "success": true, "output": o })).into_response(),
+        Ok(Err(e)) => Json(json!({ "success": false, "output": e })).into_response(),
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
+async fn handle_pg_backup(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<PgDbQuery>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !dbtools::valid_ident(&q.db) {
+        return bad_req("Invalid database name.");
+    }
+    let db = q.db.clone();
+    match tokio::task::spawn_blocking(move || dbtools::pg_dump(&db)).await {
+        Ok(Ok(bytes)) => {
+            state.db.log_audit("admin", "PG_BACKUP", &q.db, "SQL dump downloaded");
+            (
+                [
+                    (header::CONTENT_TYPE, "application/sql; charset=utf-8".to_string()),
+                    (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}-pg.sql\"", q.db)),
+                ],
+                bytes,
+            )
+                .into_response()
+        }
+        Ok(Err(e)) => bad_req(&e),
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
+async fn handle_pg_csv(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<DbTableQuery>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !dbtools::valid_ident(&q.db) || !dbtools::valid_ident(&q.table) {
+        return bad_req("Invalid database or table name.");
+    }
+    let sql = format!("COPY (SELECT * FROM \"{}\") TO STDOUT WITH CSV HEADER", q.table);
+    let db = q.db.clone();
+    match tokio::task::spawn_blocking(move || dbtools::psql(Some(&db), &sql, &[])).await {
+        Ok(Ok(csv)) => {
+            state.db.log_audit("admin", "PG_CSV", &format!("{}.{}", q.db, q.table), "CSV exported");
+            csv_download(&format!("{}-{}", q.db, q.table), format!("\u{FEFF}{}", csv))
+        }
+        Ok(Err(e)) => bad_req(&e),
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
+async fn handle_pg_create(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<DbCreateReq>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let (d, u, p) = (req.db_name.trim().to_lowercase(), req.db_user.trim().to_lowercase(), req.db_pass.trim().to_string());
+    if !dbtools::valid_ident(&d) || !dbtools::valid_ident(&u) {
+        return bad_req("DB name / user: letters, digits and _ only.");
+    }
+    if !dbtools::valid_db_password(&p) {
+        return bad_req("Password: 8-64 chars, no quotes, backslash or spaces.");
+    }
+    let (d2, u2) = (d.clone(), u.clone());
+    let res = tokio::task::spawn_blocking(move || -> Result<(), String> {
+        dbtools::psql(None, &format!("CREATE USER {} WITH PASSWORD '{}'", u2, p), &[])?;
+        dbtools::psql(None, &format!("CREATE DATABASE {} OWNER {} ENCODING 'UTF8'", d2, u2), &[])?;
+        Ok(())
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.to_string()));
+    match res {
+        Ok(()) => {
+            state.db.log_audit("admin", "PG_CREATE", &d, &format!("user={}", u));
+            Json(json!({ "success": true })).into_response()
+        }
+        Err(e) => bad_req(&e),
+    }
+}
+
+async fn handle_pg_password(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<DbPassReq>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let (u, p) = (req.user.trim().to_lowercase(), req.password.trim().to_string());
+    if !dbtools::valid_ident(&u) || !dbtools::valid_db_password(&p) {
+        return bad_req("Invalid user, or password must be 8-64 chars without quotes/backslash/spaces.");
+    }
+    let u2 = u.clone();
+    match tokio::task::spawn_blocking(move || dbtools::psql(None, &format!("ALTER USER {} WITH PASSWORD '{}'", u2, p), &[])).await {
+        Ok(Ok(_)) => {
+            state.db.log_audit("admin", "PG_PASSWORD", &u, "password changed");
+            Json(json!({ "success": true })).into_response()
+        }
+        Ok(Err(e)) => bad_req(&e),
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
+// ───────────── 예약 자동 백업 ─────────────
+
+fn start_backup(state: Arc<AppState>, actor: &'static str) -> bool {
+    if dbtools::BACKUP_RUNNING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return false;
+    }
+    tokio::spawn(async move {
+        let st = state.clone();
+        let rep = tokio::task::spawn_blocking(move || {
+            let domains: Vec<String> = st.db.list_sites().unwrap_or_default().into_iter().map(|s| s.domain).collect();
+            let keep: usize = st.db.get_setting("backup_keep", "7").parse().unwrap_or(7);
+            let copy = |p: &str| st.db.vacuum_into(p).map_err(|e| e.to_string());
+            dbtools::run_backup(&domains, &copy, keep)
+        })
+        .await
+        .unwrap_or_else(|e| json!({ "ok": false, "error": e.to_string() }));
+        dbtools::BACKUP_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
+        let ok = rep["ok"] == true;
+        let _ = state.db.set_setting("backup_last_result", &rep.to_string());
+        state.db.log_audit(
+            actor,
+            if ok { "BACKUP_DONE" } else { "BACKUP_FAILED" },
+            rep["name"].as_str().unwrap_or("-"),
+            &format!("files={} errors={}", rep["files"].as_array().map(|a| a.len()).unwrap_or(0), rep["errors"]),
+        );
+        if !ok && state.db.get_setting("alert_enabled", "0") == "1" {
+            let (w, t, c) = (
+                state.db.get_setting("alert_webhook_url", ""),
+                state.db.get_setting("alert_tg_token", ""),
+                state.db.get_setting("alert_tg_chat", ""),
+            );
+            let host = System::host_name().unwrap_or_else(|| "server".into());
+            let msg = format!("🚨 [CHost:{}] Backup failed: {}", host, rep["errors"]);
+            let _ = tokio::task::spawn_blocking(move || ops::send_alert(&w, &t, &c, &msg)).await;
+        }
+    });
+    true
+}
+
+fn spawn_backup_scheduler(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            if state.db.get_setting("backup_enabled", "0") != "1" {
+                continue;
+            }
+            use chrono::Timelike;
+            let now = chrono::Local::now();
+            let hour: u32 = state.db.get_setting("backup_hour", "3").parse().unwrap_or(3);
+            let today = now.format("%Y-%m-%d").to_string();
+            if now.hour() == hour && state.db.get_setting("backup_last_date", "") != today {
+                let _ = state.db.set_setting("backup_last_date", &today);
+                start_backup(state.clone(), "system");
+            }
+        }
+    });
+}
+
+async fn handle_backup_settings_get(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let last: Value = serde_json::from_str(&state.db.get_setting("backup_last_result", "null")).unwrap_or(Value::Null);
+    Json(json!({
+        "success": true,
+        "enabled": state.db.get_setting("backup_enabled", "0") == "1",
+        "hour": state.db.get_setting("backup_hour", "3").parse::<u32>().unwrap_or(3),
+        "keep": state.db.get_setting("backup_keep", "7").parse::<u32>().unwrap_or(7),
+        "running": dbtools::BACKUP_RUNNING.load(std::sync::atomic::Ordering::SeqCst),
+        "last": last,
+        "dir": dbtools::BACKUP_ROOT
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+struct BackupSettingsReq {
+    enabled: bool,
+    hour: u32,
+    keep: u32,
+}
+
+async fn handle_backup_settings_save(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<BackupSettingsReq>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if req.hour > 23 || req.keep == 0 || req.keep > 90 {
+        return bad_req("Hour must be 0-23 and keep 1-90.");
+    }
+    let _ = state.db.set_setting("backup_enabled", if req.enabled { "1" } else { "0" });
+    let _ = state.db.set_setting("backup_hour", &req.hour.to_string());
+    let _ = state.db.set_setting("backup_keep", &req.keep.to_string());
+    state.db.log_audit("admin", "BACKUP_SETTINGS", "backup", &format!("enabled={} hour={} keep={}", req.enabled, req.hour, req.keep));
+    Json(json!({ "success": true })).into_response()
+}
+
+async fn handle_backup_run(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !cfg!(unix) {
+        return bad_req("Unix only.");
+    }
+    let started = start_backup(state.clone(), "admin");
+    Json(json!({ "success": started, "error": if started { Value::Null } else { json!("A backup is already running.") } })).into_response()
+}
+
+async fn handle_backup_list(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let list = tokio::task::spawn_blocking(dbtools::list_backups).await.unwrap_or_default();
+    Json(json!({ "success": true, "running": dbtools::BACKUP_RUNNING.load(std::sync::atomic::Ordering::SeqCst), "backups": list })).into_response()
+}
+
+#[derive(Deserialize)]
+struct BackupFileQuery {
+    name: String,
+    file: String,
+}
+
+async fn handle_backup_download(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<BackupFileQuery>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !dbtools::valid_backup_name(&q.name) || !dbtools::valid_backup_file(&q.file) {
+        return bad_req("Invalid backup file.");
+    }
+    let path = FsPath::new(dbtools::BACKUP_ROOT).join(&q.name).join(&q.file);
+    let Ok(file) = tokio::fs::File::open(&path).await else {
+        return (StatusCode::NOT_FOUND, "Not found").into_response();
+    };
+    let len = file.metadata().await.map(|m| m.len()).unwrap_or(0);
+    state.db.log_audit("admin", "BACKUP_DOWNLOAD", &q.name, &q.file);
+    let body = axum::body::Body::from_stream(tokio_util::io::ReaderStream::new(file));
+    (
+        [
+            (header::CONTENT_TYPE, "application/octet-stream".to_string()),
+            (header::CONTENT_LENGTH, len.to_string()),
+            (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}-{}\"", q.name, q.file)),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+#[derive(Deserialize)]
+struct BackupNameReq {
+    name: String,
+}
+
+async fn handle_backup_delete(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(req): Json<BackupNameReq>) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    if !dbtools::valid_backup_name(&req.name) {
+        return bad_req("Invalid backup name.");
+    }
+    match fs::remove_dir_all(FsPath::new(dbtools::BACKUP_ROOT).join(&req.name)) {
+        Ok(()) => {
+            state.db.log_audit("admin", "BACKUP_DELETE", &req.name, "deleted");
+            Json(json!({ "success": true })).into_response()
+        }
+        Err(e) => bad_req(&e.to_string()),
+    }
+}
+
 async fn handle_site_health(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -2478,6 +2947,7 @@ async fn handle_runtimes_status(State(state): State<Arc<AppState>>, headers: Hea
         { "id": "nginx", "name": "Nginx", "category": "web", "desc": "고성능 웹서버 & 리버스 프록시 (권장)", "installed": nginx_active, "binary_present": cmd_exists("nginx"), "active": nginx_active },
         { "id": "apache2", "name": "Apache2", "category": "web", "desc": ".htaccess 호환 전통 웹서버", "installed": apache_active, "binary_present": cmd_exists("apache2"), "active": apache_active },
         { "id": "mariadb", "name": "MariaDB (MySQL)", "category": "db", "desc": "MySQL 호환 관계형 데이터베이스", "installed": cmd_exists("mariadb") || cmd_exists("mysql") },
+        { "id": "postgresql", "name": "PostgreSQL", "category": "db", "desc": "고급 오픈소스 관계형 데이터베이스", "installed": FsPath::new("/usr/lib/postgresql").exists() },
         { "id": "certbot", "name": "Certbot (SSL)", "category": "web", "desc": "Let's Encrypt 무료 HTTPS 자동발급", "installed": cmd_exists("certbot") },
         { "id": "php8.3", "name": "PHP 8.3", "category": "lang", "desc": "최신 PHP-FPM 런타임 (CBoard/WordPress 권장)", "installed": FsPath::new("/usr/sbin/php-fpm8.3").exists() || cmd_exists("php8.3") },
         { "id": "php8.2", "name": "PHP 8.2", "category": "lang", "desc": "안정화 PHP-FPM 런타임", "installed": FsPath::new("/usr/sbin/php-fpm8.2").exists() || cmd_exists("php8.2") },
@@ -2597,6 +3067,7 @@ async fn handle_runtimes_install(
                     "nginx" => run_step("Nginx (80/443)", "systemctl disable --now apache2 2>/dev/null || true; DEBIAN_FRONTEND=noninteractive apt-get install -y nginx && systemctl enable --now nginx"),
                     "apache2" => run_step("Apache2 (80/443)", "systemctl disable --now nginx 2>/dev/null || true; DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 && a2enmod rewrite proxy proxy_http proxy_fcgi setenvif ssl && systemctl enable --now apache2"),
                     "mariadb" => run_step("MariaDB", "DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server && systemctl enable --now mariadb"),
+                    "postgresql" => run_step("PostgreSQL", "DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql && systemctl enable --now postgresql"),
                     "certbot" => run_step("Certbot", "DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx python3-certbot-apache && (if systemctl is-active --quiet apache2 && ! systemctl is-active --quiet nginx; then systemctl disable --now nginx 2>/dev/null || true; else systemctl disable --now apache2 2>/dev/null || true; fi)"),
                     "php8.3" => run_step("PHP 8.3", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-gd && systemctl enable --now php8.3-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
                     "php8.4" => run_step("PHP 8.4", "DEBIAN_FRONTEND=noninteractive apt-get install -y php8.4-fpm php8.4-mysql php8.4-mbstring php8.4-xml php8.4-curl php8.4-zip php8.4-gd && systemctl enable --now php8.4-fpm && (systemctl is-enabled --quiet nginx 2>/dev/null && systemctl disable --now apache2 2>/dev/null || true)"),
@@ -3829,6 +4300,7 @@ async fn main() {
     });
 
     spawn_alert_monitor(state.clone());
+    spawn_backup_scheduler(state.clone());
 
     let app = Router::new()
         .route("/", get(serve_root))
@@ -3865,6 +4337,23 @@ async fn main() {
     .route("/api/security/2fa/disable", post(handle_totp_disable))
     .route("/api/security/whitelist", post(handle_whitelist_save))
     .route("/api/security/entry", post(handle_entry_save))
+    .route("/api/db/mariadb/csv", get(handle_maria_csv))
+    .route("/api/db/mariadb/users", get(handle_maria_users))
+    .route("/api/db/mariadb/create", post(handle_maria_create))
+    .route("/api/db/mariadb/password", post(handle_maria_password))
+    .route("/api/db/sqlite/csv", get(handle_sqlite_csv))
+    .route("/api/db/pg/databases", get(handle_pg_databases))
+    .route("/api/db/pg/tables", get(handle_pg_tables))
+    .route("/api/db/pg/query", post(handle_pg_query))
+    .route("/api/db/pg/backup", get(handle_pg_backup))
+    .route("/api/db/pg/csv", get(handle_pg_csv))
+    .route("/api/db/pg/create", post(handle_pg_create))
+    .route("/api/db/pg/password", post(handle_pg_password))
+    .route("/api/backup/settings", get(handle_backup_settings_get).post(handle_backup_settings_save))
+    .route("/api/backup/run", post(handle_backup_run))
+    .route("/api/backup/list", get(handle_backup_list))
+    .route("/api/backup/download", get(handle_backup_download))
+    .route("/api/backup/delete", post(handle_backup_delete))
     .route("/api/webserver/migrate", post(handle_webserver_migrate))
     .route("/api/sites/{id}/git", get(handle_site_git_info))
     .route("/api/sites/{id}/git/update", post(handle_site_git_update))

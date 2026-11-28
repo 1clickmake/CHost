@@ -190,6 +190,7 @@ dependencies = [
  "sha2",
  "sysinfo",
  "tokio",
+ "tokio-util",
  "totp-rs",
  "tower-http",
  "uuid",
