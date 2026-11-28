@@ -366,13 +366,20 @@
       </a>
       <div class="search-box">
         <i class="bi bi-search"></i>
-        <input type="text" id="doc-search" placeholder="문서 검색 (예: SSL, 롤백, Nginx)..." onkeyup="filterDocs(this.value)" />
+        <input type="text" id="doc-search" data-i18n-ph="doc_search_ph" placeholder="문서 검색 (예: SSL, 롤백, Nginx)..." onkeyup="filterDocs(this.value)" />
       </div>
     </div>
     <div class="header-right">
-      <a href="/"><i class="bi bi-house-door"></i> 홈</a>
-      <a href="/docs" style="color:var(--primary)"><i class="bi bi-book"></i> 가이드 문서</a>
-      <a href="/forum"><i class="bi bi-chat-dots"></i> 커뮤니티 포럼</a>
+      <a href="/"><i class="bi bi-house-door"></i> <span data-i18n="nav_home">홈</span></a>
+      <a href="/docs" style="color:var(--primary)"><i class="bi bi-book"></i> <span data-i18n="nav_docs">가이드 문서</span></a>
+      <a href="/forum"><i class="bi bi-chat-dots"></i> <span data-i18n="nav_forum">커뮤니티 포럼</span></a>
+      <select id="doc-lang-select" onchange="setDocLang(this.value)" style="background:#1e293b;border:1px solid var(--border);color:#fff;padding:5px 8px;border-radius:6px;font-size:12.5px;cursor:pointer">
+        <option value="ko">한국어 (ko)</option>
+        <option value="en">English (en)</option>
+        <option value="ja">日本語 (ja)</option>
+        <option value="zh-CN">简体中文 (zh-CN)</option>
+        <option value="es">Español (es)</option>
+      </select>
       <a href="https://github.com/1clickmake/CHost" target="_blank" class="btn-github">
         <i class="bi bi-github"></i> GitHub
       </a>
@@ -383,7 +390,7 @@
     <!-- Left Sidebar Menu (Laravel Style) -->
     <aside class="sidebar">
       <div class="sidebar-group">
-        <div class="sidebar-title">🚀 시작하기 (Getting Started)</div>
+        <div class="sidebar-title" data-i18n="grp_getting_started">🚀 시작하기 (Getting Started)</div>
         <ul class="sidebar-menu">
           <li><a href="#intro" class="nav-item active"><i class="bi bi-info-circle"></i> CHost 소개</a></li>
           <li><a href="#install" class="nav-item"><i class="bi bi-terminal"></i> 1줄 빠른 설치</a></li>
@@ -392,7 +399,7 @@
       </div>
 
       <div class="sidebar-group">
-        <div class="sidebar-title">📋 패널 핵심 메뉴 매뉴얼</div>
+        <div class="sidebar-title" data-i18n="grp_panel_manual">📋 패널 핵심 메뉴 매뉴얼</div>
         <ul class="sidebar-menu">
           <li><a href="#menu-dashboard" class="nav-item"><i class="bi bi-bar-chart"></i> 대시보드</a></li>
           <li><a href="#menu-settings" class="nav-item"><i class="bi bi-gear"></i> 설정 센터</a></li>
@@ -407,7 +414,7 @@
       </div>
 
       <div class="sidebar-group">
-        <div class="sidebar-title">👑 CHost Pro 프리미엄 기능</div>
+        <div class="sidebar-title" data-i18n="grp_pro_features">👑 CHost Pro 프리미엄 기능</div>
         <ul class="sidebar-menu">
           <li><a href="#pro-hub" class="nav-item"><i class="bi bi-award"></i> CHost Pro 통합 허브 <span class="sidebar-badge">Pro</span></a></li>
           <li><a href="#pro-nodes" class="nav-item"><i class="bi bi-display"></i> 멀티 서버 모니터링 <span class="sidebar-badge">Pro</span></a></li>
@@ -418,7 +425,7 @@
       </div>
 
       <div class="sidebar-group">
-        <div class="sidebar-title">🛠️ 개발자 & 트러블슈팅</div>
+        <div class="sidebar-title" data-i18n="grp_dev_troubleshoot">🛠️ 개발자 & 트러블슈팅</div>
         <ul class="sidebar-menu">
           <li><a href="#dev-build" class="nav-item"><i class="bi bi-code-slash"></i> 소스 빌드 (Rust)</a></li>
           <li><a href="#api-ref" class="nav-item"><i class="bi bi-braces"></i> REST API 레퍼런스</a></li>
@@ -681,7 +688,7 @@
             <span class="screenshot-dot dot-red"></span>
             <span class="screenshot-dot dot-yellow"></span>
             <span class="screenshot-dot dot-green"></span>
-            <span style="margin-left:8px">CHost Pro 통합 허브 메인 (tab10_pro.png)</span>
+            <span style="margin-left:8px"><span data-i18n="menu_pro_hub">CHost Pro 통합 허브</span> 메인 (tab10_pro.png)</span>
           </div>
           <img src="/assets/docs/tab10_pro.png" alt="CHost Pro 허브 화면" />
         </div>
@@ -729,7 +736,7 @@
             <span class="screenshot-dot dot-red"></span>
             <span class="screenshot-dot dot-yellow"></span>
             <span class="screenshot-dot dot-green"></span>
-            <span style="margin-left:8px">AI 서버 에러 닥터 화면 (tab10_pro_ai.png)</span>
+            <span style="margin-left:8px"><span data-i18n="menu_pro_ai">AI 서버 에러 닥터</span> 화면 (tab10_pro_ai.png)</span>
           </div>
           <img src="/assets/docs/tab10_pro_ai.png" alt="CHost AI 서버 닥터 화면" />
         </div>
@@ -750,7 +757,7 @@
             <span class="screenshot-dot dot-red"></span>
             <span class="screenshot-dot dot-yellow"></span>
             <span class="screenshot-dot dot-green"></span>
-            <span style="margin-left:8px">Git 사이트 롤백 센터 화면 (tab10_pro_git.png)</span>
+            <span style="margin-left:8px"><span data-i18n="menu_pro_git">Git 사이트 롤백 센터</span> 화면 (tab10_pro_git.png)</span>
           </div>
           <img src="/assets/docs/tab10_pro_git.png" alt="CHost Git 롤백 센터 화면" />
         </div>
@@ -899,31 +906,223 @@ CHOST_PORT=8800 ./target/release/chost</code></pre>
 
     <!-- Right TOC (On this page) -->
     <aside class="toc-wrapper">
-      <div class="toc-title">현재 페이지 목차</div>
+      <div class="toc-title" data-i18n="toc_title">현재 페이지 목차</div>
       <ul class="toc-list">
         <li><a href="#intro">소개 및 핵심 철학</a></li>
-        <li><a href="#install">1줄 빠른 설치</a></li>
-        <li><a href="#quickstart">초기 접속 및 보안</a></li>
-        <li><a href="#menu-dashboard">대시보드</a></li>
-        <li><a href="#menu-settings">설정 센터</a></li>
-        <li><a href="#menu-sites">사이트 및 도메인</a></li>
-        <li><a href="#menu-apps">앱 프로세스</a></li>
-        <li><a href="#menu-db">멀티 DB 스튜디오</a></li>
-        <li><a href="#menu-storage">저장 공간 및 로그</a></li>
-        <li><a href="#menu-files">파일 & 웹 터미널</a></li>
-        <li><a href="#menu-audit">보안 감사 로그</a></li>
-        <li><a href="#menu-runtimes">런타임 스토어</a></li>
+        <li><a href="#install"><span data-i18n="menu_install">1줄 빠른 설치</span></a></li>
+        <li><a href="#quickstart"><span data-i18n="menu_quickstart">초기 접속 및 보안</span></a></li>
+        <li><a href="#menu-dashboard"><span data-i18n="menu_dashboard">대시보드</span></a></li>
+        <li><a href="#menu-settings"><span data-i18n="menu_settings">설정 센터</span></a></li>
+        <li><a href="#menu-sites"><span data-i18n="menu_sites">사이트 및 도메인</span></a></li>
+        <li><a href="#menu-apps"><span data-i18n="menu_apps">앱 프로세스</span></a></li>
+        <li><a href="#menu-db"><span data-i18n="menu_db">멀티 DB 스튜디오</span></a></li>
+        <li><a href="#menu-storage"><span data-i18n="menu_storage">저장 공간 및 로그</span></a></li>
+        <li><a href="#menu-files"><span data-i18n="menu_files">파일 & 웹 터미널</span></a></li>
+        <li><a href="#menu-audit"><span data-i18n="menu_audit">보안 감사 로그</span></a></li>
+        <li><a href="#menu-runtimes"><span data-i18n="menu_runtimes">런타임 스토어</span></a></li>
         <li><a href="#pro-hub">CHost Pro 허브</a></li>
-        <li><a href="#pro-nodes">멀티 서버 모니터링</a></li>
+        <li><a href="#pro-nodes"><span data-i18n="menu_pro_nodes">멀티 서버 모니터링</span></a></li>
         <li><a href="#pro-backup">S3/WebDAV 원격 백업</a></li>
         <li><a href="#pro-ai">AI 서버 닥터</a></li>
         <li><a href="#pro-git">Git 롤백 센터</a></li>
-        <li><a href="#troubleshooting">긴급 복구 & FAQ</a></li>
+        <li><a href="#troubleshooting"><span data-i18n="menu_troubleshooting">긴급 복구 & FAQ</span></a></li>
       </ul>
     </aside>
   </div>
 
+  
   <script>
+    const DOC_I18N = {
+    "ko": {
+        "nav_home": "홈",
+        "nav_docs": "가이드 문서",
+        "nav_forum": "커뮤니티 포럼",
+        "doc_search_ph": "문서 검색 (예: SSL, 롤백, Nginx)...",
+        "grp_getting_started": "🚀 시작하기 (Getting Started)",
+        "menu_intro": "CHost 소개",
+        "menu_install": "1줄 빠른 설치",
+        "menu_quickstart": "초기 접속 및 보안",
+        "grp_panel_manual": "📋 패널 핵심 메뉴 매뉴얼",
+        "menu_dashboard": "대시보드",
+        "menu_settings": "설정 센터",
+        "menu_sites": "사이트 및 도메인",
+        "menu_apps": "앱 프로세스",
+        "menu_db": "멀티 DB 스튜디오",
+        "menu_storage": "저장 공간 및 로그",
+        "menu_files": "파일 & 웹 터미널",
+        "menu_audit": "보안 감사 로그",
+        "menu_runtimes": "런타임 스토어",
+        "grp_pro_features": "👑 CHost Pro 프리미엄 기능",
+        "menu_pro_hub": "CHost Pro 통합 허브",
+        "menu_pro_nodes": "멀티 서버 모니터링",
+        "menu_pro_backup": "S3 / WebDAV 원격 백업",
+        "menu_pro_ai": "AI 서버 에러 닥터",
+        "menu_pro_git": "Git 사이트 롤백 센터",
+        "grp_dev_troubleshoot": "🛠️ 개발자 & 트러블슈팅",
+        "menu_dev_build": "소스 빌드 (Rust)",
+        "menu_api_ref": "REST API 레퍼런스",
+        "menu_troubleshooting": "긴급 복구 & FAQ",
+        "toc_title": "현재 페이지 목차",
+        "btn_copy": "📋 복사",
+        "msg_copied": "명령어가 클립보드에 복사되었습니다!"
+    },
+    "en": {
+        "nav_home": "Home",
+        "nav_docs": "Developer Docs",
+        "nav_forum": "Community Forum",
+        "doc_search_ph": "Search docs (e.g. SSL, rollback, Nginx)...",
+        "grp_getting_started": "🚀 Getting Started",
+        "menu_intro": "About CHost",
+        "menu_install": "One-Line Install",
+        "menu_quickstart": "First Login & Security",
+        "grp_panel_manual": "📋 Panel Core Manual",
+        "menu_dashboard": "Dashboard",
+        "menu_settings": "Settings Hub",
+        "menu_sites": "Sites & Domains",
+        "menu_apps": "App Processes",
+        "menu_db": "Multi-DB Studio",
+        "menu_storage": "Storage & Logs",
+        "menu_files": "Files & Web Terminal",
+        "menu_audit": "Security Audit Logs",
+        "menu_runtimes": "Runtime Store",
+        "grp_pro_features": "👑 CHost Pro Features",
+        "menu_pro_hub": "CHost Pro Hub",
+        "menu_pro_nodes": "Multi-Server Monitoring",
+        "menu_pro_backup": "S3 / WebDAV Remote Backup",
+        "menu_pro_ai": "AI Server Error Doctor",
+        "menu_pro_git": "Git Site Rollback Center",
+        "grp_dev_troubleshoot": "🛠️ Dev & Troubleshooting",
+        "menu_dev_build": "Source Build (Rust)",
+        "menu_api_ref": "REST API Reference",
+        "menu_troubleshooting": "Emergency Recovery & FAQ",
+        "toc_title": "On this page",
+        "btn_copy": "📋 Copy",
+        "msg_copied": "Command copied to clipboard!"
+    },
+    "ja": {
+        "nav_home": "ホーム",
+        "nav_docs": "開発者ドキュメント",
+        "nav_forum": "コミュニティフォーラム",
+        "doc_search_ph": "ドキュメント検索 (例: SSL, ロールバック, Nginx)...",
+        "grp_getting_started": "🚀 はじめに (Getting Started)",
+        "menu_intro": "CHostの紹介",
+        "menu_install": "1行クイックインストール",
+        "menu_quickstart": "初期アクセスとセキュリティ",
+        "grp_panel_manual": "📋 パネルコア機能マニュアル",
+        "menu_dashboard": "ダッシュボード",
+        "menu_settings": "設定センター",
+        "menu_sites": "サイト・ドメイン管理",
+        "menu_apps": "アプリプロセス管理",
+        "menu_db": "マルチDBスタジオ",
+        "menu_storage": "ストレージとログ管理",
+        "menu_files": "ファイル＆Webターミナル",
+        "menu_audit": "セキュリティ監査ログ",
+        "menu_runtimes": "ランタイムストア",
+        "grp_pro_features": "👑 CHost Pro プレミアム機能",
+        "menu_pro_hub": "CHost Pro 統合ハブ",
+        "menu_pro_nodes": "マルチサーバー監視",
+        "menu_pro_backup": "S3 / WebDAV リモートバックアップ",
+        "menu_pro_ai": "AI サーバードクター",
+        "menu_pro_git": "Git サイトロールバックセンター",
+        "grp_dev_troubleshoot": "🛠️ 開発者＆トラブルシューティング",
+        "menu_dev_build": "ソースビルド (Rust)",
+        "menu_api_ref": "REST API リファレンス",
+        "menu_troubleshooting": "緊急リカバリ＆FAQ",
+        "toc_title": "このページの目次",
+        "btn_copy": "📋 コピー",
+        "msg_copied": "コマンドがクリップボードにコピーされました！"
+    },
+    "zh-CN": {
+        "nav_home": "首页",
+        "nav_docs": "开发文档",
+        "nav_forum": "社区论坛",
+        "doc_search_ph": "搜索文档 (如: SSL, 回滚, Nginx)...",
+        "grp_getting_started": "🚀 快速上手 (Getting Started)",
+        "menu_intro": "CHost 简介",
+        "menu_install": "一行命令快速安装",
+        "menu_quickstart": "初始登录与安全设置",
+        "grp_panel_manual": "📋 面板核心菜单指南",
+        "menu_dashboard": "仪表盘",
+        "menu_settings": "设置中心",
+        "menu_sites": "网站与域名",
+        "menu_apps": "应用进程管理",
+        "menu_db": "多数据库工作台",
+        "menu_storage": "存储与日志策略",
+        "menu_files": "文件管理器与Web终端",
+        "menu_audit": "安全审计日志",
+        "menu_runtimes": "环境与运行时商店",
+        "grp_pro_features": "👑 CHost Pro 专业功能",
+        "menu_pro_hub": "CHost Pro 统一中心",
+        "menu_pro_nodes": "多服务器统一管理",
+        "menu_pro_backup": "S3 / WebDAV 远程备份",
+        "menu_pro_ai": "AI 服务器故障医生",
+        "menu_pro_git": "Git 站点一键回滚中心",
+        "grp_dev_troubleshoot": "🛠️ 开发者与故障排查",
+        "menu_dev_build": "源码编译 (Rust)",
+        "menu_api_ref": "REST API 参考",
+        "menu_troubleshooting": "紧急恢复与常见问题",
+        "toc_title": "本页目录",
+        "btn_copy": "📋 复制",
+        "msg_copied": "命令已复制到剪贴板！"
+    },
+    "es": {
+        "nav_home": "Inicio",
+        "nav_docs": "Documentación",
+        "nav_forum": "Foro de la Comunidad",
+        "doc_search_ph": "Buscar documentos (ej. SSL, reversión, Nginx)...",
+        "grp_getting_started": "🚀 Primeros Pasos",
+        "menu_intro": "Acerca de CHost",
+        "menu_install": "Instalación en una línea",
+        "menu_quickstart": "Primer acceso y seguridad",
+        "grp_panel_manual": "📋 Manual del Panel Principal",
+        "menu_dashboard": "Panel de Control",
+        "menu_settings": "Centro de Ajustes",
+        "menu_sites": "Sitios y Dominios",
+        "menu_apps": "Procesos de Aplicación",
+        "menu_db": "Estudio Multi-BD",
+        "menu_storage": "Almacenamiento y Registros",
+        "menu_files": "Archivos y Terminal Web",
+        "menu_audit": "Registros de Auditoría",
+        "menu_runtimes": "Tienda de Entornos",
+        "grp_pro_features": "👑 Funciones CHost Pro",
+        "menu_pro_hub": "Centro CHost Pro",
+        "menu_pro_nodes": "Gestión Multi-Servidor",
+        "menu_pro_backup": "Copia Remota S3 / WebDAV",
+        "menu_pro_ai": "Doctor de Servidor con IA",
+        "menu_pro_git": "Centro de Reversión Git",
+        "grp_dev_troubleshoot": "🛠️ Desarrolladores y Soporte",
+        "menu_dev_build": "Compilación (Rust)",
+        "menu_api_ref": "Referencia REST API",
+        "menu_troubleshooting": "Recuperación de Emergencia y FAQ",
+        "toc_title": "En esta página",
+        "btn_copy": "📋 Copiar",
+        "msg_copied": "¡Comando copiado al portapapeles!"
+    }
+};
+    let _curDocLang = localStorage.getItem('chost_doc_lang') || 'ko';
+
+    function setDocLang(lang) {
+      if (!DOC_I18N[lang]) lang = 'ko';
+      _curDocLang = lang;
+      localStorage.setItem('chost_doc_lang', lang);
+      const sel = document.getElementById('doc-lang-select');
+      if (sel) sel.value = lang;
+      const dict = DOC_I18N[lang] || {};
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (dict[k]) el.textContent = dict[k];
+      });
+      document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+        const k = el.getAttribute('data-i18n-ph');
+        if (dict[k]) el.setAttribute('placeholder', dict[k]);
+      });
+    }
+
+    // Init doc lang on load
+    document.addEventListener('DOMContentLoaded', () => {
+      setDocLang(_curDocLang);
+    });
+
     function copyCode(id) {
       const code = document.getElementById(id).textContent;
       navigator.clipboard.writeText(code).then(() => {
