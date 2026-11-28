@@ -96,6 +96,7 @@
       <h1>CHost Panel</h1>
       <p data-i18n="login_sub">초보자도 쉽게 쓰는 경량 서버 관리 콘솔</p>
       <input type="password" id="login-pw" data-i18n-ph="ph_login_pw" placeholder="Admin Password" style="margin-bottom:12px" />
+      <input type="text" id="login-otp" class="hidden" inputmode="numeric" autocomplete="one-time-code" maxlength="6" data-i18n-ph="ph_login_otp" placeholder="OTP 6자리 코드" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')doLogin()" />
       <button class="btn btn-primary" style="width:100%" onclick="doLogin()" data-i18n="btn_login">Sign In</button>
       <div id="login-err" style="color:#fca5a5;font-size:12px;margin-top:10px"></div>
     </div>
@@ -461,6 +462,47 @@
             </div>
           </div>
 
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:16px">
+            <div class="card" style="margin-bottom:0">
+              <h3 style="margin-bottom:10px;font-size:15px" data-i18n="tfa_title">📱 2단계 인증 (OTP)</h3>
+              <div class="guide-sky" data-i18n="guide_tfa">💡 Google Authenticator·Authy 같은 OTP 앱으로 로그인을 한 번 더 확인합니다. 휴대폰을 잃어버리면 서버에서 <code>sudo /opt/chost/chost --reset-2fa</code> 로 해제할 수 있어요.</div>
+              <div style="font-size:13px;margin-bottom:8px"><span data-i18n="fw_status">상태</span>: <strong id="tfa-state">-</strong></div>
+              <div id="tfa-setup-box" class="hidden">
+                <div id="tfa-qr" style="background:#fff;padding:8px;border-radius:8px;width:max-content;margin-bottom:8px"></div>
+                <div style="font-size:12px;color:var(--muted);word-break:break-all;margin-bottom:8px"><span data-i18n="tfa_secret">수동 입력 키</span>: <code id="tfa-secret"></code></div>
+              </div>
+              <div id="tfa-code-row" class="hidden" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
+                <input id="tfa-pw" type="password" class="hidden" data-i18n-ph="ph_pw_cur" placeholder="현재 비밀번호" />
+                <input id="tfa-code" inputmode="numeric" maxlength="6" data-i18n-ph="ph_login_otp" placeholder="OTP 6자리 코드" />
+              </div>
+              <div id="tfa-msg" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+              <div style="display:flex;gap:8px">
+                <button id="tfa-btn-setup" class="btn btn-sm" onclick="tfaSetup()" data-i18n="tfa_setup">설정 시작</button>
+                <button id="tfa-btn-enable" class="btn btn-primary btn-sm hidden" onclick="tfaEnable()" data-i18n="tfa_enable">활성화</button>
+                <button id="tfa-btn-disable" class="btn btn-danger btn-sm hidden" onclick="tfaDisable()" data-i18n="tfa_disable">해제</button>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:0">
+              <h3 style="margin-bottom:10px;font-size:15px" data-i18n="ipw_title">🌍 접속 IP 제한</h3>
+              <div class="guide-sky" data-i18n="guide_ipw">💡 여기에 적은 IP(또는 <code>1.2.3.0/24</code> 같은 대역)에서만 패널에 접속할 수 있어요. 비워두면 제한이 없습니다. 막혔을 때는 서버에서 <code>sudo /opt/chost/chost --clear-ip-whitelist</code></div>
+              <div style="font-size:12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span><span data-i18n="ipw_current">현재 접속 IP</span>: <strong id="ipw-current">-</strong></span> <button class="btn btn-sm" onclick="ipwAddMine()" data-i18n="ipw_add_mine">내 IP 추가</button></div>
+              <textarea id="ipw-list" rows="4" placeholder="203.0.113.10&#10;198.51.100.0/24"></textarea>
+              <div id="ipw-msg" style="font-size:12px;min-height:16px;margin:8px 0"></div>
+              <button class="btn btn-primary btn-sm" onclick="ipwSave()" data-i18n="btn_save">저장</button>
+            </div>
+            <div class="card" style="margin-bottom:0">
+              <h3 style="margin-bottom:10px;font-size:15px" data-i18n="entry_title">🚪 보안 접속 경로</h3>
+              <div class="guide-sky" data-i18n="guide_entry">💡 설정하면 <code>http://서버IP:포트/</code> 대신 <strong>정해 둔 비밀 주소</strong>로만 로그인 화면이 열립니다. 주소를 잊으면 서버에서 <code>sudo /opt/chost/chost --show-entry</code> (해제: <code>--reset-entry</code>)</div>
+              <div class="row"><input id="entry-path" oninput="updateEntryUrl()" placeholder="/my-secret-path" /><button class="btn btn-sm" onclick="entryRandom()" data-i18n="entry_random">랜덤 생성</button></div>
+              <div style="font-size:12px;margin:8px 0;word-break:break-all"><span data-i18n="entry_url">접속 주소</span>: <code id="entry-url">-</code></div>
+              <div id="entry-msg" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="entrySave()" data-i18n="btn_save">저장</button>
+                <button class="btn btn-sm" onclick="entryClear()" data-i18n="entry_clear">경로 해제</button>
+              </div>
+            </div>
+          </div>
+
           <div class="card">
             <h3 style="margin-bottom:10px;font-size:15px" data-i18n="audit_title">보안 감사 로그</h3>
             <table>
@@ -496,10 +538,19 @@ async function checkAuth() {
 }
 async function doLogin() {
   const password = document.getElementById('login-pw').value;
-  const r = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) });
+  const otpEl = document.getElementById('login-otp');
+  const body = { password };
+  if (!otpEl.classList.contains('hidden')) body.otp = otpEl.value.trim();
+  const r = await api('/api/auth/login', { method: 'POST', body: JSON.stringify(body) });
   if (r.success) location.reload();
   else {
     const el = document.getElementById('login-err');
+    if (r.code === 'otp_required') {
+      otpEl.classList.remove('hidden');
+      otpEl.focus();
+      el.textContent = t('login_otp_needed', '📱 OTP 앱의 6자리 코드를 입력하세요.');
+      return;
+    }
     if (r.code === 'login_locked') el.textContent = t('login_locked', '로그인 실패가 너무 많아 잠겼습니다. {min}분 후 다시 시도하세요.').replace('{min}', Math.max(1, Math.ceil((r.retry_after || 900) / 60)));
     else if (typeof r.attempts_left === 'number') el.textContent = (r.error || 'Login failed') + ' ' + t('login_attempts_left', '(남은 시도: {n}회)').replace('{n}', r.attempts_left);
     else el.textContent = r.error || 'Login failed';
@@ -538,7 +589,7 @@ async function loadLocale(lang) {
   }
 }
 function showTab(name, btn) {
-  if (name === 'security') { loadAlertSettings(); loadFirewall(); }
+  if (name === 'security') { loadAlertSettings(); loadFirewall(); loadSecurity(); }
   document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
   document.getElementById('tab-' + name).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -625,6 +676,88 @@ async function savePhpIni() {
   const msg = document.getElementById('sc-msg');
   msg.style.color = r.success ? '#6ee7b7' : '#fca5a5';
   msg.textContent = r.success ? t('ini_saved', '✅ php.ini 옵션이 적용되었습니다.') : (r.error || 'Failed');
+}
+async function loadSecurity() {
+  const r = await api('/api/security/settings');
+  if (!r || !r.success) return;
+  window.SEC = r;
+  const st = document.getElementById('tfa-state');
+  st.textContent = r.totp_enabled ? t('tfa_on', '사용 중') : t('tfa_off', '사용 안 함');
+  st.style.color = r.totp_enabled ? '#4ade80' : '#fcd34d';
+  document.getElementById('tfa-setup-box').classList.add('hidden');
+  document.getElementById('tfa-code-row').classList.toggle('hidden', !r.totp_enabled);
+  document.getElementById('tfa-pw').classList.toggle('hidden', !r.totp_enabled);
+  document.getElementById('tfa-btn-setup').classList.toggle('hidden', !!r.totp_enabled);
+  document.getElementById('tfa-btn-enable').classList.add('hidden');
+  document.getElementById('tfa-btn-disable').classList.toggle('hidden', !r.totp_enabled);
+  document.getElementById('tfa-code').value = '';
+  document.getElementById('tfa-pw').value = '';
+  document.getElementById('ipw-current').textContent = r.client_ip || '-';
+  document.getElementById('ipw-list').value = r.ip_whitelist || '';
+  document.getElementById('entry-path').value = r.secure_path || '';
+  updateEntryUrl();
+}
+function updateEntryUrl() {
+  const p = document.getElementById('entry-path').value.trim();
+  document.getElementById('entry-url').textContent = location.protocol + '//' + location.host + (p || '/');
+}
+async function tfaSetup() {
+  const r = await api('/api/security/2fa/setup', { method: 'POST', body: '{}' });
+  if (!r.success) { opsMsg('tfa-msg', false, r.error || 'Failed'); return; }
+  document.getElementById('tfa-qr').innerHTML = r.qr_svg;
+  document.getElementById('tfa-secret').textContent = r.secret;
+  document.getElementById('tfa-setup-box').classList.remove('hidden');
+  document.getElementById('tfa-code-row').classList.remove('hidden');
+  document.getElementById('tfa-pw').classList.add('hidden');
+  document.getElementById('tfa-btn-enable').classList.remove('hidden');
+  opsMsg('tfa-msg', true, t('tfa_scan', '📷 OTP 앱으로 QR을 스캔한 뒤 앱에 보이는 6자리 코드를 입력하고 [활성화]를 누르세요.'));
+}
+async function tfaEnable() {
+  const code = document.getElementById('tfa-code').value.trim();
+  const r = await api('/api/security/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) });
+  opsMsg('tfa-msg', r.success, r.success ? t('tfa_enabled_ok', '✅ 2단계 인증이 켜졌습니다. 다음 로그인부터 OTP 코드가 필요합니다.') : (r.error || 'Failed'));
+  if (r.success) loadSecurity();
+}
+async function tfaDisable() {
+  const body = { password: document.getElementById('tfa-pw').value, code: document.getElementById('tfa-code').value.trim() };
+  const r = await api('/api/security/2fa/disable', { method: 'POST', body: JSON.stringify(body) });
+  opsMsg('tfa-msg', r.success, r.success ? t('tfa_disabled_ok', '✅ 2단계 인증이 해제되었습니다.') : (r.error || 'Failed'));
+  if (r.success) loadSecurity();
+}
+function ipwAddMine() {
+  const ta = document.getElementById('ipw-list');
+  const ip = (window.SEC || {}).client_ip;
+  if (!ip) return;
+  const cur = ta.value.split(/[\s,]+/).filter(Boolean);
+  if (!cur.includes(ip)) ta.value = (cur.length ? cur.join('\n') + '\n' : '') + ip;
+}
+async function ipwSave() {
+  const r = await api('/api/security/whitelist', { method: 'POST', body: JSON.stringify({ list: document.getElementById('ipw-list').value }) });
+  opsMsg('ipw-msg', r.success, r.success ? (r.list ? t('ipw_saved', '✅ 저장되었습니다. 목록에 있는 IP에서만 패널에 접속할 수 있어요.') : t('ipw_cleared', '✅ IP 제한이 해제되었습니다.')) : (r.error || 'Failed'));
+  if (r.success) document.getElementById('ipw-list').value = r.list || '';
+}
+function entryRandom() {
+  const c = 'abcdefghijkmnpqrstuvwxyz23456789';
+  let p = '/';
+  const a = new Uint32Array(10);
+  crypto.getRandomValues(a);
+  a.forEach(v => { p += c[v % c.length]; });
+  document.getElementById('entry-path').value = p;
+  updateEntryUrl();
+}
+async function entrySave() {
+  const p = document.getElementById('entry-path').value.trim();
+  if (!p) { entryClear(); return; }
+  const url = location.protocol + '//' + location.host + p;
+  if (!confirm(t('entry_confirm', '저장하면 아래 주소로만 로그인 화면이 열립니다. 주소를 꼭 메모해 두세요!') + '\n\n' + url)) return;
+  const r = await api('/api/security/entry', { method: 'POST', body: JSON.stringify({ path: p }) });
+  opsMsg('entry-msg', r.success, r.success ? t('entry_saved', '✅ 저장되었습니다. 새 주소로 이동합니다...') : (r.error || 'Failed'));
+  if (r.success) setTimeout(() => { location.href = r.path; }, 1500);
+}
+async function entryClear() {
+  const r = await api('/api/security/entry', { method: 'POST', body: JSON.stringify({ path: '' }) });
+  opsMsg('entry-msg', r.success, r.success ? t('entry_cleared', '✅ 보안 경로가 해제되었습니다. 기본 주소(/)로 이동합니다...') : (r.error || 'Failed'));
+  if (r.success) setTimeout(() => { location.href = '/'; }, 1500);
 }
 let _dashSitesTs = 0;
 async function loadDashSites(force) {

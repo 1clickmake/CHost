@@ -1,8 +1,12 @@
 mod db;
 mod engine;
 mod ops;
+mod security;
 
 use axum::{
+    extract::Request,
+    http::Uri,
+    middleware::Next,
     extract::{ConnectInfo, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{Html, IntoResponse, Response},
@@ -73,6 +77,8 @@ struct Claims {
 #[derive(Debug, Deserialize)]
 struct LoginReq {
     password: String,
+    #[serde(default)]
+    otp: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -226,6 +232,10 @@ async fn handle_login(
 ) -> Response {
     let ip = client_ip(&addr, &headers);
     let now = Utc::now().timestamp();
+    let entry = state.db.get_setting("secure_path", "");
+    if !entry.is_empty() && cookie_val(&headers, "chost_entry").as_deref() != Some(security::entry_token(&state.jwt_secret, &entry).as_str()) {
+        return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "error": "Not found" }))).into_response();
+    }
     {
         let g = state.login_guard.lock().unwrap();
         if let Some(e) = g.get(&ip) {
@@ -246,42 +256,20 @@ async fn handle_login(
     }
     let stored = state.db.get_setting("admin_pw_hash", "");
     if !verify_password(&stored, req.password.trim()) {
-        let (locked, left) = {
-            let mut g = state.login_guard.lock().unwrap();
-            let e = g.entry(ip.clone()).or_default();
-            if now - e.window_start > LOGIN_WINDOW_SECS {
-                e.fails = 0;
-                e.window_start = now;
-            }
-            e.fails += 1;
-            let left = LOGIN_MAX_FAILS.saturating_sub(e.fails);
-            if e.fails >= LOGIN_MAX_FAILS {
-                e.locked_until = now + LOGIN_LOCK_SECS;
-                e.fails = 0;
-                (true, 0)
-            } else {
-                (false, left)
-            }
-        };
-        state.db.log_audit("anonymous", "LOGIN_FAILED", "panel", &format!("Invalid password attempt from {}", ip));
-        if locked {
-            state.db.log_audit("system", "LOGIN_LOCKED", "panel", &format!("{} locked for {} min", ip, LOGIN_LOCK_SECS / 60));
+        return login_fail_response(&state, &ip, now, "Invalid password.");
+    }
+    if state.db.get_setting("totp_enabled", "0") == "1" {
+        let otp = req.otp.clone().unwrap_or_default();
+        if otp.trim().is_empty() {
             return (
-                StatusCode::TOO_MANY_REQUESTS,
-                Json(json!({
-                    "success": false,
-                    "code": "login_locked",
-                    "retry_after": LOGIN_LOCK_SECS,
-                    "error": format!("Too many failed attempts. Try again in {} min.", LOGIN_LOCK_SECS / 60)
-                })),
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "success": false, "code": "otp_required", "error": "OTP code required." })),
             )
                 .into_response();
         }
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({ "success": false, "error": "Invalid password.", "attempts_left": left })),
-        )
-            .into_response();
+        if !security::totp_check(&state.db.get_setting("totp_secret", ""), &otp) {
+            return login_fail_response(&state, &ip, now, "Invalid OTP code.");
+        }
     }
     state.login_guard.lock().unwrap().remove(&ip);
     if !stored.starts_with("$argon2") {
@@ -1987,6 +1975,284 @@ async fn handle_php_ini_save(
     }
 }
 
+fn cookie_val(headers: &HeaderMap, name: &str) -> Option<String> {
+    let hdr = headers.get(header::COOKIE)?.to_str().ok()?;
+    let prefix = format!("{}=", name);
+    hdr.split(';').map(|p| p.trim()).find_map(|p| p.strip_prefix(prefix.as_str()).map(|v| v.to_string()))
+}
+
+fn login_fail_response(state: &AppState, ip: &str, now: i64, msg: &str) -> Response {
+    let (locked, left) = {
+        let mut g = state.login_guard.lock().unwrap();
+        let e = g.entry(ip.to_string()).or_default();
+        if now - e.window_start > LOGIN_WINDOW_SECS {
+            e.fails = 0;
+            e.window_start = now;
+        }
+        e.fails += 1;
+        let left = LOGIN_MAX_FAILS.saturating_sub(e.fails);
+        if e.fails >= LOGIN_MAX_FAILS {
+            e.locked_until = now + LOGIN_LOCK_SECS;
+            e.fails = 0;
+            (true, 0)
+        } else {
+            (false, left)
+        }
+    };
+    state.db.log_audit("anonymous", "LOGIN_FAILED", "panel", &format!("{} ({})", msg, ip));
+    if locked {
+        state.db.log_audit("system", "LOGIN_LOCKED", "panel", &format!("{} locked for {} min", ip, LOGIN_LOCK_SECS / 60));
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({
+                "success": false,
+                "code": "login_locked",
+                "retry_after": LOGIN_LOCK_SECS,
+                "error": format!("Too many failed attempts. Try again in {} min.", LOGIN_LOCK_SECS / 60)
+            })),
+        )
+            .into_response();
+    }
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(json!({ "success": false, "error": msg, "attempts_left": left })),
+    )
+        .into_response()
+}
+
+fn not_found_page() -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Html("<!doctype html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1></body></html>"),
+    )
+        .into_response()
+}
+
+async fn serve_root(State(state): State<Arc<AppState>>) -> Response {
+    if !state.db.get_setting("secure_path", "").is_empty() {
+        return not_found_page();
+    }
+    serve_panel().await
+}
+
+async fn handle_fallback(State(state): State<Arc<AppState>>, uri: Uri) -> Response {
+    let entry = state.db.get_setting("secure_path", "");
+    let p = uri.path().trim_end_matches('/');
+    if !entry.is_empty() && p == entry {
+        let tok = security::entry_token(&state.jwt_secret, &entry);
+        let mut resp = serve_panel().await;
+        if let Ok(v) = header::HeaderValue::from_str(&format!(
+            "chost_entry={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000",
+            tok
+        )) {
+            resp.headers_mut().insert(header::SET_COOKIE, v);
+        }
+        return resp;
+    }
+    not_found_page()
+}
+
+async fn ip_guard(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let list = state.db.get_setting("ip_whitelist", "");
+    if !list.trim().is_empty() {
+        let ip = client_ip(&addr, req.headers());
+        if !security::ip_allowed(&list, &ip) {
+            return (StatusCode::FORBIDDEN, "403 Forbidden: this IP is not allowed to access the CHost panel.").into_response();
+        }
+    }
+    next.run(req).await
+}
+
+/// 서버에서 직접 실행하는 비상 복구 명령. (처리했으면 true)
+fn run_cli(db: &Database, args: &[String]) -> bool {
+    let cmd = args[0].as_str();
+    match cmd {
+        "--reset-2fa" => {
+            let _ = db.set_setting("totp_enabled", "0");
+            let _ = db.set_setting("totp_secret", "");
+            db.log_audit("cli", "TOTP_RESET", "panel", "2FA disabled from server console");
+            println!("2FA (OTP) has been disabled.");
+        }
+        "--clear-ip-whitelist" => {
+            let _ = db.set_setting("ip_whitelist", "");
+            db.log_audit("cli", "IP_WHITELIST_CLEAR", "panel", "cleared from server console");
+            println!("Panel IP whitelist cleared (all IPs allowed).");
+        }
+        "--reset-entry" => {
+            let _ = db.set_setting("secure_path", "");
+            db.log_audit("cli", "ENTRY_RESET", "panel", "secure entry path removed from server console");
+            println!("Secure entry path removed. The panel is available at /");
+        }
+        "--show-entry" => {
+            let p = db.get_setting("secure_path", "");
+            println!("{}", if p.is_empty() { "/".to_string() } else { p });
+        }
+        "--set-entry" => {
+            let want = args.get(1).map(|s| s.as_str()).unwrap_or("random");
+            let p = if want == "random" { security::random_entry() } else { want.to_string() };
+            if !security::valid_entry(&p) {
+                eprintln!("Invalid path. Use /letters-digits (4-40 chars), e.g. /my-panel-7x");
+                std::process::exit(2);
+            }
+            let _ = db.set_setting("secure_path", &p);
+            db.log_audit("cli", "ENTRY_SET", "panel", &p);
+            println!("{}", p);
+        }
+        "--help" | "-h" => {
+            println!("CHost panel\n  --reset-2fa            disable 2FA (OTP)\n  --clear-ip-whitelist   allow all IPs\n  --show-entry           print secure entry path\n  --set-entry [random|/path]\n  --reset-entry          remove secure entry path");
+        }
+        _ => return false,
+    }
+    true
+}
+
+#[derive(Deserialize)]
+struct TotpCodeReq {
+    #[serde(default)]
+    code: String,
+    #[serde(default)]
+    password: String,
+}
+
+#[derive(Deserialize)]
+struct WhitelistReq {
+    list: String,
+}
+
+#[derive(Deserialize)]
+struct EntryReq {
+    path: String,
+}
+
+async fn handle_security_get(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    Json(json!({
+        "success": true,
+        "totp_enabled": state.db.get_setting("totp_enabled", "0") == "1",
+        "ip_whitelist": state.db.get_setting("ip_whitelist", ""),
+        "secure_path": state.db.get_setting("secure_path", ""),
+        "client_ip": client_ip(&addr, &headers),
+        "panel_port": std::env::var("CHOST_PORT").unwrap_or_else(|_| "8800".to_string())
+    }))
+    .into_response()
+}
+
+async fn handle_totp_setup(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let secret = security::new_totp_secret();
+    let _ = state.db.set_setting("totp_pending", &secret);
+    let host = System::host_name().unwrap_or_else(|| "server".into());
+    let url = security::totp_url(&secret, &host);
+    Json(json!({ "success": true, "secret": secret, "url": url, "qr_svg": security::qr_svg(&url) })).into_response()
+}
+
+async fn handle_totp_enable(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<TotpCodeReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let pending = state.db.get_setting("totp_pending", "");
+    if pending.is_empty() || !security::totp_check(&pending, &req.code) {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "Invalid OTP code. Check the time on your phone and try again." }))).into_response();
+    }
+    let _ = state.db.set_setting("totp_secret", &pending);
+    let _ = state.db.set_setting("totp_enabled", "1");
+    let _ = state.db.set_setting("totp_pending", "");
+    state.db.log_audit("admin", "TOTP_ENABLE", "panel", "2FA enabled");
+    Json(json!({ "success": true })).into_response()
+}
+
+async fn handle_totp_disable(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<TotpCodeReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let stored = state.db.get_setting("admin_pw_hash", "");
+    if !verify_password(&stored, req.password.trim()) {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "Current password is incorrect." }))).into_response();
+    }
+    if !security::totp_check(&state.db.get_setting("totp_secret", ""), &req.code) {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "Invalid OTP code." }))).into_response();
+    }
+    let _ = state.db.set_setting("totp_enabled", "0");
+    let _ = state.db.set_setting("totp_secret", "");
+    state.db.log_audit("admin", "TOTP_DISABLE", "panel", "2FA disabled");
+    Json(json!({ "success": true })).into_response()
+}
+
+async fn handle_whitelist_save(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
+    Json(req): Json<WhitelistReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let list = match security::parse_ip_list(&req.list) {
+        Ok(v) => v,
+        Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": e }))).into_response(),
+    };
+    let joined = list.join("\n");
+    let me = client_ip(&addr, &headers);
+    if !list.is_empty() && !security::ip_allowed(&joined, &me) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "code": "self_lockout", "error": format!("Your current IP ({}) is not in the list. Add it first so you don't lock yourself out.", me) })),
+        )
+            .into_response();
+    }
+    let _ = state.db.set_setting("ip_whitelist", &joined);
+    state.db.log_audit("admin", "IP_WHITELIST", "panel", &if joined.is_empty() { "cleared".to_string() } else { joined.replace('\n', ", ") });
+    Json(json!({ "success": true, "list": joined })).into_response()
+}
+
+async fn handle_entry_save(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<EntryReq>,
+) -> Response {
+    if !is_authed(&state, &headers) {
+        return unauthorized();
+    }
+    let raw = req.path.trim();
+    let p = if raw == "random" { security::random_entry() } else { raw.trim_end_matches('/').to_string() };
+    if !p.is_empty() && !security::valid_entry(&p) {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "Invalid path. Use /letters-digits (4-40 chars), e.g. /my-panel-7x" }))).into_response();
+    }
+    let _ = state.db.set_setting("secure_path", &p);
+    state.db.log_audit("admin", "ENTRY_SET", "panel", if p.is_empty() { "removed" } else { &p });
+    let mut resp = Json(json!({ "success": true, "path": if p.is_empty() { "/".to_string() } else { p.clone() } })).into_response();
+    if !p.is_empty() {
+        if let Ok(v) = header::HeaderValue::from_str(&format!(
+            "chost_entry={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000",
+            security::entry_token(&state.jwt_secret, &p)
+        )) {
+            resp.headers_mut().insert(header::SET_COOKIE, v);
+        }
+    }
+    resp
+}
+
 async fn handle_site_health(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -3514,11 +3780,18 @@ echo "Update completed!"
 #[tokio::main]
 async fn main() {
     let data_dir = PathBuf::from(
-        std::env::var("CHOST_DATA_DIR").unwrap_or_else(|_| "data".to_string()),
+        std::env::var("CHOST_DATA_DIR").unwrap_or_else(|_| {
+            if FsPath::new("/var/lib/chost/chost.db").exists() { "/var/lib/chost".to_string() } else { "data".to_string() }
+        }),
     );
     let _ = fs::create_dir_all(&data_dir);
     let db_path = data_dir.join("chost.db");
     let db = Database::open(&db_path.to_string_lossy()).expect("Failed to open CHost DB");
+
+    let cli_args: Vec<String> = std::env::args().skip(1).collect();
+    if !cli_args.is_empty() && run_cli(&db, &cli_args) {
+        return;
+    }
 
     if db.get_setting("admin_pw_hash", "").is_empty() {
         let init_pw: String = rand::thread_rng()
@@ -3558,7 +3831,7 @@ async fn main() {
     spawn_alert_monitor(state.clone());
 
     let app = Router::new()
-        .route("/", get(serve_panel))
+        .route("/", get(serve_root))
         .route("/api/auth/me", get(handle_auth_me))
         .route("/api/auth/login", post(handle_login))
         .route("/api/auth/change-password", post(handle_change_password))
@@ -3586,6 +3859,12 @@ async fn main() {
     .route("/api/firewall/status", get(handle_firewall_status))
     .route("/api/firewall/apply", post(handle_firewall_apply))
     .route("/api/php/ini", get(handle_php_ini_get).post(handle_php_ini_save))
+    .route("/api/security/settings", get(handle_security_get))
+    .route("/api/security/2fa/setup", post(handle_totp_setup))
+    .route("/api/security/2fa/enable", post(handle_totp_enable))
+    .route("/api/security/2fa/disable", post(handle_totp_disable))
+    .route("/api/security/whitelist", post(handle_whitelist_save))
+    .route("/api/security/entry", post(handle_entry_save))
     .route("/api/webserver/migrate", post(handle_webserver_migrate))
     .route("/api/sites/{id}/git", get(handle_site_git_info))
     .route("/api/sites/{id}/git/update", post(handle_site_git_update))
@@ -3610,7 +3889,9 @@ async fn main() {
         .route("/api/panel/reset", post(handle_panel_reset))
         .route("/api/panel/version", get(handle_panel_version))
         .route("/api/panel/update", post(handle_panel_update))
+        .fallback(handle_fallback)
         .layer(CorsLayer::permissive())
+        .layer(axum::middleware::from_fn_with_state(state.clone(), ip_guard))
         .with_state(state);
 
     let port = std::env::var("CHOST_PORT").unwrap_or_else(|_| "8800".to_string());
